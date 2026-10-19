@@ -1229,6 +1229,14 @@ const SFX = {
   heavy(t){ nz(t,0.22,'bandpass',2000,420,0.5,1); tn(t,0.18,'sine',180,70,0.15); },
   hit(t){ tn(t,0.11,'sine',190,55,0.5); nz(t,0.07,'lowpass',2400,500,0.32); nz(t,0.05,'bandpass',3800,2200,0.16,2,0.002); tn(t,0.07,'triangle',95,45,0.3); },
   kill(t){ tn(t,0.26,'sine',140,38,0.6); nz(t,0.22,'lowpass',1600,200,0.42); nz(t,0.18,'bandpass',5200,2600,0.14,3,0.004); tn(t,0.4,'sine',58,30,0.35,0.01); },
+  clash(t){   // sword on sword: a hard strike transient, a short grind, and the ring of two steel bars (inharmonic partials, slightly detuned so they beat), varied every time
+    const k = 0.9 + Math.random()*0.2, base = 1180*k, ring = 0.85 + Math.random()*0.3;
+    nz(t, 0.02, 'highpass', 7500, 5000, 0.55, 0.7, 0.001);
+    nz(t + 0.004, 0.07 + Math.random()*0.07, 'bandpass', 5200*k, 2400*k, 0.2, 3.5, 0.002);
+    for (const [r, a, d] of [[1, 0.17, 0.6], [2.76, 0.11, 0.45], [5.4, 0.065, 0.3], [8.93, 0.035, 0.18]]){
+      const f = base*r*(0.985 + Math.random()*0.03); tn(t, d*ring, 'sine', f, f*0.994, a, 0.001); tn(t, d*ring*0.8, 'sine', f*1.005, f*0.999, a*0.45, 0.001); }
+    tn(t, 0.09, 'triangle', 300*k, 150*k, 0.16, 0.002);
+  },
   clang(t){ nz(t,0.05,'highpass',5000,3000,0.28); for (const [f,a,d] of [[1180,0.12,0.38],[1770,0.08,0.5],[2650,0.06,0.42],[3930,0.04,0.3],[5210,0.025,0.22]]) tn(t,d,'sine',f,f*0.985,a,0.002); },
   parry(t){ tn(t,0.7,'triangle',1760,1720,0.22); tn(t,0.6,'sine',2640,2610,0.12); tn(t,0.5,'sine',3530,3500,0.07); tn(t,0.9,'sine',880,875,0.08); nz(t,0.08,'highpass',6000,3000,0.35); },
   hurt(t){ tn(t,0.18,'sawtooth',230,90,0.15); nz(t,0.1,'lowpass',900,200,0.3); },
@@ -2531,7 +2539,7 @@ function updatePlayer(dt){
     const fists = ST.sword.fist;
     if (fists && held.down && P.onG && !P.atk) P.crouching = true;
     const blocking = held.block && !shBusy && P.onG && !P.atk && P.hurtT < 0.15;
-    if (blocking){ P.blockT = P.blockT < 0 ? 0 : P.blockT + dt; mv = 0; } else P.blockT = -1;
+    if (blocking){ if (P.blockT < 0) P.blkKey = (P.blkKey || 0) + 1; P.blockT = P.blockT < 0 ? 0 : P.blockT + dt; mv = 0; } else P.blockT = -1;
     if (P.crouching) mv = 0;
     const target = mv * 290 * ST.spd * (P.atk ? 0.3 : 1) * ((hasAbil('lastStand') && P.hp/P.maxHp < 0.35) ? 1.15 : 1);
     if (!P.fly) P.vx += (target - P.vx) * Math.min(1, dt * (P.onG ? 16 : 7));   // in flight the boosters steer instead (see below)
@@ -2784,6 +2792,7 @@ function slashHits(who, A, mult){
   for (const e of G.E){
     if (A.hit.size >= cleave) break;
     if (e.dead || A.hit.has(e)) continue;
+    if (e.remote && A.clashed) continue;   // duel: this cut was turned aside by the rival's blade
     const dx = (e.x - who.x) * who.face;
     const reach = d.range + 12*e.size;
     const vtol = 46 + 20*e.size + (sw.wide ? 25 : 0) + (e.onG ? 0 : 95);
@@ -4237,6 +4246,7 @@ function formClipKeys(F){
 }
 /* where the clip is now: negative during the concentration freeze, then form time (phase clips: up / down progress) */
 function formClipTime(e, F, ks){
+  if (F.wait && F.cineLeft != null) return -F.cineLeft*(ks.cm/(F.cm || ks.cm || 0.24));   // the rival's concentration, as their page reports it
   if (F.wait) return -((typeof G !== 'undefined' && G.cine) ? Math.max(0, G.cine.t) : 0);
   return F.t;
 }
@@ -4439,6 +4449,7 @@ function getPose(e){
     if (O.p.offT && !gunAim(e) && !e.vthrow && !(e.sword && e.sword.dual)){ P_.offT = O.p.offT; P_.offW = (O.p.offW || 0)*(1 - k); P_.offHand = O.p.offHand; P_.offCurl = O.p.offCurl; }
     if (O.p.legs && e.onG !== false){ P_.legs = O.p.legs; P_.legW = (O.p.legW || 0)*(1 - k); }
   }
+  if (e.clashV) applyClashPose(e, P_);   // a duel clash: the blade kicks back (visual only)
   if (e.isPlayer && e.sheath) sheathPose(e, P_);
   return P_;
 }
@@ -6366,6 +6377,7 @@ function drawRibbons(){
   ctx.globalAlpha = 1;
 }
 function drawImpacts(){
+  drawClashGlow();
   ctx.lineCap='round';
   for (const q of G.impacts){
     const a = q.life/q.max, r = 26*q.size*(1.3-a*0.3);
@@ -6787,6 +6799,7 @@ function step(dt){
   for (const r of G.ribbon) r.life -= dt*(G.cine ? 0.15 : 1);
   G.ribbon = G.ribbon.filter(r=>r.life>0);
   for (const q of G.impacts) q.life -= dt; G.impacts = G.impacts.filter(q=>q.life>0);
+  if (G.clashGlow && G.clashGlow.length){ for (const q of G.clashGlow) q.life -= dt; G.clashGlow = G.clashGlow.filter(q => q.life > 0); }
   for (const q of G.suns) q.life -= dt; G.suns = G.suns.filter(q=>q.life>0);
   for (const q of G.cracks) q.life -= dt; G.cracks = G.cracks.filter(q=>q.life>0);
   updateLanding(dt);
@@ -8125,7 +8138,7 @@ $('placeBtn').onclick = (ev) => { G.freeTheme = (G.freeTheme + 1) % 4; G.theme =
    the defender decides block, parry and dodge. The host runs the rounds.
    ========================================================= */
 const NET = { lobby:null, room:null, code:null, role:null, oppPeer:null, opp:null, oppName:'Rival', events:[], evSeq:0, lastOppSeq:0,
-  phase:'off', phaseT:0, round:0, wins:[0,0], rm:false, mySlow:false, oppSlow:false, hb:0, started:false, rewarded:false, unsub:[], waitT:0, lastPhaseShown:null, myPeer:null, netProj:[], netHaz:[] };
+  phase:'off', phaseT:0, round:0, wins:[0,0], rm:false, mySlow:false, oppSlow:false, hb:0, started:false, rewarded:false, unsub:[], waitT:0, lastPhaseShown:null, myPeer:null, netProj:[], netHaz:[], clashSeen:new Set(), clashedSw:new Set(), held:[], hist:[], clashT:-9, metalT:-9, lastPres:null, ow:0.06, echo:null };
 let ROOM = null;
 const roomReady = (async () => { try { if (window.claude && window.claude.use) ROOM = await window.claude.use('room'); } catch(e){ ROOM = null; } })();
 const PVP_TAKE = 0.55;            // incoming damage multiplier in duels
@@ -8246,7 +8259,8 @@ function resetRound(){
   P.hp = P.maxHp; P.dead = false; P.x = host ? 900 : 1500; P.y = GROUND; P.face = host ? 1 : -1; P.vx = P.vy = 0;
   P.focus = 100; P.breath = G.ST.breathMax*0.5; P.form = null; P.atk = null; P.stunT = 0; P.inv = 0; P.dashT = 0; P.kunai = 3;
   G.proj = []; G.haz = []; G.debris = []; G.comboN = 0; G.clone = null; slowToggled = false; document.querySelector('.tb.slow').classList.remove('held');
-  const D = G.E.find(e => e.remote); if (D){ D.down = false; D.x = D.tx = host ? 1500 : 900; D.hp = D.maxHp; }
+  const D = G.E.find(e => e.remote); if (D){ D.down = false; D.x = D.tx = host ? 1500 : 900; D.hp = D.maxHp; D.clashV = null; D.atk = null; D.form = null; D.clipOut = D.formOut = null; }
+  P.clashV = null; NET.clashSeen = new Set(); NET.clashedSw = new Set(); NET.held = []; NET.hist = []; NET.prevR = null; NET.clashT = -9; NET.metalT = -9;
   G.camX = clamp(P.x - VW*0.42 + P.face*60, 0, Math.max(0, G.worldW - VW));
 }
 function sendEvent(ev){ ev.s = ++NET.evSeq; ev.rn = NET.round; NET.events.push(ev); if (NET.events.length > 10) NET.events.shift(); }
@@ -8254,18 +8268,30 @@ function sendEvent(ev){ ev.s = ++NET.evSeq; ev.rn = NET.round; NET.events.push(e
 function remoteHit(e, dmg, o){
   if (NET.phase !== 'fight' || e.down) return false;
   const P = G.P;
+  // a plain cut while the rival's blade is live may still lose to a clash: hold it briefly (see clashHold)
+  if (o.src === 'slash' && P.atk && !o._held){
+    const sw = clashSwingId(P, 'a'), key = (NET.role === 'host' ? 'h' : 'g') + sw;
+    if (NET.clashedSw.has(key)) return true;
+    clashHold(key, () => { if (NET.phase === 'fight' && !e.down) remoteHit(e, dmg, Object.assign({}, o, { _held:true, _sw:sw })); }, 'attacker');
+    return true;
+  }
   const dir = o.kbAway ? sign(e.x - P.x) : (o.dir || P.face);
   const sid = (o.src === 'form' && P.form && P.form.sid) ? P.form.sid : '';
-  sendEvent({ k:'hit', d:Math.round(dmg*10)/10, dir, h:o.heavy ? 1 : 0, src:o.src || 'slash', st:o.stun || 0, la:o.launch || 0, kb:Math.round(o.kb || 0), sid });
-  e.flash = 0.1;
+  sendEvent({ k:'hit', d:Math.round(dmg*10)/10, dir, h:o.heavy ? 1 : 0, src:o.src || 'slash', st:o.stun || 0, la:o.launch || 0, kb:Math.round(o.kb || 0), sid, sw:o._sw || '' });
+  // the rival is visibly guarding against this blow: no flesh-hit flash, blood or hit sound here. Their page decides
+  // block or parry and its reply ('blk' / 'parried') brings the steel feedback (forms can't be blocked, so they always show)
+  const guarded = o.src !== 'form' && e.blockT >= 0 && e.face === sign(P.x - e.x);
+  if (!guarded) e.flash = 0.1;
   if (!o.quiet){
     const ey = e.y - 34;
-    impactFx(e.x - dir*6, ey, sid ? STYLE_FX[sid].cols[0] : G.ST.trail, o.heavy ? 1.5 : 1);
-    if (sid) styleImpact(sid, e.x, ey, !!o.heavy);
-    sfx('hit'); if (o.heavy){ sfx('kill'); vib(20); zoomPunch(1.03); }
+    if (!guarded){
+      impactFx(e.x - dir*6, ey, sid ? STYLE_FX[sid].cols[0] : G.ST.trail, o.heavy ? 1.5 : 1);
+      if (sid) styleImpact(sid, e.x, ey, !!o.heavy);
+      sfx('hit'); if (o.heavy){ sfx('kill'); vib(20); zoomPunch(1.03); }
+      burst(e.x, ey, o.heavy ? 12 : 7, '#C8102E', 300, 3.5, true);
+    }
     comboHit();
     G.hitstop = Math.max(G.hitstop, o.heavy ? 0.06 : 0.03); G.shake = Math.max(G.shake, o.heavy ? 7 : 4);
-    burst(e.x, ey, o.heavy ? 12 : 7, '#C8102E', 300, 3.5, true);
   }
   if (o.src === 'slash') P.breath = Math.min(G.ST.breathMax, P.breath + 5);
   return true;
@@ -8273,6 +8299,10 @@ function remoteHit(e, dmg, o){
 /* the rival says they hit me */
 function applyNetHit(ev){
   const P = G.P; if (!P || P.dead || NET.phase !== 'fight') return;
+  // a hit from a swing that clashed with my blade never lands; while my own blade is live it waits briefly for that verdict
+  if (typeof ev.sw === 'string' && ev.sw){ const key = (NET.role === 'host' ? 'g' : 'h') + ev.sw.slice(0, 16);
+    if (NET.clashedSw.has(key)) return;
+    if (!ev._held){ const rn = ev.rn; clashHold(key, () => { if (NET.round === rn) applyNetHit(Object.assign({}, ev, { _held:true })); }, 'defender'); return; } }
   const D = G.E.find(e => e.remote);
   const dir = ev.dir === -1 ? -1 : 1;
   const dmgIn = okNum(ev.d, 0, 250, 0), st = okNum(ev.st, 0, 2, 0), la = okNum(ev.la, 0, 900, 0), kb = okNum(ev.kb, 0, 700, 200);
@@ -8287,12 +8317,12 @@ function applyNetHit(ev){
   if (ev.src !== 'form' && P.blockT >= 0 && P.face === fromSide){
     if (P.blockT < G.ST.parry){
       sendEvent({ k:'parried' });
-      impactFx(P.x + P.face*20, P.y-44, '#FFE7A8', 2); sparks(P.x + P.face*20, P.y-44); sfx('parry'); flash('#FFFFFF', 0.3); zoomPunch(1.05); vib(40);
+      impactFx(P.x + P.face*20, P.y-44, '#FFE7A8', 2); if (G.time - NET.metalT > metalWin()) sparks(P.x + P.face*20, P.y-44); NET.metalT = G.time; sfx('parry'); flash('#FFFFFF', 0.3); zoomPunch(1.05); vib(40);
       toast('Parry', 0.5); track('parry'); P.breath = Math.min(G.ST.breathMax, P.breath + 25);
       return;
     }
     const chip = dmgIn*PVP_TAKE*0.2; P.hp -= chip;
-    sendEvent({ k:'blk' }); sparks(P.x + P.face*20, P.y-44); sfx('clang'); vib(15); P.vx = -P.face*200;
+    sendEvent({ k:'blk' }); if (G.time - NET.metalT > metalWin()){ const m = bladeMeetPoint() || [P.x + P.face*20, P.y-44]; sparks(m[0], m[1]); sfx('clang'); NET.metalT = G.time; } vib(15); P.vx = -P.face*200;
     if (P.hp <= 0) netDie();
     return;
   }
@@ -8358,26 +8388,49 @@ function netSyncIn(dt){
   D.hp = okNum(p.hp, 0, 1000, D.hp); D.maxHp = okNum(p.mhp, 1, 1000, PVP_HP);
   D.blockT = p.bl ? 0.5 : -1; D.dashT = p.da ? 0.1 : 0; D.hurtT = p.hu ? 0.2 : 0; D.state = p.st ? 'stun' : 'idle';
   NET.oppSlow = !!p.sl;
-  // their attack
+  // their attack: played on its own clock from its first frame (so the wind-up shows), at most 0.12 s behind their
+  // real time, catching up smoothly; when it ends over there it still finishes (and blends out) here
+  const fresh = p !== NET.lastPres; NET.lastPres = p;
+  D.flash = Math.max(0, (D.flash || 0) - dt);   // the hit flash fades (it never did for the rival: they stayed a white silhouette after the first hit)
+  if (fresh){   // one-way delay from the echo of my own timestamp (round trip minus how long they held it, halved)
+    if (typeof p.ts === 'number') NET.echo = { ts:p.ts, at:performance.now() };
+    if (Array.isArray(p.ec) && typeof p.ec[0] === 'number' && typeof p.ec[1] === 'number'){
+      const rtt = performance.now() - p.ec[0] - p.ec[1];
+      if (rtt > 0 && rtt < 2000){ const ow = rtt/2000; NET.ow = clamp(lerp(NET.ow, ow, 0.15), 0, 0.4); } } }
+  D.blkKey = okNum(p.bk, 0, 1e9, D.blkKey || 0);
+  if (D.clipOut){ D.clipOut.t += dt; if (D.clipOut.t >= D.clipOut.dur) D.clipOut = null; }
+  if (D.formOut){ D.formOut.t += dt; if (D.formOut.t >= D.formOut.dur) D.formOut = null; }
+  const endAtk = () => { if (D.atk && clipWeapon(D) && clipOf(D)) D.clipOut = { t:0, dur:0.22, p:getPose(D) }; D.atk = null; };
   if (Array.isArray(p.atk)){
     const combo = comboFor(D.sword), i = okNum(p.atk[0], 0, 9, 0) % combo.length, t = okNum(p.atk[1], 0, 2, 0), key = p.atk[2];
-    if (!D.atk || D.atkKey !== key){ D.atkKey = key; D.atk = { i, d:combo[i], t, slashed:false }; sfx(combo[i].heavy ? 'heavy' : 'swish'); }
-    else D.atk.t = Math.max(D.atk.t + dt, t);
-    const d = D.atk.d;
+    if (!D.atk || D.atkKey !== key){ if (D.atk) endAtk(); D.atkKey = key; D.atk = { i, d:combo[i], t:0, rt:t, rW:wallS(), live:true, slashed:false }; sfx(combo[i].heavy ? 'heavy' : 'swish'); }
+    else { if (fresh){ D.atk.rt = t; D.atk.rW = wallS(); } D.atk.live = true;
+      const real = D.atk.rt + (wallS() - D.atk.rW) + NET.ow, lag = real - D.atk.t;   // where their swing really is now
+      D.atk.t += dt*(1 + clamp(lag*8, 0, 1.2)); if (real - D.atk.t > 0.15) D.atk.t = real - 0.15; }
+  } else if (D.atk){ D.atk.live = false; D.atk.t += dt*1.25; if (D.atk.t >= D.atk.d.total || D.form) endAtk(); }
+  if (D.atk){ const d = D.atk.d;
     if (D.atk.t >= d.wind && !D.atk.slashed){ D.atk.slashed = true; G.slashes.push({ x:D.x, y:D.y-46, face:D.face, d, t:0, life:0.18, col:ENEMY_AURA }); }
-    if (D.atk.t >= d.wind*0.6 && D.atk.t <= d.wind + d.act + 0.04) recordRibbon(D, ENEMY_AURA, '#FF8A9A', 'slash', 0.14, d.heavy ? 3.5 : 2.5);
-  } else D.atk = null;
+    if (D.atk.t >= d.wind*0.6 && D.atk.t <= d.wind + d.act + 0.04) recordRibbon(D, ENEMY_AURA, '#FF8A9A', 'slash', 0.14, d.heavy ? 3.5 : 2.5); }
   // their breathing form
   if (Array.isArray(p.fm) && FORMS[p.fm[0]]){
-    const id = p.fm[0], sid = STYLES[p.fm[3]] ? p.fm[3] : '', key = p.fm[4];
+    const id = p.fm[0], sid = STYLES[p.fm[3]] ? p.fm[3] : '', key = p.fm[4], waitR = okNum(p.fm[5], 0, 1, 0), cmR = okNum(p.fm[6], 0.05, 1, 0.24);
     if (!D.form || D.formKey !== key){
-      D.formKey = key; D.form = { id, sid, t:0, phase:'', col: sid ? STYLES[sid].col : D.trailCol, wait:false };
+      if (D.form && formClipWeapon(D) && FORM_MAP[D.form.id]) D.formOut = { t:0, dur:0.24, p:getPose(D) };
+      if (D.atk){ if (clipWeapon(D) && clipOf(D)) D.clipOut = { t:0, dur:0.22, p:getPose(D) }; D.atk = null; }
+      D.formKey = key; D.form = { id, sid, t:0, phase:'', col: sid ? STYLES[sid].col : D.trailCol, wait:waitR > 0, cineLeft:waitR, cm:cmR, rt:0, rW:wallS() };
       if (sid){ const st = STYLES[sid], i = (+id.slice(-1)) - 1; if (st.forms[i]) showBanner(`${NET.oppName} — ${st.name}`, st.forms[i][0], `${ORD[i]} Form`, st.col); sfx(sid); }
       else if (id === 'dashslash') showBanner(NET.oppName, 'Dash Slash', 'Special', D.trailCol);
     }
-    D.form.t = okNum(p.fm[1], 0, 3, 0); D.form.phase = p.fm[2] === 'up' ? 'up' : 'down';
+    // their concentration (wind-up) and then the form on its own clock, like their attacks
+    const F = D.form;
+    if (F.wait){
+      if (fresh && waitR <= 0){ F.wait = false; F.cineLeft = 0; }
+      else F.cineLeft = Math.max(0, Math.min(F.cineLeft - dt, fresh ? waitR : 9)); }
+    if (!F.wait){ if (fresh && !(waitR > 0)){ F.rt = okNum(p.fm[1], 0, 3, 0); F.rW = wallS(); }
+      const real = F.rt + (wallS() - F.rW) + NET.ow, lag = real - F.t; F.t += dt*(1 + clamp(lag*8, 0, 1.2)); if (real - F.t > 0.15) F.t = real - 0.15; }
+    F.phase = p.fm[2] === 'up' ? 'up' : 'down'; if (F.phase === 'down' && F.tDown == null) F.tDown = F.t;
     if (sid){ styleAura(sid, D); recordRibbon(D, STYLES[sid].col, STYLE_FX[sid].edge, sid, 0.3, 3.5); }
-  } else D.form = null;
+  } else if (D.form){ if (formClipWeapon(D) && FORM_MAP[D.form.id]) D.formOut = { t:0, dur:0.24, p:getPose(D) }; D.form = null; }
   // their projectiles and hazards (drawn only; their hits arrive as events)
   NET.netProj = Array.isArray(p.pj) ? p.pj.slice(0,8).filter(a => Array.isArray(a) && ['kunai','wind','wave','reflect'].includes(a[0])) : [];
   NET.netHaz = Array.isArray(p.hz) ? p.hz.slice(0,10).filter(a => Array.isArray(a) && ['fire','moon','cage'].includes(a[0])) : [];
@@ -8394,8 +8447,10 @@ function netSyncIn(dt){
       NET.lastOppSeq = ev.s;
       if (ev.rn !== NET.round) continue;
       if (ev.k === 'hit') applyNetHit(ev);
-      else if (ev.k === 'parried'){ const P = G.P; P.stunT = 0.9; P.atk = null; P.form = null; sparks(D.x - D.face*-20, D.y-44); sfx('parry'); toast('Parried', 0.6); vib(40); }
-      else if (ev.k === 'blk'){ const P = G.P; sparks(D.x + D.face*18, D.y-44); sfx('clang'); P.vx = -P.face*160; pop(D.x, D.y-90, 'Blocked', '#FFE7A8'); }
+      else if (ev.k === 'parried'){ const P = G.P; P.stunT = 0.9; P.atk = null; P.form = null; if (G.time - NET.metalT > metalWin()) sparks(D.x - D.face*-20, D.y-44); NET.metalT = G.time; sfx('parry'); toast('Parried', 0.6); vib(40); }
+      else if (ev.k === 'blk'){ const P = G.P; if (G.time - NET.metalT > metalWin()){ const m = bladeMeetPoint() || [D.x + D.face*18, D.y-44]; sparks(m[0], m[1]); sfx('clang'); NET.metalT = G.time; } P.vx = -P.face*160; pop(D.x, D.y-90, 'Blocked', '#FFE7A8'); }
+      else if (ev.k === 'clash' && typeof ev.id === 'string' && ev.id.length < 48){
+        applyClash({ id:ev.id, h:String(ev.h || ''), g:String(ev.g || ''), x:okNum(ev.x, -500, G.worldW + 500, D.x), y:okNum(ev.y, -600, GROUND + 50, D.y - 40), a:okNum(ev.a, -10, 10, 0) }, false); }
     }
   }
 }
@@ -8408,7 +8463,9 @@ function netSyncOut(dt){
     x:Math.round(P.x), y:Math.round(P.y), vx:Math.round(P.vx), f:P.face, g:P.onG ? 1 : 0,
     hp:Math.max(0, Math.round(P.hp)), mhp:P.maxHp,
     atk: P.atk ? [P.atk.i, Math.round(P.atk.t*100)/100, P.atkKey || 0] : 0,
-    fm: (P.form && !P.form.wait) ? [P.form.id, Math.round(P.form.t*100)/100, P.form.phase || '', P.form.sid || '', P.formKey || 0] : 0,
+    ts: Math.round(performance.now()), ec: NET.echo ? [NET.echo.ts, Math.round(performance.now() - NET.echo.at)] : 0,
+    fm: P.form ? (P.form.wait ? [P.form.id, 0, '', P.form.sid || '', P.formKey || 0, G.cine ? Math.max(0.01, Math.round(G.cine.t*1000)/1000) : 0.01, G.cine ? G.cine.max : 0.24]
+                              : [P.form.id, Math.round(P.form.t*100)/100, P.form.phase || '', P.form.sid || '', P.formKey || 0]) : 0, bk: P.blkKey || 0,
     bl: P.blockT >= 0 ? 1 : 0, da: P.dashT > 0 ? 1 : 0, hu: P.hurtT > 0 ? 1 : 0, st: P.stunT > 0 ? 1 : 0,
     sl: NET.mySlow ? 1 : 0, sw: G.ST.swordId, sc: G.ST.scarf, tr: G.ST.trail, dead: P.dead ? 1 : 0, rn: NET.round,
     ev: NET.events, rm: NET.rm ? 1 : 0,
@@ -8443,9 +8500,244 @@ function netTick(dt){
     if (Array.isArray(op.wins)) NET.wins = [okNum(op.wins[0],0,9,0), okNum(op.wins[1],0,9,0)];
     NET.phaseT = okNum(op.pt, 0, 10, 0);
   }
+  clashTick(dt);
   duelPhaseUI();
   netSyncOut(dt);
 }
+/* =========================================================
+   DUEL SWORD CLASHES (online duel only)
+   Each client tests ITS OWN hero's blade against the rival's blade as drawn on its screen, every frame,
+   with a swept test between this frame and the last so a fast cut can't tunnel through. A clash is
+   identified by the PAIR OF SWINGS that met: the host's swing id and the guest's swing id ("a" attack,
+   "f" breathing form, "b" block, each with that player's own counter, all already shared in presence).
+   Both clients derive the same id for the same two swings, so whichever client sees the contact first
+   applies it and reports it as an event; the other client, seeing the same id (from its own detection or
+   from the event), never applies it again. Each client changes only its own hero (recoil, deflection),
+   exactly as attacks already work (the attacker decides hits, the defender decides blocks).
+   Latency: the rival's swing is known late (one-way delay). Two checks run every frame: PRESENT (my blade now
+   against the rival as drawn now, their swing played at their estimated real time) and REWIND (my blade as it was
+   one-way-delay ago, from a short history, against the rival's swing exactly as last reported). The one-way delay
+   is measured from a timestamp echo in presence. A hit that may be cancelled by a clash is held briefly so the
+   clash can win; a hit event names the swing it came from, and a defender ignores hits from a swing that clashed.
+   Rules: a plain sword attack that clashes is deflected: that swing can no longer damage the rival.
+   Breathing forms are never interrupted. A blocked blow is still resolved by the existing block / parry.
+   ========================================================= */
+const CLASH = {
+  contact: 4.5,       // blades closer than this (world units) are touching
+  contactGuard: 12,   // a raised guard covers a little more: a cut arriving within this of a blocking blade meets it
+  hilt: 0.2,          // the first 20% of a blade (hilt, hand) never counts
+  minFs: 0.4,         // a blade pointing into or out of the screen (shorter than 40%) is not in the fight plane
+  cooldown: 0.16,     // seconds between two clashes
+  recoil: 170,        // a deflected attacker slides back this fast (px/s)
+  hitstop: 0.055,     // local micro-pause (the rival's figure keeps moving: the online game never stops)
+  stale: 0.3,         // a report about a swing of mine that ended longer ago than this is dropped
+  defl: 0.5, deflDur: 0.24, push: 4,
+  hist: 0.6,          // seconds of my own blade history kept for the rewind check
+  holdMax: 0.3        // longest a hit may wait for a possible clash
+};
+const wallS = () => performance.now()/1000;
+/* which swing is this fighter in, and is its blade live */
+function clashKind(e){
+  if (e.atk && e.atk.d && !e.atk.d.fist){ const d = e.atk.d, t = e.atk.t; if (t >= d.wind*0.5 && t <= d.wind + d.act + 0.08) return 'a'; return null; }
+  if (e.form && !e.form.wait) return 'f';
+  if (e.blockT >= 0) return 'b';
+  return null;
+}
+function clashSwingId(e, k){ return k === 'a' ? 'a' + (e.atkKey || 0) : k === 'f' ? 'f' + (e.formKey || 0) : k === 'b' ? 'b' + (e.blkKey || 0) : ''; }
+/* the fighter's blades as world segments, hilt trimmed, with how much of the blade faces us */
+function clashBlades(e){
+  const out = [], sw = e.sword; if (!sw || sw.fist) return out;
+  const L = (sw.len || 36)*(e.size || 1);
+  for (const q of stickSegments(e)){
+    if (q[5] !== 'blade') continue;
+    const dx = q[2] - q[0], dy = q[3] - q[1], len = Math.hypot(dx, dy), fs = len/(L + 5*(e.size || 1));
+    out.push({ x0:q[0] + dx*CLASH.hilt, y0:q[1] + dy*CLASH.hilt, x1:q[2], y1:q[3], fs, main:q[7] === 'main' });
+  }
+  return out;
+}
+/* closest points of two segments: [distance, px, py] */
+function segSegClosest(a, b){
+  const d1x = a.x1 - a.x0, d1y = a.y1 - a.y0, d2x = b.x1 - b.x0, d2y = b.y1 - b.y0, rx = a.x0 - b.x0, ry = a.y0 - b.y0;
+  const A = d1x*d1x + d1y*d1y, E = d2x*d2x + d2y*d2y, F = d2x*rx + d2y*ry;
+  let s, t;
+  if (A < 1e-6 && E < 1e-6){ s = t = 0; }
+  else if (A < 1e-6){ s = 0; t = clamp(F/E, 0, 1); }
+  else { const C = d1x*rx + d1y*ry;
+    if (E < 1e-6){ t = 0; s = clamp(-C/A, 0, 1); }
+    else { const B = d1x*d2x + d1y*d2y, den = A*E - B*B; s = den > 1e-9 ? clamp((B*F - C*E)/den, 0, 1) : 0; t = (B*s + F)/E;
+      if (t < 0){ t = 0; s = clamp(-C/A, 0, 1); } else if (t > 1){ t = 1; s = clamp((B - C)/A, 0, 1); } } }
+  const px = a.x0 + d1x*s, py = a.y0 + d1y*s, qx = b.x0 + d2x*t, qy = b.y0 + d2y*t;
+  return [Math.hypot(px - qx, py - qy), (px + qx)/2, (py + qy)/2];
+}
+const lerpSeg = (p, c, s) => ({ x0:lerp(p.x0, c.x0, s), y0:lerp(p.y0, c.y0, s), x1:lerp(p.x1, c.x1, s), y1:lerp(p.y1, c.y1, s), fs:lerp(p.fs, c.fs, s), main:c.main });
+/* do these two fighters' blades touch now (or did they cross since the last frame)? -> {x, y, ang} or null */
+function bladeContact(A, B, ba, bb, pa, pb, reach){
+  let best = null; const lim = reach || CLASH.contact;
+  for (let i = 0; i < ba.length; i++) for (let j = 0; j < bb.length; j++){
+    const a1 = ba[i], b1 = bb[j], a0 = pa && pa[i] ? pa[i] : a1, b0 = pb && pb[j] ? pb[j] : b1;
+    for (const s of [0, 0.34, 0.67, 1]){
+      const a = lerpSeg(a0, a1, s), b = lerpSeg(b0, b1, s);
+      if (a.fs < CLASH.minFs || b.fs < CLASH.minFs) continue;
+      const [d, x, y] = segSegClosest(a, b);
+      if (d > lim) continue;
+      // both blades must meet in front of (or right at) their owners, never behind a back
+      if ((x - A.x)*A.face < -10 || (x - B.x)*B.face < -10) continue;
+      if (y > Math.max(A.y, B.y) + 6 || y < Math.min(A.y, B.y) - 130) continue;
+      if (!best || d < best.d){ const aa = Math.atan2(a.y1 - a.y0, a.x1 - a.x0), ab = Math.atan2(b.y1 - b.y0, b.x1 - b.x0);
+        best = { d, x, y, ang:(aa + ab)/2 + Math.PI/2 }; }
+    }
+  }
+  return best;
+}
+/* bookkeeping per fighter: last frame's blades, blade spin, tip speed, swing history */
+function clashTrack(e, blades, dt){
+  const m = blades.find(b => b.main) || blades[0], prev = e._clPrev;
+  e._clW = 0; e._clTip = 0;
+  if (m && prev){ const pm = prev.find(b => b.main) || prev[0];
+    if (pm){ let da = Math.atan2(m.y1 - m.y0, m.x1 - m.x0) - Math.atan2(pm.y1 - pm.y0, pm.x1 - pm.x0); while (da > Math.PI) da -= 2*Math.PI; while (da < -Math.PI) da += 2*Math.PI;
+      e._clW = da/Math.max(1e-3, dt); e._clTip = Math.hypot(m.x1 - pm.x1, m.y1 - pm.y1)/Math.max(1e-3, dt); } }
+  e._clPrevPrev = prev; e._clPrev = blades;
+}
+function clashNote(e, id){   // remember when each of my swings ended (to judge late reports)
+  const H = e._swH || (e._swH = { cur:'', ended:{} });
+  if (H.cur !== id){ if (H.cur) H.ended[H.cur] = G.time; H.cur = id; const ks = Object.keys(H.ended); if (ks.length > 12) delete H.ended[ks[0]]; }
+}
+/* the rival exactly as last reported, advanced only by the time since that report (their real state one delay ago) */
+function rivalAsReported(D){
+  const now = wallS(), o = Object.assign({}, D, { x:D.tx, y:D.ty, clashV:null, clipOut:null, formOut:null });
+  if (D.atk && D.atk.rW != null){ const t = D.atk.rt + (now - D.atk.rW); o.atk = Object.assign({}, D.atk, { t }); if (!D.atk.live) o.atk = null; }
+  if (D.form && D.form.rW != null && !D.form.wait){ o.form = Object.assign({}, D.form, { t:D.form.rt + (now - D.form.rW) }); }
+  return o;
+}
+function clashTick(dt){
+  const P = G.P, D = G.E.find(e => e.remote);
+  if (!P || !D) return;
+  const kp = clashKind(P), kd = clashKind(D), now = wallS();
+  const ms = clashSwingId(P, kp); clashNote(P, ms);
+  const bp = clashBlades(P), bd = clashBlades(D);
+  // last frame's blades sweep into this frame's only if the fighter did not jump (a teleport is not a swing)
+  const pp = Math.abs(P.x - (P._clPX ?? P.x)) < 30 ? P._clPrev : null, pd = Math.abs(D.x - (D._clPX ?? D.x)) < 30 ? D._clPrev : null;
+  P._clPX = P.x; D._clPX = D.x;
+  clashTrack(P, bp, dt); clashTrack(D, bd, dt);
+  // my blade history, for the rewind check
+  const H = NET.hist || (NET.hist = []); H.push({ w:now, k:kp, id:ms, b:bp, x:P.x, y:P.y, face:P.face, tip:P._clTip });
+  while (H.length && now - H[0].w > CLASH.hist) H.shift();
+  if (P.clashV){ P.clashV.t += dt; if (P.clashV.t >= P.clashV.dur) P.clashV = null; }
+  if (D.clashV){ D.clashV.t += dt; if (D.clashV.t >= D.clashV.dur) D.clashV = null; }
+  clashHeld(now);
+  if (NET.phase !== 'fight' || P.dead || D.down) return;
+  if (G.time - (NET.clashT || -9) < CLASH.cooldown) return;
+  if (Math.abs(P.x - D.x) > 260) return;
+  const pairId = (mine, theirs) => { const h = NET.role === 'host' ? mine : theirs, g = NET.role === 'host' ? theirs : mine; return { h, g, id:'c' + NET.round + ':' + h + '|' + g }; };
+  const ok = (k1, k2) => k1 && k2 && !(k1 === 'b' && k2 === 'b');
+  // PRESENT: what is on this screen now
+  if (ok(kp, kd)){
+    const ids = pairId(ms, clashSwingId(D, kd));
+    if (!NET.clashSeen.has(ids.id) && Math.max(kp !== 'b' ? P._clTip : 0, kd !== 'b' ? D._clTip : 0) >= 120){
+      const c = bladeContact(P, D, bp, bd, pp, pd, (kp === 'b' || kd === 'b') ? CLASH.contactGuard : 0);
+      if (c) return clashFound(ids, c, kp, kd, 'present');
+    }
+  }
+  // REWIND: my blade one delay ago against the rival as last reported
+  const R = rivalAsReported(D), kr = clashKind(R), ow = NET.ow || 0.06;
+  if (!kr || !H.length){ NET.prevR = null; return; }
+  let j = H.length - 1; while (j > 0 && H[j].w > now - ow) j--;
+  const me0 = H[j], me1 = H[Math.min(H.length - 1, j + 1)];
+  const mk = me0.k || me1.k; if (!ok(mk, kr)) return;
+  const ids = pairId(me0.k ? me0.id : me1.id, clashSwingId(R, kr));
+  if (NET.clashSeen.has(ids.id)) return;
+  const br = clashBlades(R), PR = NET.prevR; NET.prevR = { w:now, x:R.x, b:br };
+  const prevR = PR && now - PR.w < 0.1 && Math.abs(PR.x - R.x) < 30 && PR.b.length === br.length ? PR.b : null;
+  const ghost = { x:me0.x, y:me0.y, face:me0.face };
+  if (Math.max(mk !== 'b' ? (me0.tip || 0) : 0, kr !== 'b' ? 200 : 0) < 120) return;
+  const c = bladeContact(ghost, R, me1.b, br, Math.abs(me1.x - me0.x) < 30 ? me0.b : null, prevR, (mk === 'b' || kr === 'b') ? CLASH.contactGuard : 0);
+  if (c) clashFound(ids, c, mk, kr, 'rewind');
+}
+function clashFound(ids, c, mk, tk, how){
+  sendEvent({ k:'clash', id:ids.id, h:ids.h, g:ids.g, x:Math.round(c.x), y:Math.round(c.y), a:Math.round(c.ang*100)/100 });
+  applyClash({ id:ids.id, h:ids.h, g:ids.g, x:c.x, y:c.y, a:c.ang, how }, true);
+}
+/* hits that might still lose to a clash wait here (attacker side: my hit on the rival; defender side: their hit on me) */
+function clashHold(sw, fn, side){
+  const P = G.P, D = G.E.find(e => e.remote), now = wallS(), cut = (k) => k === 'a' || k === 'f';
+  // only a cut can void a cut: the attacker waits only while the rival's blade is cutting, the defender only while mine is
+  const wait = side === 'attacker' ? (D && (cut(clashKind(D)) || (D.atk && D.atk.live) || cut(clashKind(rivalAsReported(D)))))
+                                   : (P && (cut(clashKind(P)) || (NET.hist || []).some(h => cut(h.k) && h.w >= now - (NET.ow || 0.06) - 0.12)));   // was my blade cutting when they struck?
+  if (!wait) return fn();
+  const hold = Math.min(CLASH.holdMax, 2*(NET.ow || 0.06) + 0.06);
+  (NET.held || (NET.held = [])).push({ due:now + hold, sw, fn });
+}
+function clashHeld(now){
+  const L = NET.held; if (!L || !L.length) return;
+  NET.held = [];
+  for (const q of L){ if (NET.clashedSw.has(q.sw)) continue; if (now >= q.due) q.fn(); else NET.held.push(q); }
+}
+/* a clash happened (seen here, or reported by the rival): show it once, and move my own hero */
+function applyClash(ev, local){
+  if (NET.clashSeen.has(ev.id)) return;
+  NET.clashSeen.add(ev.id); if (NET.clashSeen.size > 64) NET.clashSeen.delete(NET.clashSeen.values().next().value);
+  const guard = ev.h[0] === 'b' || ev.g[0] === 'b';
+  if (!guard){ NET.clashedSw.add('h' + ev.h); NET.clashedSw.add('g' + ev.g); }   // a blocked blow is still decided by the block / parry
+  const P = G.P, D = G.E.find(e => e.remote); if (!P || !D) return;
+  if (D.atk && D.atk.rW != null){ const real = D.atk.rt + (wallS() - D.atk.rW) + (NET.ow || 0.06); if (real > D.atk.t) D.atk.t = Math.min(real, D.atk.d.total); }
+  const mine = NET.role === 'host' ? ev.h : ev.g, cur = clashSwingId(P, clashKind(P));
+  const H = P._swH || { ended:{} };
+  const live = mine === cur, recent = !live && H.ended[mine] != null && G.time - H.ended[mine] < CLASH.stale;
+  if (!live && !recent) return;                         // about a swing of mine long over: too late to show
+  NET.clashT = G.time;
+  let x = ev.x, y = ev.y, ang = ev.a;
+  if (!local){   // a reported clash: put it where the two blades are on THIS screen when they are close
+    const c = bladeContact(P, D, clashBlades(P), clashBlades(D), null, null) || (() => { let best = null;
+      for (const a of clashBlades(P)) for (const b of clashBlades(D)){ const r = segSegClosest(a, b); if (!best || r[0] < best[0]) best = r; }
+      return best && best[0] < 40 ? { x:best[1], y:best[2], ang:ev.a } : null; })();
+    if (c){ x = c.x; y = c.y; ang = c.ang; }
+  }
+  const myK = live ? clashKind(P) : null, blockish = myK === 'b' || clashKind(D) === 'b';
+  // one metal sound and one spark burst per moment: a block / parry that already rang here covers it
+  const rang = G.time - (NET.metalT || -9) < metalWin();
+  if (!(rang && blockish)){ clashFx(x, y, ang); sfx('clash'); NET.metalT = G.time; }
+  G.hitstop = Math.max(G.hitstop, CLASH.hitstop); G.shake = Math.max(G.shake, 3); vib(25);
+  // the blades bounce back against the way each was swinging
+  const bounce = (e) => { const w = (e._clW || 0)*(e.face || 1); return { t:0, dur:CLASH.deflDur, db:(Math.abs(w) > 2 ? -Math.sign(w) : -1)*CLASH.defl, push:CLASH.push }; };
+  if (live) P.clashV = bounce(P);
+  D.clashV = bounce(D);
+  if (live && myK === 'a' && !guard && P.atk){ P.atk.clashed = true; if (P.onG) P.vx = -P.face*CLASH.recoil; }   // my cut was turned aside
+}
+/* sparks from the point the steel met: a hot core, two fans of streaks along the contact, a few slow embers */
+function clashFx(x, y, ang){
+  impactFx(x, y, '#FFF6DC', 0.7);
+  for (const s of [0, Math.PI]) emit(x, y, { n:9, col:['#FFFFFF','#FFF2C0','#FFC24A'], spd:640, size:2.3, life:0.24, kind:'streak', g:1.2, dir:ang + s, spread:0.55 });
+  emit(x, y, { n:5, col:['#FFE7A8','#FF9A2A'], spd:170, size:2, life:0.4, g:1.4 });
+  G.clashGlow = G.clashGlow || []; G.clashGlow.push({ x, y, life:0.1, max:0.1 });
+}
+/* draw the small contact flash (inside the world transform) */
+function drawClashGlow(){
+  const L = G.clashGlow; if (!L || !L.length) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const q of L){ const k = q.life/q.max, r = 10 + 16*(1 - k);
+    const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r); g.addColorStop(0, `rgba(255,250,230,${0.9*k})`); g.addColorStop(1, 'rgba(255,200,120,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.fill(); }
+  ctx.restore();
+}
+/* the deflection on the pose (visual only): the blade kicks back against its swing and the hand gives a little */
+function applyClashPose(e, p){
+  const C = e.clashV, u = clamp(C.t/C.dur, 0, 1), k = u < 0.12 ? u/0.12 : Math.pow(1 - (u - 0.12)/0.88, 2);
+  if (!p.mainT){ p.mainT = poseHandOf(p); p.mainT[0] += clamp((e.vx || 0)*(e.face || 1), -200, 300)*0.0007*22; }   // same place stickSegmentsRaw puts it
+  p.mainT = [p.mainT[0] - C.push*k, p.mainT[1] - C.push*0.4*k];
+  p.b += C.db*k; p.exs = 1;
+  if (e.sword && e.sword.dual && p.b2 != null) p.b2 += C.db*0.8*k;
+}
+
+/* where the two blades are closest right now, if they are close: the place a block's sparks belong */
+function bladeMeetPoint(){
+  const P = G.P, D = G.E.find(e => e.remote); if (!P || !D) return null;
+  let best = null; for (const a of clashBlades(P)) for (const b of clashBlades(D)){ const r = segSegClosest(a, b); if (!best || r[0] < best[0]) best = r; }
+  return best && best[0] < 30 ? [best[1], best[2]] : null;
+}
+
+/* one metallic sound per meeting of blades: a block's clang after a guard clash (or the reverse) is the same moment */
+function metalWin(){ return Math.max(0.35, Math.min(0.8, 2*(NET.ow || 0.06) + 0.2)); }
+
 function duelPhaseUI(){
   const cd = $('countdown');
   if (NET.phase === 'count'){
