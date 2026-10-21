@@ -474,6 +474,14 @@ body.touch .rotOnly{display:inline-block}
 .touch #w3keysT{display:block}.touch #w3keysPC{display:none}
 @media (max-width:1000px){ #w3area{font-size:19px;top:calc(env(safe-area-inset-top,0px) + 14px)} }
 @media (max-height:480px){ #w3mini{width:110px;height:110px;top:calc(env(safe-area-inset-top,0px) + 58px)} #w3area{font-size:19px} #w3formBtns{right:calc(282px + env(safe-area-inset-right,0px))} #w3formBtns button{width:40px;height:40px} #w3obj{font-size:13px} #w3map h2{display:none} #w3map .lead{margin:0;font-size:14px} #w3map{gap:6px;padding:8px} }
+.dmode{gap:8px;flex-wrap:wrap}
+.dmode .sb{flex:1;min-width:160px}
+.dmode .sb.on{border-color:var(--coin);color:var(--coin)}
+#dCoopCfg{margin:6px 0 4px}
+.cwgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 12px;max-width:760px}
+.cwgrid label{display:flex;flex-direction:column;gap:3px;font-size:14px;opacity:.9}
+.cwgrid select{font:inherit;font-size:15px;padding:6px 8px;background:rgba(10,4,8,.6);color:var(--bone);border:1.5px solid rgba(251,239,224,.4)}
+.cwnote{font-size:14px;opacity:.75;margin:6px 0 0;max-width:640px}
 #wmap{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 62px);width:min(300px,36cqw);display:none;flex-direction:column;gap:4px;padding:6px 8px 7px;border:1.5px solid rgba(251,239,224,.35);background:rgba(10,4,8,.55);border-radius:2px;text-align:left;cursor:pointer;pointer-events:auto;z-index:5}
 #wmap.on{display:flex}
 #wmap:hover,#wmap:focus-visible{border-color:var(--coin)}
@@ -841,10 +849,23 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 </section>
 
 <section class="screen" id="duel">
-  <h2>Online duel</h2>
+  <h2>Play online</h2>
   <p class="lead" id="dLead">Fight a friend in real time, best of 3 rounds. Your Dojo sword, breathing style and abilities come with you. In a duel, slowing time uses the yellow focus bar, and it slows your rival's game while you stay at full speed.</p>
   <div id="dCtl">
     <div class="row"><input class="tin" id="dName" maxlength="16" placeholder="Your name" aria-label="Your name"></div>
+    <div class="row dmode" role="group" aria-label="What to play"><button class="sb on" id="dModeDuel" type="button" aria-pressed="true">Duel: fight each other</button><button class="sb" id="dModeCoop" type="button" aria-pressed="false">Co-op: fight together</button></div>
+    <div id="dCoopCfg" style="display:none">
+      <div class="cwgrid">
+        <label>Waves<select id="cwWaves"><option>3</option><option selected>5</option><option>10</option><option>20</option></select></label>
+        <label>Enemies<select id="cwSet"><option value="mixed">Mixed</option><option value="bandits">Bandits</option><option value="ninjas">Ninjas and assassins</option><option value="demons">Demons</option><option value="zombies">Zombies</option><option value="heavy">Heavies</option></select></label>
+        <label>Strength<select id="cwStr"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option><option value="nightmare">Nightmare</option></select></label>
+        <label>Bosses<select id="cwBoss"><option value="on">Every 5th and last wave</option><option value="off">None</option></select></label>
+        <label>Breathing forms<select id="cwForms"><option value="on">Allowed</option><option value="off">Off</option></select></label>
+        <label>Astras<select id="cwAstra"><option value="on">Allowed</option><option value="off">Off</option></select></label>
+        <label>Slow time<select id="cwSlow"><option value="on">Allowed</option><option value="off">Off</option></select></label>
+      </div>
+      <p class="cwnote">You choose, your friend joins with the code. A player who falls gets up when the wave is cleared.</p>
+    </div>
     <div class="btnrow"><button class="big primary" id="dCreate">Create duel</button></div>
     <div class="row"><input class="tin" id="dCode" maxlength="9" placeholder="code" aria-label="Duel code"><button class="big" id="dJoin">Join with code</button></div>
   </div>
@@ -2381,7 +2402,8 @@ function damageEnemy(e, dmg, o){
   const P = G.P; o = o || {};
   if (e.dead) return false;
   if (!sameLayer(e)) return false;
-  if (e.remote) return remoteHit(e, dmg, o);
+  if (e.puppet){ coopSendHit(e, dmg, o); return true; }
+  if (e.remote) return G.mode === 'coop' ? false : remoteHit(e, dmg, o);
   const dir = o.kbAway ? sign(e.x - P.x) : (o.dir || P.face);
   const facingP = sign(P.x - e.x) === e.face;
   if (e.state === 'roar') dmg *= 0.1;
@@ -2831,7 +2853,7 @@ function updatePlayer(dt){
 const DS_CD = 10, DS_MAX = 6;
 function nearestFoe(range){
   const P = G.P; let best = null, bd = range;
-  for (const e of G.E){ if (e.dead || !sameLayer(e)) continue; const d = Math.abs(e.x - P.x); if (d < bd && Math.abs(e.y - P.y) < 120){ bd = d; best = e; } }
+  for (const e of G.E){ if (e.dead || !sameLayer(e) || (e.remote && G.mode === 'coop')) continue; const d = Math.abs(e.x - P.x); if (d < bd && Math.abs(e.y - P.y) < 120){ bd = d; best = e; } }
   return best;
 }
 function tryDashSlash(){
@@ -3033,6 +3055,7 @@ $('fiOff').onclick = () => { SV.set.noFormCards = true; save(); closeFormIntro()
 function tryForm(i){
   const P = G.P, sid = G.ST.style;
   if (!sid || P.form || P.dead) return;
+  if (G.mode === 'coop' && !NET.coopCfg.forms){ if (G.time - (P.nbT||-9) > 0.9){ P.nbT = G.time; pop(P.x, P.y-90, 'Breathing forms are off in this co-op', '#9FD3F0'); } return; }
   if ((SV.styles[sid]||0) <= i) return;
   if (formLocked(i)) return;
   const st = STYLES[sid];
@@ -3085,7 +3108,7 @@ const FORM_DESC = {
   kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: an untouchable burning spin that leaves fire and water behind and launches enemies.', kaal3:'Still Eternity: time stops for everyone but you for 2.6 s. Every enemy and projectile freezes, and your hits on a frozen world deal +50%. Static field and iron body stay on you for 3 s.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
 };
 const FM = () => G.ST.formMult;
-const nearestEnemies = (x, maxD) => G.E.filter(e=>!e.dead && sameLayer(e) && Math.abs(e.x-x) < maxD).sort((a,b)=>Math.abs(a.x-x)-Math.abs(b.x-x));
+const nearestEnemies = (x, maxD) => G.E.filter(e=>!e.dead && sameLayer(e) && !(e.remote && G.mode === 'coop') && Math.abs(e.x-x) < maxD).sort((a,b)=>Math.abs(a.x-x)-Math.abs(b.x-x));
 const FORMS = {
   /* ---- Tide ---- */
   tide1:{ dur:0.5, pose:'flurry', start(P,F){ F.hits=0; F.tick=0; },
@@ -3912,6 +3935,7 @@ function hurtPlayer(dmg, kb, e, full){
   if (P.hp <= 0) playerDie();
 }
 function playerDie(){
+  if (G.mode === 'coop'){ coopDown(); return; }
   const P = G.P; if (P.dead) return;
   P.hp = 0; P.dead = true; P.form = null; P.sheath = null; vox('die');
   if (G.mode !== 'free' && G.mode !== 'duel') setTimeout(() => callout('DEFEATED', '#FF5A4A', 1.3, 'Defeated'), 350);
@@ -10582,7 +10606,7 @@ function step(dt){
   G.time += dt;
   const P = G.P;
   if (G.mode === 'duel') duelFocus(dt);
-  const slowOn = G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead;
+  const slowOn = G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (G.mode === 'coop' && !NET.coopCfg.slow) ? false : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead;
   if (freeCheat(infBreath)) P.breath = G.ST.breathMax;
   G.slowK = lerp(G.slowK, slowOn?1:0, Math.min(1, dt*9));
   slowBadge.classList.toggle('on', slowOn);
@@ -10654,11 +10678,13 @@ function step(dt){
     const every = G.aliveN > 900 ? 3 : 2;      // far-away enemies think less often in a big crowd
     const px = G.P ? G.P.x : cx;
     for (const e of G.E){ if (e.dead || e.remote) continue;
+      if (e.puppet){ coopPuppetTick(e, wdt); continue; }
+      if (G.mode === 'coop'){ coopUpE(e, wdt); continue; }
       if (crowd && Math.abs(e.x - cx) > VW*1.1){ if ((G.frameN + (e.x|0)) % every) continue; updateEnemy(e, wdt*every); }
       else if (crowd && Math.abs(e.x - px) > 280 && e.onG && e.state !== 'windup' && e.state !== 'swing'){ if ((G.frameN + (e.x|0)) % 2) continue; updateEnemy(e, wdt*2); }
       else updateEnemy(e, wdt); }
   }
-  if (G.mode === 'duel') netTick(dt);
+  if (G.mode === 'duel' || G.mode === 'coop') netTick(dt);
 
   // particles: world ones run slowed, the player's own run at full speed
   const rdt = G.cine ? dt*0.35 : pdt;
@@ -10736,6 +10762,7 @@ function step(dt){
       else if (q.kind!=='blood'){ q.life = 0; burst(q.x, GROUND, 4, '#2a1418', 120, 2); }
     }
     if (q.life > 0 && Math.abs(q.x - P.x) < 12 + q.r && q.y > P.y - (P.crouching ? 34 : 64) && q.y < P.y + 6) projHitPlayer(q);
+    else if (G.mode === 'coop') coopProjCheck(q);
     // the player's own projectiles knock enemy ones out of the air
     if (q.life > 0 && q.kind !== 'meteor') for (const pp of G.proj){ if (Math.abs(pp.x - q.x) < 18 + q.r && Math.abs(pp.y - q.y) < 22 + q.r){ q.life = 0; sparks(q.x, q.y); track('arrows'); break; } }
   }
@@ -11012,6 +11039,7 @@ function updateHUD(alive){
     info.innerHTML = G.mode==='levels'
       ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
+      : G.mode==='coop' ? `Wave <span>${NET.wave}</span>/${NET.coopCfg.waves} &nbsp; enemies <span>${G.E.filter(e => !e.dead && !e.remote).length}</span> &nbsp; with ${escH(NET.oppName || 'Ally')}`
       : G.mode==='duel' ? `Round <span>${NET.round}</span> &nbsp; you <span>${NET.wins[NET.role==='host'?0:1]}</span> : <span>${NET.wins[NET.role==='host'?1:0]}</span> rival`
       : G.mode==='rush' ? `Boss Rush &nbsp; <span>${Math.max(0, (G.rush ? G.rush.idx : 0)+1)}/4</span> &nbsp; best <span>${SV.rush.best ? SV.rush.best.toFixed(1)+'s' : '—'}</span>`
       : G.mode==='zomb' ? `Area <span>${G.level+1}</span> ${ZAREAS[G.level].name} &nbsp; wave <span>${G.zomb ? Math.min(G.zomb.wave, G.zomb.waves) : 0}/${G.zomb ? G.zomb.waves : 0}</span> &nbsp; zombies <span>${alive + (G.zomb ? G.zomb.queue.length : 0)}</span>`
@@ -11456,6 +11484,7 @@ const astraTier = id => SV.swords[id] || 0;
 function astraCap(id){ return Math.round(ASTRA_POWER[id].kills * (1 + 0.1*astraTier(id))); }
 function astraCdFor(id){ return ASTRA_POWER[id].cd * (1 - 0.08*astraTier(id)); }
 function tryAstra(P){
+  if (G.mode === 'coop' && !NET.coopCfg.astra){ pop(P.x, P.y-90, 'Astras are off in this co-op', '#9FD3F0'); return; }
   if (!hasAstra() || P.dead) return;
   const id = SV.eq.astra, C = ASTRA_POWER[id], sw = SWORDS[id];
   if (G.mode === 'duel'){ pop(P.x, P.y-100, 'Astras stay silent in duels', '#FFE7A8'); return; }
@@ -11964,6 +11993,8 @@ $('nmBtn').onclick = () => { nightmareOn = !nightmareOn; $('nmBtn').classList.to
 $('goDuel').onclick = openDuelScreen;
 $('dBack').onclick = () => { cancelHosting(); setScreen('modes'); };
 $('dCreate').onclick = createDuel;
+$('dModeDuel').onclick = () => coopSetMode(false);
+$('dModeCoop').onclick = () => coopSetMode(true);
 $('dJoin').onclick = () => joinDuel(($('dCode').value || '').replace(/\s+/g, '').toLowerCase(), 'guest');
 $('dCancel').onclick = cancelHosting;
 $('deRematch').onclick = () => { NET.rm = true; $('deText').textContent = 'Waiting for your rival to accept the rematch…'; $('deRematch').disabled = true; };
@@ -12099,7 +12130,7 @@ function renderOpenDuels(){
   const open = peers.filter(p => !p.sameTab && p.presence && typeof p.presence.open === 'string' && /^[a-z0-9]{4}$/.test(p.presence.open));
   for (const p of open){
     const b = document.createElement('button'); b.className = 'sb';
-    b.textContent = `Join ${okName(p.presence.nm)}'s duel (${p.presence.open})`;
+    b.textContent = `Join ${okName(p.presence.nm)}'s ${p.presence.md === 'coop' ? 'co-op' : 'duel'} (${p.presence.open})`;
     b.onclick = () => joinDuel(p.presence.open, 'guest');
     box.appendChild(b);
   }
@@ -12108,9 +12139,10 @@ function renderOpenDuels(){
 function myName(){ const n = ($('dName').value || '').trim().slice(0,16); if (n){ SV.name = n; save(); } return SV.name || 'Ronin'; }
 async function createDuel(){
   await roomReady; if (!ROOM) return;
+  if (NET.coop) coopReadUI();
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let code = ''; for (let i=0;i<4;i++) code += abc[(Math.random()*abc.length)|0];
   const ok = await joinDuel(code, 'host');
-  if (ok){ $('dWait').style.display = 'block'; $('dCtl').style.display = 'none'; $('dLead').style.display = 'none'; $('dCodeShow').textContent = code; try { ROOM.presence({ open:code, nm:myName() }); } catch(e){} }
+  if (ok){ $('dWait').style.display = 'block'; $('dCtl').style.display = 'none'; $('dLead').style.display = 'none'; $('dCodeShow').textContent = code; try { ROOM.presence({ open:code, nm:myName(), md:NET.coop ? 'coop' : 'duel' }); } catch(e){} }
 }
 function cancelHosting(){
   if (NET.room && !NET.started){ try { NET.room.leave(); } catch(e){} NET.room = null; }
@@ -12120,6 +12152,7 @@ function cancelHosting(){
 async function joinDuel(code, role){
   await roomReady; if (!ROOM) return false;
   if (!/^[a-z0-9]{4}$/.test(code)){ dStatus('Enter the 4-character code your friend sees.'); return false; }
+  if (role === 'guest') NET.coop = false;
   if (NET.room){ try { NET.room.leave(); } catch(e){} NET.room = null; }
   dStatus(role === 'host' ? 'Opening your duel…' : 'Joining…');
   let room;
@@ -12127,7 +12160,7 @@ async function joinDuel(code, role){
   catch(e){ if (ROOM.p2p){ dStatus(e && e.code === 'taken' ? 'That code is busy. Create the duel again for a new code.' : 'Could not reach the duel server. Check your internet and try again.'); return false; }
     dStatus(e && e.code === 'not_permitted' ? "Your access to this game doesn't allow duels. Ask the owner to invite you as a contributor." : 'Could not open the duel right now. Try again.'); return false; }
   Object.assign(NET, { room, code, role, oppPeer:null, opp:null, events:[], evSeq:0, lastOppSeq:0, phase:'lobby', round:0, wins:[0,0], rm:false, started:false, rewarded:false, waitT:0, lastPhaseShown:null, myPeer:null });
-  try { room.presence({ r:role, nm:myName(), hb:0 }); } catch(e){}
+  try { room.presence(Object.assign({ r:role, nm:myName(), hb:0 }, role === 'host' && NET.coop ? { md:'coop', cfg:NET.coopCfg } : {})); } catch(e){}
   for (const u of NET.unsub) try { u(); } catch(e){}
   NET.unsub = [ room.onPeers(onDuelPeers, () => {}) ];
   if (room.p2p && role === 'guest') room.dial();
@@ -12165,6 +12198,9 @@ function makeRemote(){
     burn:null, bleed:null, armorBrokenT:0, hurtBar:0, alert:true, alertFlash:0, scarfCol:'#E0283E', trailCol:'#FF8A7A' };
 }
 function startDuel(){
+  if (NET.role === 'guest'){ const o = findOpp(), pr = (o && o.presence) || {}; NET.coop = pr.md === 'coop'; if (NET.coop) NET.coopCfg = coopSanitize(pr.cfg); }
+  if (NET.coop){ startCoop(); return; }
+  $('deRematch').textContent = 'Rematch';
   NET.started = true;
   if (ROOM) try { ROOM.presence({ open:null }); } catch(e){}
   G.mode = 'duel'; G.level = 0; G.diff = diffFor(1);
@@ -12190,7 +12226,7 @@ function resetRound(){
   P.clashV = null; NET.clashSeen = new Set(); NET.clashedSw = new Set(); NET.held = []; NET.hist = []; NET.prevR = null; NET.clashT = -9; NET.metalT = -9;
   G.camX = clamp(P.x - VW*0.42 + P.face*60, 0, Math.max(0, G.worldW - VW));
 }
-function sendEvent(ev){ ev.s = ++NET.evSeq; ev.rn = NET.round; NET.events.push(ev); if (NET.events.length > 10) NET.events.shift(); }
+function sendEvent(ev){ ev.s = ++NET.evSeq; ev.rn = NET.round; NET.events.push(ev); if (NET.events.length > (NET.coop ? 40 : 10)) NET.events.shift(); }
 /* my hit landed on the rival's figure: tell them; they decide block, parry or dodge */
 function remoteHit(e, dmg, o){
   if (NET.phase !== 'fight' || e.down) return false;
@@ -12362,7 +12398,7 @@ function netSyncIn(dt){
   NET.netProj = Array.isArray(p.pj) ? p.pj.slice(0,8).filter(a => Array.isArray(a) && ['kunai','wind','wave','reflect'].includes(a[0])) : [];
   NET.netHaz = Array.isArray(p.hz) ? p.hz.slice(0,10).filter(a => Array.isArray(a) && ['fire','moon','cage'].includes(a[0])) : [];
   // knocked out
-  if (p.dead && !D.down && (p.rn === NET.round)){
+  if (p.dead && !D.down && (p.rn === NET.round) && !NET.coop){
     D.down = true;
     for (const sg of stickSegments(D)) G.debris.push({ x:(sg[0]+sg[2])/2, y:(sg[1]+sg[3])/2, len:Math.hypot(sg[2]-sg[0],sg[3]-sg[1]), ang:Math.atan2(sg[3]-sg[1],sg[2]-sg[0]), vx:rnd(-250,250), vy:rnd(-500,-150), va:rnd(-10,10), w:sg[4]||4, col:sg[5]||'#000', life:4, r:sg[6]||0 });
     burst(D.x, D.y-36, 30, '#C8102E', 480, 4); sfx('kill'); G.finishT = 0.9; zoomPunch(1.08); flash('#FFFFFF', 0.3);
@@ -12373,6 +12409,7 @@ function netSyncIn(dt){
       if (!ev || typeof ev.s !== 'number' || ev.s <= NET.lastOppSeq) continue;
       NET.lastOppSeq = ev.s;
       if (ev.rn !== NET.round) continue;
+      if (NET.coop){ if (ev.k === 'ehit' && NET.role === 'host') coopApplyHit(ev); else if (ev.k === 'hurt') coopHurt(ev); else if (ev.k === 'rev') coopRevive(); continue; }
       if (ev.k === 'hit') applyNetHit(ev);
       else if (ev.k === 'parried'){ const P = G.P; P.stunT = 0.9; P.atk = null; P.form = null; if (G.time - NET.metalT > metalWin()) sparks(D.x - D.face*-20, D.y-44); NET.metalT = G.time; sfx('parry'); toast('Parried', 0.6); vib(40); }
       else if (ev.k === 'blk'){ const P = G.P; if (G.time - NET.metalT > metalWin()){ const m = bladeMeetPoint() || [D.x + D.face*18, D.y-44]; sparks(m[0], m[1]); sfx('clang'); NET.metalT = G.time; } P.vx = -P.face*160; pop(D.x, D.y-90, 'Blocked', '#FFE7A8'); }
@@ -12400,10 +12437,12 @@ function netSyncOut(dt){
     hz: G.haz.slice(0,10).map(h => [h.kind, Math.round(h.x), Math.round(h.y), Math.round(h.r), h.face || 1])
   };
   if (NET.role === 'host') Object.assign(patch, { ph:NET.phase, pt:Math.round(NET.phaseT*10)/10, wins:NET.wins, rd:NET.round, op:NET.oppPeer || null });
+  if (NET.coop) Object.assign(patch, coopPresence());
   room.presence(patch).catch(() => {});
 }
 function netTick(dt){
   if (!NET.room || NET.phase === 'gone') return;
+  if (NET.coop){ coopTick(dt); return; }
   netSyncIn(dt);
   const op = NET.opp ? (NET.opp.presence || {}) : {};
   if (NET.opp && Date.now() - NET.opp.updatedAt > 7000){ oppLost('Connection to your rival was lost.'); return; }
@@ -12431,6 +12470,222 @@ function netTick(dt){
   duelPhaseUI();
   netSyncOut(dt);
 }
+/* =========================================================
+   ONLINE CO-OP
+   Two players on the same side against waves of enemies, over the same connection as the duel
+   (the artifact room on claude.ai, peer-to-peer anywhere else). The host runs the enemies: their AI,
+   health and the waves, using the settings it chose. The guest sees them as puppets rebuilt from the
+   host's snapshot; when the guest hits one, the hit goes to the host, which applies it. An enemy that
+   goes for the guest is run with the guest's figure standing in for the host's hero, and the damage it
+   would deal is sent to the guest. A fallen player gets up when the wave is cleared.
+   ========================================================= */
+const COOP_SETS = {
+  mixed:['grunt','fencer','archer','assassin','shield','brute','ninja','gunner','demon'],
+  bandits:['grunt','fencer','archer','shield','gunner'], ninjas:['ninja','assassin','fencer'],
+  demons:['demon','brute','assassin'], zombies:['zombie','runner','bloater'], heavy:['brute','shield','demon','gunner']
+};
+const COOP_BOSSES = ['ronin','kage','ogre'];
+const COOP_STR = { easy:0.7, normal:1, hard:1.45, nightmare:2.1 };
+const coopDefaults = () => ({ waves:5, set:'mixed', str:'normal', boss:true, forms:true, astra:true, slow:true });
+function coopSanitize(c){
+  const d = coopDefaults(); if (!c || typeof c !== 'object') return d;
+  return { waves:[3,5,10,20].includes(c.waves) ? c.waves : d.waves, set:COOP_SETS[c.set] ? c.set : d.set, str:COOP_STR[c.str] ? c.str : d.str,
+    boss:c.boss !== false, forms:c.forms !== false, astra:c.astra !== false, slow:c.slow !== false };
+}
+NET.coop = false; NET.coopCfg = coopDefaults(); NET.coopRun = 0; NET.puppets = new Map();
+const escH = s => String(s).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]);
+function coopReadUI(){
+  const v = id => $(id) ? $(id).value : null;
+  NET.coopCfg = coopSanitize({ waves:+v('cwWaves'), set:v('cwSet'), str:v('cwStr'), boss:v('cwBoss') === 'on', forms:v('cwForms') === 'on', astra:v('cwAstra') === 'on', slow:v('cwSlow') === 'on' });
+}
+function coopSetMode(coop){
+  NET.coop = coop; $('dModeDuel').classList.toggle('on', !coop); $('dModeCoop').classList.toggle('on', coop);
+  $('dModeDuel').setAttribute('aria-pressed', String(!coop)); $('dModeCoop').setAttribute('aria-pressed', String(coop));
+  $('dCoopCfg').style.display = coop ? '' : 'none';
+  $('dCreate').textContent = coop ? 'Create co-op' : 'Create duel';
+  const L = $('dLead'); if (L.dataset.duel == null) L.dataset.duel = L.textContent;
+  L.textContent = coop ? 'Fight side by side against waves of enemies. You choose how many waves, which enemies, how strong they are and what is allowed; your Dojo sword, breathing style and abilities come with you.' : L.dataset.duel;
+}
+
+/* ---------- starting and restarting ---------- */
+function startCoop(){
+  NET.started = true; NET.coop = true;
+  if (ROOM) try { ROOM.presence({ open:null }); } catch(e){}
+  G.mode = 'coop'; G.level = 0; G.diff = diffFor(1);
+  G.theme = THEME_ORDER[(NET.code.charCodeAt(0) + NET.code.charCodeAt(1)) % 4];
+  G.worldW = 2800; resetCommon();
+  const D = makeRemote(); D.ally = true; G.E = [D];
+  NET.round = 1; NET.mySlow = NET.oppSlow = false; NET.oppName = 'Ally';
+  coopResetRun();
+  toast('Co-op: stand together', 1.6);
+}
+function coopResetRun(){
+  const P = G.P, host = NET.role === 'host';
+  Object.assign(P, { hp:P.maxHp, dead:false, x:host ? 1250 : 1550, y:GROUND, face:host ? 1 : -1, vx:0, vy:0, breath:G.ST.breathMax*0.6, form:null, atk:null, inv:1 });
+  G.E = G.E.filter(e => e.remote); const D = G.E[0];
+  if (D){ D.x = D.tx = host ? 1550 : 1250; D.down = false; D.inv = 0; }
+  G.proj = []; G.eproj = []; G.haz = []; G.debris = [];
+  Object.assign(NET, { wave:0, phase:'count', phaseT:3.5, nid:0, puppets:new Map(), rm:false, rewarded:false, coopEnd:null });
+  if (host) NET.coopRun = (NET.coopRun || 0) + 1;
+  $('deRematch').disabled = false;
+  G.camX = clamp(P.x - VW*0.42, 0, Math.max(0, G.worldW - VW));
+  setScreen(null); G.running = true;
+}
+
+/* ---------- the host's waves ---------- */
+function coopSpawnWave(k){
+  const C = NET.coopCfg, str = COOP_STR[C.str], set = COOP_SETS[C.set];
+  G.diff = diffFor(clamp(Math.round(1 + k*1.3*str), 1, 20));
+  const n = Math.min(32, Math.round((4 + k*2)*Math.sqrt(str)));
+  const P = G.P, D = G.E.find(e => e.remote), cx = D && !D.down ? (P.x + D.x)/2 : P.x;
+  for (let i = 0; i < n; i++){
+    const side = i % 2 ? 1 : -1, x = clamp(cx + side*(VW*0.55 + rnd(0, 260) + (i >> 1)*36), 40, G.worldW - 40);
+    const e = makeEnemy(set[(Math.random()*set.length)|0], x, G.diff, true); e.nid = ++NET.nid; G.E.push(e);
+  }
+  const bossWave = C.boss && (k % 5 === 0 || k === C.waves);
+  if (bossWave){ const e = makeEnemy(COOP_BOSSES[((k/5)|0) % COOP_BOSSES.length], clamp(cx + 560, 60, G.worldW - 60), G.diff, true); e.nid = ++NET.nid; G.E.push(e); }
+  callout(`WAVE ${k}`, '#9FD3F0', 1.1, `Wave ${k}`, `${n + (bossWave ? 1 : 0)} enemies`); sfx('rushGo');
+}
+/* an enemy picks the nearer of the two heroes; one that goes for the guest is run with the guest's figure as its target */
+function coopUpE(e, dt){
+  const D = G.E.find(x => x.remote), P = G.P;
+  if (NET.role !== 'host' || !D || D.down){ updateEnemy(e, dt); return; }
+  e.ctT = (e.ctT || 0) - dt;
+  if (e.ctT <= 0){ e.ctT = 1.1; const dp = P.dead ? 1e9 : Math.abs(P.x - e.x), dd = Math.abs(D.x - e.x); e.onGuest = P.dead || dd < dp*0.9; }
+  if (!e.onGuest){ updateEnemy(e, dt); return; }
+  coopProxy(() => updateEnemy(e, dt), e);
+}
+function coopProxy(fn, src){
+  const D = G.E.find(x => x.remote), P = G.P; if (!D) return;
+  const keep = { hurtFx:G.hurtFx, shake:G.shake, flashFx:G.flashFx, hitstop:G.hitstop };
+  const realMax = D.maxHp; D.hp = 1e6; D.maxHp = 1e6; D.dead = false;
+  G.P = D;
+  try { fn(); } catch (err){ console.warn('co-op proxy', err); }
+  finally { G.P = P; Object.assign(G, keep); }
+  const dmg = 1e6 - D.hp; D.maxHp = realMax; D.hp = realMax;   // the real value arrives with the next presence
+  if (dmg > 0.5) sendEvent({ k:'hurt', d:Math.round(Math.min(dmg, 9999)), x:Math.round(src ? src.x : D.x) });
+}
+function coopProjCheck(q){
+  if (NET.role !== 'host') return;
+  const D = G.E.find(x => x.remote); if (!D || D.down) return;
+  if (q.life > 0 && Math.abs(q.x - D.x) < 12 + q.r && q.y > D.y - 64 && q.y < D.y + 6) coopProxy(() => projHitPlayer(q), q);
+}
+function coopApplyHit(ev){
+  const id = okNum(ev.id, 0, 1e9, 0), e = G.E.find(x => x.nid === id && !x.dead); if (!e) return;
+  const dmg = okNum(ev.d, 0, 1e7, 0); if (!dmg) return;
+  damageEnemy(e, dmg, { src:'net', kb:okNum(ev.kb, 0, 2000, 0), dir:ev.dir === -1 ? -1 : 1, launch:okNum(ev.l, 0, 2000, 0), burn:ev.b ? 10 : 0, poison:ev.p ? 10 : 0, heavy:!!ev.h });
+}
+
+/* ---------- the guest's puppets ---------- */
+function coopPuppets(en){
+  if (!Array.isArray(en)) return;
+  const seen = new Set();
+  for (const a of en.slice(0, 48)){
+    if (!Array.isArray(a)) continue;
+    const nid = okNum(a[0], 0, 1e9, 0), type = typeof a[1] === 'string' && Object.prototype.hasOwnProperty.call(TYPES, a[1]) ? a[1] : null;
+    if (!nid || !type) continue;
+    seen.add(nid);
+    let e = NET.puppets.get(nid);
+    if (!e){ e = makeEnemy(type, okNum(a[2], -400, G.worldW + 400, 0), G.diff, false); e.puppet = true; e.nid = nid; e.alert = true; e.tx = e.x; e.ty = GROUND; NET.puppets.set(nid, e); G.E.push(e); }
+    if (e.dead) continue;
+    e.tx = okNum(a[2], -400, G.worldW + 400, e.x); e.ty = okNum(a[3], -600, GROUND + 50, e.y);
+    e.face = a[4] === 1 ? 1 : -1; e.hp = okNum(a[5], 0, 1e7, e.hp); e.maxHp = okNum(a[6], 1, 1e7, e.maxHp);
+    e.state = typeof a[7] === 'string' && a[7].length < 16 ? a[7] : 'idle'; e.timer = okNum(a[8], -5, 30, 0); e.onG = !!a[9];
+    if (a[10] || e.hp <= 0) killEnemy(e);
+  }
+  for (const [nid, e] of NET.puppets){ if (!seen.has(nid)){ if (!e.dead) killEnemy(e); NET.puppets.delete(nid); } }
+}
+function coopPuppetTick(e, dt){
+  if (e.tx == null) return;
+  const ox = e.x; e.x = lerp(e.x, e.tx, Math.min(1, dt*14)); e.y = lerp(e.y, e.ty, Math.min(1, dt*14));
+  e.vx = (e.x - ox)/Math.max(dt, 1e-3); e.walk = (e.walk || 0) + dt*Math.abs(e.vx)*0.04;
+  e.flash -= dt; e.hurtBar -= dt; e.alertFlash -= dt;
+}
+/* the guest hits a puppet: the host decides what it does; here it only shows */
+function coopSendHit(e, dmg, o){
+  o = o || {}; if (!(dmg > 0)) return;
+  sendEvent({ k:'ehit', id:e.nid, d:Math.round(Math.min(dmg, 1e7)), kb:Math.round(o.kb || 0), dir:(o.dir || 0) < 0 ? -1 : 1, l:Math.round(o.launch || 0), b:o.burn ? 1 : 0, p:o.poison ? 1 : 0, h:o.heavy ? 1 : 0 });
+  e.flash = 0.12; e.hurtBar = 1.2;
+  pop(e.x, e.y - 72*e.size, String(Math.round(dmg)), '#FFE7A8');
+  burst(e.x, e.y - 36*e.size, 6, '#FFE7A8', 240, 3, true);
+}
+/* the host says an enemy hit me */
+function coopHurt(ev){
+  const P = G.P; if (!P || P.dead) return;
+  const d = okNum(ev.d, 0, 9999, 0); if (!d) return;
+  P.hp -= d; P.hurtT = 0.3; P.flash = 0.12; P.inv = Math.max(P.inv || 0, 0.3);
+  P.vx = sign(P.x - okNum(ev.x, -500, G.worldW + 500, P.x)) * 260; G.hurtFx = Math.max(G.hurtFx || 0, 0.4); G.shake = Math.max(G.shake, 5);
+  sfx('hurt'); burst(P.x, P.y - 40, 10, '#C8102E', 260, 3);
+  if (P.hp <= 0) playerDie();
+}
+function coopDown(){
+  const P = G.P; if (P.dead) return;
+  P.hp = 0; P.dead = true; P.form = null; P.atk = null;
+  burst(P.x, P.y - 36, 30, '#C8102E', 480, 4); sfx('kill');
+  callout('DOWN', '#FF5A4A', 1.0, 'Down', 'Back on your feet when this wave is cleared');
+}
+function coopRevive(){
+  const P = G.P; if (!P || !P.dead) return;
+  const D = G.E.find(e => e.remote);
+  Object.assign(P, { dead:false, hp:P.maxHp*0.6, inv:2, vx:0, vy:0, y:GROUND, x:D ? clamp(D.x - 120, 40, G.worldW - 40) : P.x });
+  toast('Back on your feet', 1.2); sfx('breath');
+}
+function coopPhaseFx(ph, wv){
+  if (ph === 'fight') callout(`WAVE ${wv}`, '#9FD3F0', 1.1, `Wave ${wv}`, 'Hold the line together');
+  else if (ph === 'rest'){ callout('WAVE CLEARED', '#FFD23F', 1.0, 'Wave cleared', `Next: wave ${wv + 1}`); coopRevive(); }
+}
+function coopShowEnd(ph){
+  NET.coopEnd = ph;
+  const run = NET.coopRun;
+  setTimeout(() => {
+    if (G.mode !== 'coop' || NET.coopEnd !== ph || NET.coopRun !== run) return;
+    const C = NET.coopCfg, cleared = ph === 'win' ? C.waves : Math.max(0, NET.wave - 1);
+    $('deTitle').textContent = ph === 'win' ? 'You held the line together' : 'Both of you fell';
+    $('deText').textContent = `Waves cleared: ${cleared} of ${C.waves}. Your kills: ${G.kills}.`;
+    $('deRematch').textContent = 'Play again'; $('deRematch').disabled = false;
+    setScreen('duelEnd');
+  }, 1600);
+  sfx(ph === 'win' ? 'win' : 'kill');
+}
+function coopPresence(){
+  if (NET.role !== 'host') return {};
+  const en = [];
+  for (const e of G.E){ if (e.remote || !e.nid) continue;
+    en.push([e.nid, e.type, Math.round(e.x), Math.round(e.y), e.face, Math.round(Math.max(0, e.hp)), Math.round(e.maxHp), e.state, Math.round((e.timer || 0)*100)/100, e.onG ? 1 : 0, e.dead ? 1 : 0]);
+    if (en.length >= 48) break; }
+  return { md:'coop', cfg:NET.coopCfg, ph:NET.phase, pt:Math.round(NET.phaseT*10)/10, wv:NET.wave, run:NET.coopRun, en };
+}
+
+/* ---------- every frame ---------- */
+function coopTick(dt){
+  netSyncIn(dt);
+  const op = NET.opp ? (NET.opp.presence || {}) : {}, D = G.E.find(e => e.remote), P = G.P;
+  if (NET.opp && NET.opp.updatedAt && Date.now() - NET.opp.updatedAt > 7000){ oppLost('Connection to your ally was lost.'); return; }
+  if (D){ D.down = !!op.dead; D.inv = Math.max(0, (D.inv || 0) - dt); }
+  if (NET.role === 'host'){
+    NET.phaseT -= dt;
+    const alive = G.E.some(e => !e.dead && !e.remote), bothDown = P.dead && (!D || D.down);
+    if (NET.phase === 'count' && NET.phaseT <= 0){ NET.wave++; coopSpawnWave(NET.wave); NET.phase = 'fight'; }
+    else if (NET.phase === 'fight'){
+      if (bothDown) NET.phase = 'lose';
+      else if (!alive){
+        if (NET.wave >= NET.coopCfg.waves) NET.phase = 'win';
+        else { NET.phase = 'rest'; NET.phaseT = 4; coopRevive(); sendEvent({ k:'rev' }); callout('WAVE CLEARED', '#FFD23F', 1.0, 'Wave cleared', `Next: wave ${NET.wave + 1}`); }
+      }
+    }
+    else if (NET.phase === 'rest' && NET.phaseT <= 0){ NET.wave++; coopSpawnWave(NET.wave); NET.phase = 'fight'; }
+    else if ((NET.phase === 'win' || NET.phase === 'lose') && NET.rm && op.rm){ coopResetRun(); }
+  } else {
+    if (typeof op.run === 'number' && op.run !== NET.coopRun){ const r = op.run; coopResetRun(); NET.coopRun = r; }
+    if (op.cfg) NET.coopCfg = coopSanitize(op.cfg);
+    if (['count','fight','rest','win','lose'].includes(op.ph)){ const wv = okNum(op.wv, 0, 99, NET.wave); if (op.ph !== NET.phase) coopPhaseFx(op.ph, wv); NET.phase = op.ph; NET.wave = wv; }
+    NET.phaseT = okNum(op.pt, 0, 10, 0);
+    coopPuppets(op.en);
+  }
+  if ((NET.phase === 'win' || NET.phase === 'lose') && !NET.coopEnd) coopShowEnd(NET.phase);
+  netSyncOut(dt);
+}
+
 /* =========================================================
    DUEL SWORD CLASHES (online duel only)
    Each client tests ITS OWN hero's blade against the rival's blade as drawn on its screen, every frame,
