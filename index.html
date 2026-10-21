@@ -1047,7 +1047,7 @@ const STYLES = {
              forms:[['Flowing Cut',30],['Rolling Current',45],['Still Water',40],['Whirlpool',60],['Thousand Rain',80]],
              desc:'Flowing, defensive water style. Dashes, an untouchable spin, and a counter stance that even answers red attacks.' },
   ember:   { name:'Ember Breathing',    col:'#FF7A2A', price:600,  pass:'Your heavy hits set enemies burning',
-             forms:[['Rising Flame',30],['Burning Wheel',45],['Blazing Sun',60],['Flame Serpent',60],['Pillars of Fire',85]],
+             forms:[['Rising Flame',30],['Burning Wheel',45],['Blazing Sun',60],['Flame Dragon',55],['Pillars of Fire',85]],
              desc:'Fire style. Launches enemies, leaves burning ground and ends with a huge explosion.' },
   storm:   { name:'Storm Breathing',    col:'#FFE14D', price:800,  pass:'Move speed +10%',
              forms:[['Flash Step',30],['Chain Bolt',50],['Thunder Fall',55],['Static Field',55],["Heaven's Judgement",85]],
@@ -1074,7 +1074,7 @@ const STYLES = {
              forms:[['Dance',35],['Setting Sun',50],['Beneficent Radiance',65],['Solar Flare',70],['Dawn of the Twelfth',100]],
              desc:'The first breathing style. No tricks, only overwhelming force, and light that heals you as it burns them.' },
   serpent: { name:'Serpent Breathing',  col:'#2EE59D', price:1600, unlock:16, pass:'Every 4th hit poisons the enemy',
-             forms:[['Fang Strike',30],['Coil',45],['Shed Skin',40],['Venom Rain',60],['Serpent King',90]],
+             forms:[['Fang Strike',30],['Coil',45],['Shed Skin',40],['Venom Rain',60],['King of Serpent',60]],
              desc:'Venom style. Fast lunges that poison, a coil that drags enemies to you, a decoy skin that explodes, and a giant serpent that sweeps the field. Poison stacks and ticks for 5 s.' },
   kaal:    { name:'Kaal Breathing',     col:'#FFFFFF', price:500000, needCoins:500000, flat:[1, 0.1, 0.15, 0.2, 0.3], pass:'Every passive of every style, +10% damage, forms cost 20% less, breath regen +40%',
              forms:[['Eclipse Step',30],['Four Seasons',50],['Still Eternity',60],['Judgement of Ages',75],['End of Time',120]],
@@ -1972,7 +1972,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null;
+  G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.dragons = []; G.serpents = [];
   G.fistsOut = !!(SV.eq.fistsOut && hasFists());
   document.body.classList.toggle('fistmode', G.fistsOut);
   G.ST = computeStats();
@@ -2518,7 +2518,7 @@ function killEnemy(e){
   e.dead = true; G.kills++;
   const s = e.size, f = G.P ? G.P.face : 1;
   const far = G.massKill && (e.x < G.camX - 150 || e.x > G.camX + VW + 150);
-  if (!far){
+  if (!far && !e.eaten){
   if (e.T.demon){ emit(e.x, e.y-40*s, {n:40, col:['#2a0a10','#5A0A16','#FF3B2F','#111'], spd:220, size:5*s, life:1.2, kind:'ember', g:-0.35, jx:14*s, jy:30*s, real:false}); }
   else for (const sg of stickSegments(e)){
     const hd = e.astraBehead && sg[5]==='head', bd = e.astraBehead && !hd;
@@ -2700,9 +2700,17 @@ function updatePlayer(dt){
     if (blocking){ if (P.blockT < 0) P.blkKey = (P.blkKey || 0) + 1; P.blockT = P.blockT < 0 ? 0 : P.blockT + dt; mv = 0; } else P.blockT = -1;
     if (P.crouching) mv = 0;
     const target = mv * 290 * ST.spd * (P.atk ? 0.3 : 1) * ((hasAbil('lastStand') && P.hp/P.maxHp < 0.35) ? 1.15 : 1);
+    const vx0 = P.vx;
     if (!P.fly) P.vx += (target - P.vx) * Math.min(1, dt * (P.onG ? 16 : 7));   // in flight the boosters steer instead (see below)
     // auto-face: look at the nearest enemy within 10 m, otherwise face where you walk
-    if (P.fly){ if (mv && !P.atk) P.face = mv; }
+    // in the air, reversing at speed turns into a backflip: the body goes over backwards and lands facing the new way
+    if (P.flip){ P.flip.t += dt; const u = Math.min(1, P.flip.t/P.flip.dur); P.flipA = -easeIO(u)*6.2832;
+      if (Math.random() < 0.5) emit(P.x, P.y - 34, { n:1, col:ST.trail, spd:40, size:3, life:0.3, kind:'mist', g:0 });
+      if (u >= 1 || (P.onG && P.flip.t > 0.08)){ P.face = P.flip.to; P.flip = null; P.flipA = 0; } }
+    else if (!P.onG && !P.ride && !P.atk && !P.form && mv && Math.abs(vx0) > 110 && mv === -sign(vx0) && sign(vx0) === P.face){
+      P.flip = { t:0, dur:0.48, to:mv }; P.vy = Math.min(P.vy, -300); sfx('whoosh'); emit(P.x, P.y - 34, { n:8, col:ST.trail, spd:160, size:3, life:0.4, kind:'mist', g:0 }); }
+    if (P.flip){ /* facing stays put until the flip is done */ }
+    else if (P.fly){ if (mv && !P.atk) P.face = mv; }
     else if (!P.atk){ const foe = nearestFoe(AGGRO); if (foe) P.face = sign(foe.x - P.x); else if (mv) P.face = mv; }
     if (pressed.jump && !blocking && P.jumpsLeft > 0){
       if (!P.onG && P.jumpsLeft === (hasAbil('doubleJump')?2:1)) P.jumpsLeft--; // walking off counts as first jump
@@ -3035,6 +3043,7 @@ function tryForm(i){
     emit(P.x, P.y-40, {n:10, col:STYLE_FX.blood.cols, spd:240, size:4, life:0.6, kind:'drop', g:1.5, vy:-120});
   } else {
     if (P.breath < cost){ if (G.time - (P.nbT||-9) > 0.9){ P.nbT = G.time; pop(P.x, P.y-90, 'Not enough breath', '#9FD3F0'); } return; }
+    P.castBreath = P.breath;
     P.breath -= cost;
   }
   track('forms');
@@ -3063,7 +3072,7 @@ function tryForm(i){
 /* what each form does, shown the first time it is used */
 const FORM_DESC = {
   tide1:'A short forward rush with four quick water cuts. Good for closing distance.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones.', tide4:'Throws a whirlpool that drags enemies in and cuts them for 3 s.', tide5:'Ten rapid thrusts that jump between every enemy within 8 m. The last one knocks them down.',
-  ember1:'Rising uppercut that launches enemies into the air and sets them burning.', ember2:'A burning wheel: spin forward in the air, leaving fire on the ground.', ember3:'Wind up, then a huge explosion in front of you with heavy knockback. The ground burns.', ember4:'A flame serpent that homes in on the nearest enemy and passes through up to 6.', ember5:'Four pillars of fire erupt in a line ahead of you, each one launching whoever stands in it.',
+  ember1:'Rising uppercut that launches enemies into the air and sets them burning.', ember2:'A burning wheel: spin forward in the air, leaving fire on the ground.', ember3:'Wind up, then a huge explosion in front of you with heavy knockback. The ground burns.', ember4:'A dragon of fire leaves your blade and swims through the air. Its strength follows your breath: on a full breath it burns up to 50 enemies, from 70 up to 32, below 70 up to 18. Bosses take a heavy hit.', ember5:'Four pillars of fire erupt in a line ahead of you, each one launching whoever stands in it.',
   storm1:'Flash Step: teleport 9 m forward, striking everyone on the way.', storm2:'Chain Bolt: teleport from enemy to enemy, up to four in a row.', storm3:'Leap up, then slam down as lightning. Everyone near the landing is hit.', storm4:'Static Field: for 4 s lightning jumps from you to anyone who comes close.', storm5:"Heaven's Judgement: bolts rain on every enemy on screen, then one great strike.",
   gale1:'A piercing blade of wind. It cuts arrows out of the air on its way.', gale2:'Cyclone: enemies around you are dragged in and lifted off the ground.', gale3:'Sky Rend: a leaping slash that carries you up and across.', gale4:'Updraft: launch everyone nearby and float for a moment while they fall.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
   crescent1:'Moon Arc: a crescent that lingers in the air and keeps cutting whoever walks into it.', crescent2:'Twin Moons: two crescents, one ahead and one behind.', crescent3:'Full Moon Cage: crescents orbit you for 3 s, cutting anyone who comes close.', crescent4:'Moonfall: a crescent drops from above on the nearest enemy.', crescent5:'Lunar Eclipse: the whole screen fills with lingering crescents.',
@@ -3072,7 +3081,7 @@ const FORM_DESC = {
   shadow1:'Vanishing Step: disappear for 2 s. Your next slash is an Ambush for double damage.', shadow2:'Shadow Bind: roots enemies to the ground with their own shadows.', shadow3:'Dance of Shades: a flurry of cuts that always lands from behind.', shadow4:'Umbral Chains: chain every enemy in range to the ground, then cut them.', shadow5:'Night Execution: teleport behind each enemy in turn and strike.',
   blood1:'Crimson Cut: costs health, not breath. The lower your health, the harder it hits.', blood2:'Blood Mist: for 5 s, bleeding enemies around you feed you health.', blood3:'Red Lotus: a bloom of blades around you that makes everyone bleed.', blood4:'Scarlet Chains: pull enemies in and drain them.', blood5:'Final Offering: spend most of your health for one enormous strike. A kill gives 50 back.',
   sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
-  serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'Serpent King: a giant serpent sweeps across the field, poisoning and launching everything in its way.',
+  serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
   kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: an untouchable burning spin that leaves fire and water behind and launches enemies.', kaal3:'Still Eternity: time stops for everyone but you for 2.6 s. Every enemy and projectile freezes, and your hits on a frozen world deal +50%. Static field and iron body stay on you for 3 s.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
 };
 const FM = () => G.ST.formMult;
@@ -3116,9 +3125,11 @@ const FORMS = {
       ringFx(P.x+P.face*80, P.y-30, 170, '#FF7A2A'); burst(P.x+P.face*80, P.y-40, 40, '#FF7A2A', 600, 5, true); burst(P.x+P.face*80, P.y-40, 20, '#FFE14D', 420, 4, true);
       for (let k=-2;k<=2;k++) G.haz.push({kind:'fire', x:P.x+P.face*(80+k*35), y:GROUND, r:26, life:2.5, tick:0, dmg:9*FM(), every:0.5});
       G.shake = 14; G.hitstop = 0.1; G.suns.push({x:P.x+P.face*80, y:P.y-40, life:0.7, max:0.7, r:180}); sfx('boom'); flash('#FF7A2A',0.4); zoomPunch(1.09); vib(70); } } },
-  ember4:{ dur:0.4, pose:'swipe', update(P,dt,F){ if (F.t>=0.1 && !F.shot){ F.shot = true;
-      G.proj.push({kind:'wind', x:P.x+P.face*30, y:P.y-44, vx:P.face*520, vy:0, dmg:50*FM(), pierce:6, hit:new Set(), life:1.3, col:'#FF7A2A', burn:12, serpent:true});
-      sfx('fire'); burst(P.x+P.face*40, P.y-44, 14, '#FF7A2A', 300, 4, true); } } },
+  ember4:{ dur:0.5, pose:'swipe', update(P,dt,F){ if (F.t>=0.1 && !F.shot){ F.shot = true;
+      if (G.mode === 'duel'){   // in a duel the old flame serpent stays, so both screens agree
+        G.proj.push({kind:'wind', x:P.x+P.face*30, y:P.y-44, vx:P.face*520, vy:0, dmg:50*FM(), pierce:6, hit:new Set(), life:1.3, col:'#FF7A2A', burn:12, serpent:true});
+        sfx('fire'); burst(P.x+P.face*40, P.y-44, 14, '#FF7A2A', 300, 4, true); }
+      else summonDragon(P); } } },
   ember5:{ dur:0.95, pose:'cast', start(P,F){ F.tick = 0; F.n = 0; },
     update(P,dt,F){ P.vx *= 0.85; F.tick -= dt;
       if (F.tick <= 0 && F.n < 4){ F.tick = 0.17; F.n++;
@@ -3404,9 +3415,11 @@ const FORMS = {
   serpent5:{ dur:1.3, pose:'cast', start(P,F){ F.shot = false; },
     update(P,dt,F){ P.vx *= 0.85;
       if (F.t >= 0.15 && !F.shot){ F.shot = true;
-        G.proj.push({kind:'king', x:P.x+P.face*30, y:P.y-60, vx:P.face*420, vy:0, dmg:95*FM(), pierce:14, hit:new Set(), life:2.2, col:'#2EE59D', poison:12, kb:360, ph:0, big:true});
-        sfx('serpent'); sfx('boom', 0.05); flash('#2EE59D', 0.35); G.shake = 12; zoomPunch(1.08); vib(80);
-        ringFx(P.x+P.face*30, P.y-60, 140, '#9CFFD6'); } } },
+        if (G.mode === 'duel'){   // in a duel the old serpent stays, so both screens agree
+          G.proj.push({kind:'king', x:P.x+P.face*30, y:P.y-60, vx:P.face*420, vy:0, dmg:95*FM(), pierce:14, hit:new Set(), life:2.2, col:'#2EE59D', poison:12, kb:360, ph:0, big:true});
+          sfx('serpent'); sfx('boom', 0.05); flash('#2EE59D', 0.35); G.shake = 12; zoomPunch(1.08); vib(80);
+          ringFx(P.x+P.face*30, P.y-60, 140, '#9CFFD6'); }
+        else summonSerpent(P); } } },
   /* ---- Kaal: every style at once ---- */
   kaal1:{ dur:0.5, pose:'thrust', start(P,F){ F.tick = 0; F.n = 0; P.inv = 0.6;
       const x0 = P.x, x1 = clamp(P.x + P.face*320, 30, G.worldW-30);
@@ -4665,7 +4678,7 @@ function getPose(e){
 // Line segments [x1,y1,x2,y2,width,tag,headRadius]
 /* the skeleton, tilted as a whole while the hero flies: everything that reads it (art, blades, trails, boosters) stays together */
 function stickSegments(e){
-  const segs = stickSegmentsRaw(e), a = (e.isPlayer ? (e.flyLean || 0) : 0) + (segs.roll || 0);   // + a form's somersault (visual only)
+  const segs = stickSegmentsRaw(e), a = (e.isPlayer ? (e.flyLean || 0) + (e.flipA || 0) : 0) + (segs.roll || 0);   // + a form's somersault (visual only)
   if (Math.abs(a) < 0.002) return segs;
   const s = e.size || 1, px = e.x, py = e.y - 28*s, r = a*(e.face || 1), c = Math.cos(r), sn = Math.sin(r);
   const rot = (x, y) => { const dx = x - px, dy = y - py; return [px + dx*c - dy*sn, py + dx*sn + dy*c]; };
@@ -6879,6 +6892,7 @@ function renderScene(){
     }
     drawEnemyUI(e,h);
   }
+  drawDragons(); drawSerpents();
   if (G.mode === 'world' && G.world && G.P && G.P.inH) drawInsideShade();
   drawParts(false);
   drawCoins();
@@ -10037,6 +10051,467 @@ function w3Panel(id){
 }
 
 /* =========================================================
+   EMBER BREATHING, FOURTH FORM: FLAME DRAGON
+   A long, wingless fire dragon leaves the blade and air-swims through the enemies: its head steers
+   like a heavy body (a fixed turning circle), it never stops undulating, and the body follows the
+   head's exact path with a travelling wave that grows toward the tail, like a ribbon. Whatever it
+   touches burns; it kills up to 50 enemies (bosses take a heavy hit instead), then climbs and fades.
+   ========================================================= */
+const drgWrap = a => { while (a > Math.PI) a -= 6.2832; while (a < -Math.PI) a += 6.2832; return a; };
+const DRG = { N:84, SEG:8.5, maxKills:50 };
+function drgSprite(stops, size){ const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'), g = x.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+  stops.forEach(([o, col]) => g.addColorStop(o, col)); x.fillStyle = g; x.fillRect(0, 0, size, size); return c; }
+const DRG_SPR = {
+  glow:drgSprite([[0, 'rgba(255,120,40,0.55)'], [0.4, 'rgba(255,60,20,0.18)'], [1, 'rgba(200,20,5,0)']], 96),
+  hot:drgSprite([[0, 'rgba(255,248,225,1)'], [0.3, 'rgba(255,190,90,0.8)'], [0.7, 'rgba(255,90,20,0.25)'], [1, 'rgba(255,40,10,0)']], 48)
+};
+/* how strong a breath-scaled form comes out: by the breath you had when you called it */
+function breathTier(P){
+  const b = P.castBreath != null ? P.castBreath : P.breath, max = (G.ST && G.ST.breathMax) || 100;
+  if (b >= max - 0.5) return { name:'full', label:'Full breath', col:'#FFE14D', kills:50, dmg:1.5, size:1.12, time:11 };
+  if (b >= 70) return { name:'strong', label:'Strong breath', col:'#FFB25A', kills:32, dmg:1.15, size:1, time:8.5 };
+  return { name:'medium', label:'Half breath', col:'#FF8A5A', kills:18, dmg:0.85, size:0.88, time:6 };
+}
+const drgRad = (i) => { const u = i/(DRG.N - 1); const r = u < 0.05 ? lerp(0.78, 0.6, u/0.05) : u < 0.18 ? lerp(0.6, 1, (u - 0.05)/0.13) : u < 0.45 ? 1 - (u - 0.18)*0.3 : lerp(0.92, 0.08, Math.pow((u - 0.45)/0.55, 1.05)); return r*19*(DRG.curS || 1); };
+function summonDragon(P){
+  // it leaves from the tip of the blade, heading straight ahead of Kaal
+  const tier = breathTier(P);
+  const d = { tier, x:P.x + P.face*46, y:P.y - 46, ang:P.face > 0 ? -0.05 : Math.PI + 0.05, spd:760, t:0, kills:0, hit:new Set(), phase:'rise', wob:0, amp:0, jaw:0.5, face:P.face, life:1,
+    fx:new Float32Array(DRG.N), fy:new Float32Array(DRG.N), rx:new Float32Array(DRG.N), ry:new Float32Array(DRG.N), side:new Int8Array(DRG.N).fill(-P.face) };
+  d.bx = d.x; d.by = d.y;
+  // the whole body starts coiled at the blade and unrolls behind the head like a ribbon
+  for (let i = 0; i < DRG.N; i++){ d.fx[i] = d.rx[i] = d.x - Math.cos(d.ang)*i*0.05; d.fy[i] = d.ry[i] = d.y - Math.sin(d.ang)*i*0.05; }
+  (G.dragons || (G.dragons = [])).push(d);
+  pop(P.x, P.y - 110, tier.label, tier.col);
+  G.shake = Math.max(G.shake, 10); flash('#FF7A2A', 0.3); sfx('fire'); sfx('boom', 0.15); zoomPunch(1.06); vib(60);
+  burst(d.x, d.y, 30, '#FFB25A', 520, 5, true); emit(d.x, d.y, { n:16, col:['#FFE14D','#FF9A3A','#FF4A1A'], spd:320, size:6, life:0.5, kind:'ember', g:-0.3, dir:P.face > 0 ? 0 : Math.PI, spread:0.5 });
+  return d;
+}
+function drgTargets(d){
+  const L = G.camX - 220, R = G.camX + VW + 220;
+  return G.E.filter(e => !e.dead && !e.remote && !d.hit.has(e) && e.x > L && e.x < R);
+}
+function tickDragons(dt){
+  if (!G.dragons || !G.dragons.length) return;
+  for (const d of G.dragons){
+    d.t += dt;
+    // where to go
+    let tx, ty, R = 150;
+    if (d.phase === 'rise'){ tx = d.bx + d.face*400; ty = d.by - 6; R = 600; if (d.t > 0.55) d.phase = 'hunt'; }
+    if (d.phase === 'hunt'){
+      const list = drgTargets(d);
+      if (!list.length || d.kills >= d.tier.kills || d.t > d.tier.time){ d.phase = 'leave'; d.leaveDir = d.face; }
+      else { // the nearest one ahead of the head, with a little preference for what lies in front of it
+        let best = null, bd = 1e9; const hx = Math.cos(d.ang), hy = Math.sin(d.ang);
+        for (const e of list){ const ex = e.x - d.x, ey = (e.y - 36*e.size) - d.y, dist = Math.hypot(ex, ey), ahead = (ex*hx + ey*hy)/(dist || 1); const score = dist*(1.35 - 0.35*ahead); if (score < bd){ bd = score; best = e; } }
+        d.target = best; tx = best.x; ty = best.y - 34*best.size;
+        // like an eel it climbs between strikes and dives onto each one
+        const far = Math.hypot(tx - d.bx, ty - d.by); if (far > 230) ty = Math.min(ty, GROUND - 250 - Math.sin(d.t*1.7)*40);
+      }
+      R = 125; d.spd = lerp(d.spd, 1050, Math.min(1, dt*2));
+    }
+    if (d.phase === 'leave'){ tx = d.x + d.leaveDir*500; ty = -OFFY - 500; R = 260; d.spd = lerp(d.spd, 900, Math.min(1, dt*2)); d.life -= dt*0.55; }
+    // it may not swim into the ground
+    if (d.by > GROUND - 34){ ty = Math.min(ty, GROUND - 160); }
+    // steer the calm centre line with a fixed smallest turning circle: heavy, never twitchy
+    const want = Math.atan2(ty - d.by, tx - d.bx), w = d.spd/R;
+    d.ang += clamp(drgWrap(want - d.ang), -w*dt, w*dt);
+    d.bx += Math.cos(d.ang)*d.spd*dt; d.by += Math.sin(d.ang)*d.spd*dt;
+    d.by = Math.min(d.by, GROUND - 22);
+    // air-swimming: the head never stops weaving across its line, like an eel
+    d.wob += dt*(d.spd/300)*6.2832;
+    d.amp = lerp(d.amp, d.phase === 'rise' ? 16 : 24, Math.min(1, dt*(d.phase === 'rise' ? 6 : 3)));
+    const off = Math.sin(d.wob)*d.amp, nx = -Math.sin(d.ang), ny = Math.cos(d.ang);
+    const hx = d.bx + nx*off, hy = d.by + ny*off;
+    d.vx = (hx - d.x)/dt; d.vy = (hy - d.y)/dt; d.x = hx; d.y = hy;
+    d.hdg = Math.atan2(d.vy, d.vx);
+    if (Math.cos(d.ang) > 0.2) d.mirror = 1; else if (Math.cos(d.ang) < -0.2) d.mirror = -1; else if (d.mirror == null) d.mirror = d.face;
+    // the body follows the head's path; a ribbon wave runs down it, swinging more toward the tail
+    d.fx[0] = d.x; d.fy[0] = d.y;
+    for (let i = 1; i < DRG.N; i++){ const ex = d.fx[i] - d.fx[i - 1], ey = d.fy[i] - d.fy[i - 1], l = Math.hypot(ex, ey) || 1; d.fx[i] = d.fx[i - 1] + ex/l*DRG.SEG; d.fy[i] = d.fy[i - 1] + ey/l*DRG.SEG; }
+    for (let i = 0; i < DRG.N; i++){
+      const a = Math.max(0, i - 1), b = Math.min(DRG.N - 1, i + 1); let ex = d.fx[a] - d.fx[b], ey = d.fy[a] - d.fy[b]; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l;
+      const env = Math.min(1, i/8)*(0.5 + 0.9*i/DRG.N), o = Math.sin(d.wob*0.9 - i*0.26)*9*env;
+      d.rx[i] = d.fx[i] - ey*o; d.ry[i] = d.fy[i] + ex*o;
+      if (ex > 0.12) d.side[i] = -1; else if (ex < -0.12) d.side[i] = 1;
+    }
+    d.jaw = lerp(d.jaw, d.phase === 'hunt' ? 0.65 + Math.sin(d.t*9)*0.1 : 0.25, Math.min(1, dt*8));
+    // everything it touches burns: the head bites, the body sweeps
+    if (d.phase !== 'leave' || d.life > 0.6){
+      for (const e of G.E){
+        if (e.dead || e.remote || d.hit.has(e) || d.kills >= d.tier.kills) continue;
+        const cy = e.y - 34*e.size, rr = 30*e.size + 14;
+        let touch = Math.hypot(e.x - d.x, cy - d.y) < rr + 12;
+        if (!touch) for (let i = 4; i < DRG.N; i += 4){ if (Math.abs(e.x - d.rx[i]) < rr && Math.abs(cy - d.ry[i]) < rr){ touch = true; break; } }
+        if (!touch) continue;
+        d.hit.add(e);
+        const boss = isBoss(e);
+        damageEnemy(e, boss ? 260*FM()*d.tier.dmg : e.maxHp*3 + 999, { src:'form', kb:boss ? 160 : 420, dir:sign(e.x - d.x) || d.face, heavy:true, burn:14, launch:boss ? 0 : 520, unblockable:true });
+        if (!boss) d.kills++;
+        burst(e.x, cy, 14, '#FFB25A', 420, 4, true); emit(e.x, cy, { n:6, col:['#FFE14D','#FF7A2A','#FF3A1A'], spd:220, size:5, life:0.6, kind:'ember', g:-0.5 });
+        if (d.kills % 6 === 1) sfx('fire');
+      }
+    }
+    // flames streaming off the body
+    const q = typeof FXQ === 'function' ? FXQ() : 1;
+    for (let k = 0; k < 3*q; k++){ const i = (Math.random()*DRG.N)|0; emit(d.rx[i], d.ry[i], { n:1, col:['#FFE14D','#FF9A3A','#FF4A1A'], spd:40, size:4 + Math.random()*3, life:0.45, kind:'ember', g:-0.5, vx:d.vx*0.15, vy:d.vy*0.15 }); }
+  }
+  G.dragons = G.dragons.filter(d => d.life > 0 && d.t < 16);
+}
+
+/* the face: a long-snouted dragon head with a heavy brow, antlers, whiskers, fangs and a burning eye */
+function drawDragonHead(c, x, y, ang, mirror, H0, jaw, t){
+  c.save(); c.translate(x, y); c.rotate(ang); c.scale(1, mirror);
+  // antlers: two branching horns, the far one darker
+  const antler = (bx, by, s, col) => { c.strokeStyle = col; c.lineCap = 'round';
+    c.lineWidth = H0*0.2*s; c.beginPath(); c.moveTo(bx, by); c.bezierCurveTo(bx - H0*0.6*s, by - H0*0.5*s, bx - H0*1.6*s, by - H0*1.2*s, bx - H0*2.5*s, by - H0*1.25*s); c.stroke();
+    c.lineWidth = H0*0.13*s; c.beginPath(); c.moveTo(bx - H0*0.8*s, by - H0*0.62*s); c.quadraticCurveTo(bx - H0*0.85*s, by - H0*1.1*s, bx - H0*0.6*s, by - H0*1.55*s);
+    c.moveTo(bx - H0*1.7*s, by - H0*1.08*s); c.quadraticCurveTo(bx - H0*1.75*s, by - H0*1.6*s, bx - H0*1.5*s, by - H0*1.95*s); c.stroke(); };
+  antler(-H0*0.45, -H0*0.6, 0.85, '#5A2410'); antler(-H0*0.15, -H0*0.66, 1, '#8A4418');
+  // flame mane flowing back from the crown and the jaw
+  c.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 6; k++){ const sw = Math.sin(t*7 + k*1.3)*H0*0.18, by = -H0*0.4 + k*H0*0.17;
+    c.fillStyle = k % 2 ? 'rgba(255,170,60,0.55)' : 'rgba(255,90,30,0.55)';
+    c.beginPath(); c.moveTo(-H0*0.9, by - H0*0.1); c.quadraticCurveTo(-H0*1.7, by - H0*0.25 + sw, -H0*(2.3 + (k % 3)*0.3), by + sw*1.6); c.quadraticCurveTo(-H0*1.6, by + H0*0.1 + sw, -H0*0.9, by + H0*0.12); c.fill(); }
+  c.globalCompositeOperation = 'source-over';
+  // the lower jaw on its hinge, with a tongue and fangs
+  c.save(); c.translate(-H0*0.25, H0*0.26); c.rotate(jaw*0.62);
+  const jg = c.createLinearGradient(0, 0, 0, H0*0.55); jg.addColorStop(0, '#B8461A'); jg.addColorStop(1, '#6A1E0C');
+  c.fillStyle = jg; c.beginPath(); c.moveTo(0, -H0*0.04); c.quadraticCurveTo(H0*1.3, 0, H0*2.15, H0*0.03); c.quadraticCurveTo(H0*2.05, H0*0.36, H0*1.1, H0*0.46); c.quadraticCurveTo(H0*0.3, H0*0.52, -H0*0.25, H0*0.3); c.closePath(); c.fill();
+  c.fillStyle = '#E04A5A'; c.beginPath(); c.moveTo(H0*0.2, H0*0.02); c.quadraticCurveTo(H0*1.2, -H0*0.06 - jaw*H0*0.2, H0*1.75, H0*0.05); c.quadraticCurveTo(H0*1.2, H0*0.12, H0*0.2, H0*0.1); c.fill();
+  c.fillStyle = '#FFF4E6'; for (let k = 0; k < 6; k++){ const tx = H0*(0.5 + k*0.26), big = k === 5; c.beginPath(); c.moveTo(tx, 0); c.lineTo(tx + H0*0.07, -H0*(big ? 0.34 : 0.16)); c.lineTo(tx + H0*0.14, 0); c.fill(); }
+  // a beard of fire under the chin
+  c.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 4; k++){ const sw = Math.sin(t*8 + k)*H0*0.12; c.fillStyle = 'rgba(255,150,50,0.6)'; c.beginPath(); c.moveTo(H0*(0.5 + k*0.3), H0*0.42); c.quadraticCurveTo(H0*(0.35 + k*0.3) + sw, H0*0.8, H0*(0.2 + k*0.3) + sw*2, H0*(1.05 + (k % 2)*0.2)); c.quadraticCurveTo(H0*(0.5 + k*0.3), H0*0.75, H0*(0.7 + k*0.3), H0*0.42); c.fill(); }
+  c.globalCompositeOperation = 'source-over';
+  c.restore();
+  // the throat glows when the mouth is open
+  if (jaw > 0.12){ const g = c.createRadialGradient(H0*0.9, H0*0.3, 0, H0*0.9, H0*0.3, H0*1.3); g.addColorStop(0, 'rgba(255,250,225,1)'); g.addColorStop(0.35, 'rgba(255,170,60,0.95)'); g.addColorStop(1, 'rgba(200,40,10,0)');
+    c.fillStyle = g; c.beginPath(); c.moveTo(-H0*0.25, H0*0.25); c.lineTo(H0*2.05, H0*0.24); c.lineTo(H0*1.6, H0*0.28 + jaw*H0*1.35); c.closePath(); c.fill(); }
+  // skull and snout: high crown, long muzzle, an upturned nose pad
+  const sg = c.createLinearGradient(0, -H0*0.8, 0, H0*0.35); sg.addColorStop(0, '#7A2A0E'); sg.addColorStop(0.45, '#C2501A'); sg.addColorStop(1, '#F08A3A');
+  c.fillStyle = sg; c.beginPath(); c.moveTo(-H0*1.25, -H0*0.05);
+  c.bezierCurveTo(-H0*1.3, -H0*0.6, -H0*0.75, -H0*0.86, -H0*0.15, -H0*0.78);
+  c.quadraticCurveTo(H0*0.45, -H0*0.72, H0*0.9, -H0*0.48);
+  c.quadraticCurveTo(H0*1.5, -H0*0.42, H0*2.05, -H0*0.42);
+  c.bezierCurveTo(H0*2.35, -H0*0.6, H0*2.62, -H0*0.42, H0*2.58, -H0*0.14);
+  c.quadraticCurveTo(H0*2.55, H0*0.18, H0*2.15, H0*0.24);
+  c.lineTo(H0*0.45, H0*0.27); c.quadraticCurveTo(-H0*0.5, H0*0.46, -H0*1.05, H0*0.36); c.quadraticCurveTo(-H0*1.35, H0*0.2, -H0*1.25, -H0*0.05); c.closePath(); c.fill();
+  c.globalCompositeOperation = 'lighter'; c.strokeStyle = 'rgba(255,190,90,0.6)'; c.lineWidth = Math.max(1.2, H0*0.07); c.stroke(); c.globalCompositeOperation = 'source-over';
+  // plates down the nose ridge and scales on the cheek
+  c.strokeStyle = 'rgba(70,16,4,0.55)'; c.lineWidth = Math.max(1, H0*0.05);
+  for (let k = 0; k < 5; k++){ const px = H0*(0.95 + k*0.27); c.beginPath(); c.arc(px, -H0*0.36, H0*0.16, Math.PI*1.1, Math.PI*1.9); c.stroke(); }
+  for (let k = 0; k < 4; k++){ c.beginPath(); c.arc(-H0*(0.2 + k*0.25), H0*0.1, H0*0.13, Math.PI*0.2, Math.PI*0.95); c.stroke(); }
+  // nostril with a curl of smoke
+  c.fillStyle = '#3A0E04'; c.beginPath(); c.ellipse(H0*2.3, -H0*0.24, H0*0.13, H0*0.07, 0.4, 0, 6.283); c.fill();
+  // heavy brow with flame-shaped tufts
+  c.fillStyle = '#5A1A08'; c.beginPath(); c.moveTo(-H0*0.3, -H0*0.62); c.quadraticCurveTo(H0*0.35, -H0*0.98, H0*0.95, -H0*0.5); c.quadraticCurveTo(H0*0.4, -H0*0.62, -H0*0.3, -H0*0.5); c.fill();
+  c.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 3; k++){ const sw = Math.sin(t*9 + k*2)*H0*0.08; c.fillStyle = 'rgba(255,200,90,0.7)'; c.beginPath(); c.moveTo(H0*(0.6 - k*0.32), -H0*(0.82 - k*0.03)); c.quadraticCurveTo(H0*(0.2 - k*0.32), -H0*1.15 + sw, -H0*(0.25 + k*0.32), -H0*(1.15 + k*0.05) + sw*1.5); c.quadraticCurveTo(H0*(0.05 - k*0.32), -H0*0.9, H0*(0.35 - k*0.32), -H0*0.74); c.fill(); }
+  c.globalCompositeOperation = 'source-over';
+  // cheek fins
+  for (let k = 0; k < 3; k++){ c.fillStyle = k % 2 ? '#8A2A0E' : '#6A200A'; c.beginPath(); c.moveTo(-H0*(0.55 + k*0.18), H0*0.22); c.quadraticCurveTo(-H0*(1.25 + k*0.25), H0*(0.38 + k*0.16), -H0*(1.75 + k*0.3), H0*(0.68 + k*0.18)); c.lineTo(-H0*(0.85 + k*0.18), H0*0.05); c.fill(); }
+  // upper fangs
+  c.fillStyle = '#FFF4E6'; for (let k = 0; k < 6; k++){ const tx = H0*(0.55 + k*0.26), big = k === 5; c.beginPath(); c.moveTo(tx, H0*0.25); c.lineTo(tx + H0*0.07, H0*(big ? 0.62 : 0.42)); c.lineTo(tx + H0*0.14, H0*0.25); c.fill(); }
+  // the eye: gold iris, slit pupil, a bright catchlight, a dark lid line
+  const ex = H0*0.42, ey = -H0*0.42;
+  c.fillStyle = '#2A0A02'; c.beginPath(); c.ellipse(ex, ey, H0*0.3, H0*0.15, -0.22, 0, 6.283); c.fill();
+  const eg = c.createRadialGradient(ex, ey, 0, ex, ey, H0*0.24); eg.addColorStop(0, '#FFFBE0'); eg.addColorStop(0.45, '#FFD24A'); eg.addColorStop(1, '#E06A10');
+  c.fillStyle = eg; c.beginPath(); c.ellipse(ex, ey, H0*0.25, H0*0.12, -0.22, 0, 6.283); c.fill();
+  c.fillStyle = '#1A0400'; c.beginPath(); c.ellipse(ex + H0*0.03, ey, H0*0.035, H0*0.11, -0.22, 0, 6.283); c.fill();
+  c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(ex - H0*0.07, ey - H0*0.04, H0*0.035, 0, 6.283); c.fill();
+  c.strokeStyle = '#2A0A02'; c.lineWidth = Math.max(1, H0*0.06); c.beginPath(); c.ellipse(ex, ey - H0*0.02, H0*0.29, H0*0.14, -0.22, Math.PI*1.05, Math.PI*1.95); c.stroke();
+  // whiskers: two long, slow ribbons from the upper lip
+  c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+  for (const [wy, ph, len] of [[H0*0.0, 0, 3.4], [H0*0.15, 1.6, 2.8]]){ c.strokeStyle = 'rgba(255,220,160,0.75)'; c.lineWidth = Math.max(1, H0*0.06); c.beginPath(); c.moveTo(H0*2.05, wy);
+    for (let s = 1; s <= 10; s++){ const u = s/10; c.lineTo(H0*(2.05 - u*len*0.9), wy + H0*u*0.6 + Math.sin(t*3 + ph + u*5)*H0*0.25*u); } c.stroke(); }
+  c.globalCompositeOperation = 'source-over';
+  c.restore();
+}
+function drawDragons(){
+  if (!G.dragons || !G.dragons.length) return;
+  const c = ctx;
+  for (const d of G.dragons){
+    const N = DRG.N, a = clamp(d.life, 0, 1);
+    c.save(); c.globalAlpha = a;
+    // heat under the body
+    c.globalCompositeOperation = 'lighter';
+    const sz = d.tier.size; DRG.curS = sz;
+    for (let i = 0; i < N; i += 3){ const r = drgRad(i)*3.6*sz; c.globalAlpha = a*0.35; c.drawImage(DRG_SPR.glow, d.rx[i] - r, d.ry[i] - r, r*2, r*2); }
+    c.globalAlpha = a; c.globalCompositeOperation = 'source-over';
+    // body outline from the render points
+    const L = [], Rt = [];
+    for (let i = 0; i < N; i++){ const p = Math.max(0, i - 1), q = Math.min(N - 1, i + 1); let ex = d.rx[p] - d.rx[q], ey = d.ry[p] - d.ry[q]; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l; const r = drgRad(i);
+      L.push([d.rx[i] - ey*r, d.ry[i] + ex*r]); Rt.push([d.rx[i] + ey*r, d.ry[i] - ex*r]); }
+    const path = () => { c.beginPath(); c.moveTo(L[0][0], L[0][1]); for (let i = 1; i < N; i++) c.quadraticCurveTo(L[i - 1][0], L[i - 1][1], (L[i - 1][0] + L[i][0])/2, (L[i - 1][1] + L[i][1])/2);
+      c.lineTo(d.rx[N - 1], d.ry[N - 1]); for (let i = N - 1; i > 0; i--) c.quadraticCurveTo(Rt[i][0], Rt[i][1], (Rt[i][0] + Rt[i - 1][0])/2, (Rt[i][1] + Rt[i - 1][1])/2); c.closePath(); };
+    path(); const g = c.createLinearGradient(d.rx[0], d.ry[0], d.rx[N - 1], d.ry[N - 1]); g.addColorStop(0, '#C04A16'); g.addColorStop(0.5, '#9A3010'); g.addColorStop(1, '#5A1A08');
+    c.fillStyle = g; c.fill();
+    c.save(); path(); c.clip();
+    // belly plates and scales
+    for (let i = 3; i < N - 3; i++){ const p = Math.max(0, i - 1), q = Math.min(N - 1, i + 1); let ex = d.rx[p] - d.rx[q], ey = d.ry[p] - d.ry[q]; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l;
+      const r = drgRad(i), dn = -d.side[i], an = Math.atan2(ey, ex);
+      c.fillStyle = i % 2 ? 'rgba(255,214,140,0.42)' : 'rgba(255,190,110,0.36)'; c.beginPath(); c.ellipse(d.rx[i] - ey*dn*r*0.7, d.ry[i] + ex*dn*r*0.7, DRG.SEG*0.7, r*0.36, an, 0, 6.283); c.fill();
+      if (i % 2 === 0){ c.strokeStyle = 'rgba(60,12,2,0.45)'; c.lineWidth = 1; for (let k = -1; k <= 1; k++){ const ox = d.rx[i] + ey*k*r*0.4, oy = d.ry[i] - ex*k*r*0.4; c.beginPath(); c.arc(ox, oy, r*0.32, an + Math.PI*0.55, an + Math.PI*1.45); c.stroke(); } } }
+    c.globalCompositeOperation = 'lighter';
+    for (let i = 2; i < N - 2; i += 2){ const p = Math.max(0, i - 1), q = Math.min(N - 1, i + 1); let ex = d.rx[p] - d.rx[q], ey = d.ry[p] - d.ry[q]; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l; const r = drgRad(i), up = d.side[i];
+      c.fillStyle = `rgba(255,140,50,${0.22 + 0.08*Math.sin(G.time*6 + i*0.5)})`; c.beginPath(); c.ellipse(d.rx[i] - ey*up*r*0.6, d.ry[i] + ex*up*r*0.6, DRG.SEG*1.2, r*0.28, Math.atan2(ey, ex), 0, 6.283); c.fill(); }
+    c.globalCompositeOperation = 'source-over';
+    c.restore();
+    c.globalCompositeOperation = 'lighter'; path(); c.strokeStyle = 'rgba(255,170,70,0.5)'; c.lineWidth = 1.6; c.stroke(); c.globalCompositeOperation = 'source-over';
+    // dorsal flames along the spine
+    c.globalCompositeOperation = 'lighter';
+    for (let i = 4; i < N - 6; i += 3){ const p = Math.max(0, i - 1), q = Math.min(N - 1, i + 1); let ex = d.rx[p] - d.rx[q], ey = d.ry[p] - d.ry[q]; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l; const r = drgRad(i), up = d.side[i];
+      const bx = d.rx[i] - ey*up*r*0.85, by = d.ry[i] + ex*up*r*0.85, len = r*(1.1 + 0.4*Math.sin(G.time*10 + i)), tx = bx - ey*up*len - ex*len*0.8, ty = by + ex*up*len - ey*len*0.8;
+      c.fillStyle = i % 2 ? 'rgba(255,200,90,0.6)' : 'rgba(255,110,40,0.6)'; c.beginPath(); c.moveTo(bx + ex*r*0.4, by + ey*r*0.4); c.quadraticCurveTo((bx + tx)/2 + ex*r*0.2, (by + ty)/2 + ey*r*0.2, tx, ty); c.lineTo(bx - ex*r*0.4, by - ey*r*0.4); c.closePath(); c.fill(); }
+    // legs with claws, tucked back as it swims
+    c.globalCompositeOperation = 'source-over'; c.lineCap = 'round';
+    for (const [i, ph] of [[14, 0], [22, 1.8], [48, 0.9], [56, 2.7]]){ const p = i - 1, q = i + 1; let ex = d.rx[p] - d.rx[q], ey = d.ry[p] - d.ry[q]; const l = Math.hypot(ex, ey) || 1; ex /= l; ey /= l; const r = drgRad(i), dn = -d.side[i], sw = Math.sin(G.time*5 + ph)*0.3;
+      const hx = d.rx[i] - ey*dn*r*0.3, hy = d.ry[i] + ex*dn*r*0.3, kx = hx - ey*dn*r*1.0 - ex*r*(0.6 + sw), ky = hy + ex*dn*r*1.0 - ey*r*(0.6 + sw), fx = kx - ex*r*(0.7 - sw), fy = ky - ey*r*(0.7 - sw);
+      c.strokeStyle = '#8A2A0E'; c.lineWidth = r*0.55; c.beginPath(); c.moveTo(hx, hy); c.lineTo(kx, ky); c.stroke(); c.lineWidth = r*0.35; c.beginPath(); c.moveTo(kx, ky); c.lineTo(fx, fy); c.stroke();
+      c.strokeStyle = 'rgba(255,236,210,0.95)'; c.lineWidth = 1.4; c.beginPath(); for (let k = -1; k <= 1; k++){ c.moveTo(fx, fy); c.lineTo(fx - ex*r*0.45 + ey*k*r*0.3, fy - ey*r*0.45 - ex*k*r*0.3); } c.stroke(); }
+    // the tail ends in a flame
+    c.globalCompositeOperation = 'lighter'; const tr = 22 + Math.sin(G.time*14)*5; c.drawImage(DRG_SPR.hot, d.rx[N - 1] - tr, d.ry[N - 1] - tr, tr*2, tr*2); c.globalCompositeOperation = 'source-over';
+    drawDragonHead(c, d.x, d.y, d.hdg, d.mirror, 24*d.tier.size, d.jaw, G.time); DRG.curS = 1;
+    c.globalCompositeOperation = 'lighter'; c.drawImage(DRG_SPR.glow, d.x - 80, d.y - 80, 160, 160);
+    c.restore();
+  }
+}
+
+/* =========================================================
+   SNAKE PHYSICS: lateral undulation the way real snakes do it.
+   The body is a chain of point masses held at a fixed spacing (position-based constraints).
+   Muscles bend each joint toward a travelling wave of curvature that runs from head to tail,
+   with an extra bend near the head to steer. The ground grips sideways and lets it slide
+   lengthways (anisotropic friction), so the wave pushes against the ground and the snake moves
+   forward: nothing drags it along, the forward motion comes out of the physics.
+   Coordinates are on the ground plane (x along, z across); drawing maps them to the screen.
+   ========================================================= */
+function snakeNew(o){
+  const n = o.n, s = { n, seg:o.seg, rad:o.rad,
+    x:new Float32Array(n), z:new Float32Array(n), px:new Float32Array(n), pz:new Float32Array(n), vx:new Float32Array(n), vz:new Float32Array(n),
+    lift:new Float32Array(n), bulge:new Float32Array(n), phase:0, w:0, A:0.03, steer:0, rear:0, jaw:0.15, tongue:0, tongueT:1, hdg:o.ang, mirror:1, bulges:[], t:0 };
+  for (let i = 0; i < n; i++){ const d = o.coiled ? i*0.6 : i*o.seg; s.x[i] = s.px[i] = o.x - Math.cos(o.ang)*d; s.z[i] = s.pz[i] = o.z - Math.sin(o.ang)*d; }
+  return s;
+}
+/* go: 0 (rest) to 1 (full speed); tx, tz: where it wants to go.
+   Real snakes on rough ground do not slip sideways: the body slides only along itself. So the head
+   travels a serpenoid path (its heading swings on a sine whose phase advances with distance), and
+   every segment follows that path exactly. Speed comes from muscle force against ground drag (it has
+   inertia), turning is limited by how tightly the body can bend, the wave flattens as speed rises,
+   and a strike is a real impulse that throws the head forward. */
+function snakeStep(s, dt, tx, tz, go, o){
+  o = o || {};
+  const n = s.n, L = s.seg;
+  s.t += dt;
+  if (s.v == null){ s.v = 0; s.base = s.hdg; s.boost = 0; }
+  // speed: muscle force pushes, ground drag holds back (mass 1)
+  const vmax = o.vmax || 300, drag = 2.4;
+  s.v += (go*vmax*drag - drag*s.v)*dt;
+  if (s.boost > 0){ s.v += s.boost*dt*10; s.boost = Math.max(0, s.boost - s.boost*dt*10); }
+  s.v = Math.max(0, s.v);
+  // steering: the mean heading turns toward the target, no tighter than the body can bend
+  const want = Math.atan2(tz - s.z[0], tx - s.x[0]);
+  let diff = want - s.base; while (diff > Math.PI) diff -= 6.2832; while (diff < -Math.PI) diff += 6.2832;
+  const minR = o.minR || s.rad*4.5, wmax = s.v/minR + (s.v < 20 ? 0.8 : 0);
+  s.base += clamp(diff, -wmax*dt, wmax*dt);
+  // the wave: its phase moves with distance travelled, so the curves stay put on the ground
+  const ds = s.v*dt, lambda = o.lambda || L*n/1.6;
+  s.phase += ds/lambda*6.2832;
+  const vr = clamp(s.v/vmax, 0, 1.5);
+  s.A = lerp(s.A, (o.aMax || 0.62)*clamp(s.v/(vmax*0.2), 0, 1)*(1 - 0.38*Math.min(1, vr))*(s.lunge > 0 ? 0.15 : 1), Math.min(1, dt*3));
+  const heading = s.base + s.A*Math.sin(s.phase);
+  s.lunge = Math.max(0, (s.lunge || 0) - dt);
+  s.px[0] = s.x[0]; s.pz[0] = s.z[0];
+  s.x[0] += Math.cos(heading)*ds; s.z[0] += Math.sin(heading)*ds;
+  // every segment follows the path: no sideways slip
+  for (let i = 1; i < n; i++){ const dx = s.x[i] - s.x[i - 1], dz = s.z[i] - s.z[i - 1], d = Math.hypot(dx, dz) || 1;
+    s.px[i] = s.x[i]; s.pz[i] = s.z[i];
+    if (d > L){ s.x[i] = s.x[i - 1] + dx/d*L; s.z[i] = s.z[i - 1] + dz/d*L; } }
+  for (let i = 0; i < n; i++){ s.vx[i] = (s.x[i] - s.px[i])/dt; s.vz[i] = (s.z[i] - s.pz[i])/dt; }
+  // the neck is a damped spring: it rises when resting or striking and settles when crawling
+  const liftT = o.lift || 0; s.lv = (s.lv || 0) + ((liftT - (s.lh || 0))*60 - (s.lv || 0)*11)*dt; s.lh = (s.lh || 0) + s.lv*dt;
+  for (let i = 0; i < n; i++){ const u = i/14; s.lift[i] = u < 1 ? Math.max(0, s.lh)*Math.pow(1 - u, 1.6) : 0; }
+  // a swallowed meal travels down the body as a bulge
+  for (const b of s.bulges){ b.pos += dt*(o.gulp || 22); }
+  s.bulges = s.bulges.filter(b => b.pos < n + 4);
+  s.bulge.fill(0);
+  for (const b of s.bulges) for (let i = Math.max(0, (b.pos - 6)|0); i < Math.min(n, (b.pos + 6)|0); i++){ const d = (i - b.pos)/2.6; s.bulge[i] = Math.max(s.bulge[i], b.size*Math.exp(-d*d)); }
+  const ha = Math.atan2(s.z[0] - s.z[2], s.x[0] - s.x[2]); s.hdg = isFinite(ha) ? ha : s.hdg;
+  if (Math.cos(s.hdg) > 0.25) s.mirror = 1; else if (Math.cos(s.hdg) < -0.25) s.mirror = -1;
+  s.tongueT -= dt; if (s.tongueT <= 0){ s.tongueT = 0.6 + Math.random()*1.6; s.tongue = 0.35; } s.tongue = Math.max(0, s.tongue - dt);
+}
+/* a strike: an impulse that throws the head at a point, the wave flattening while it flies */
+function snakeLunge(s, tx, tz, power){ s.base = Math.atan2(tz - s.z[0], tx - s.x[0]); s.boost = power; s.lunge = 0.35; }
+function snakeRadius(s, i){ const n = s.n, u = i/(n - 1);
+  const r = u < 0.03 ? lerp(0.95, 0.72, u/0.03) : u < 0.1 ? lerp(0.72, 1, (u - 0.03)/0.07) : u < 0.55 ? 1 : lerp(1, 0.07, Math.pow((u - 0.55)/0.45, 1.15));
+  return r*s.rad*(1 + s.bulge[i]); }
+
+/* drawing: V = { sx(i), sy(i), gx(i), gy(i) (ground point for the shadow), S (scale), pal (colours), glow (sprite), top, bottom } */
+function snakeDraw(c, s, V, t){
+  const n = s.n, S = V.S, P = V.pal;
+  const sx = V.sx, sy = V.sy;
+  const fr = (i) => { const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1); let dx = sx(a) - sx(b), dy = sy(a) - sy(b); const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l; return { dx, dy, nx:-dy, ny:dx }; };
+  const F = []; for (let i = 0; i < n; i++) F.push(fr(i));
+  const edges = (k) => { const Lp = [], Rp = []; for (let i = 0; i < n; i++){ const f = F[i], r = snakeRadius(s, i)*k; Lp.push([sx(i) + f.nx*r, sy(i) + f.ny*r]); Rp.push([sx(i) - f.nx*r, sy(i) - f.ny*r]); } return [Lp, Rp]; };
+  // aura and shadow
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < n; i += 3){ const r = snakeRadius(s, i)*3.1; c.globalAlpha = 0.45*(V.alpha ?? 1); c.drawImage(V.glow, sx(i) - r, sy(i) - r, r*2, r*2); }
+  c.globalAlpha = V.alpha ?? 1; c.globalCompositeOperation = 'source-over';
+  c.fillStyle = 'rgba(0,0,0,0.3)'; for (let i = 0; i < n; i += 3){ const r = snakeRadius(s, i); c.beginPath(); c.ellipse(V.gx(i) + 4*S, V.gy(i) + r*0.5, r*1.1, r*0.42, 0, 0, 6.283); c.fill(); }
+  const [Lo, Ro] = edges(1), [Li, Ri] = edges(0.86);
+  const chunk = (Lp, Rp, a, b) => { c.beginPath(); c.moveTo(Lp[a][0], Lp[a][1]);
+    for (let i = a + 1; i <= b; i++) c.quadraticCurveTo(Lp[i - 1][0], Lp[i - 1][1], (Lp[i - 1][0] + Lp[i][0])/2, (Lp[i - 1][1] + Lp[i][1])/2);
+    c.lineTo(Lp[b][0], Lp[b][1]); if (b === n - 1) c.lineTo(sx(n - 1), sy(n - 1)); else c.lineTo(Rp[b][0], Rp[b][1]);
+    for (let i = b; i > a; i--) c.quadraticCurveTo(Rp[i][0], Rp[i][1], (Rp[i][0] + Rp[i - 1][0])/2, (Rp[i][1] + Rp[i - 1][1])/2);
+    c.lineTo(Rp[a][0], Rp[a][1]); c.closePath(); };
+  const g = c.createLinearGradient(0, V.top, 0, V.bottom); g.addColorStop(0, P.bright); g.addColorStop(1, P.mid);
+  const CH = 8, seg = s.seg;
+  for (let b = n - 1; b > 0; b -= CH){
+    const a = Math.max(0, b - CH - 1);
+    chunk(Lo, Ro, a, b); c.fillStyle = P.line; c.fill();
+    chunk(Li, Ri, a, b); c.fillStyle = g; c.fill();
+    c.save(); chunk(Li, Ri, a, b); c.clip();
+    for (let i = Math.max(1, a); i <= Math.min(n - 2, b); i++){ const f = F[i], r = snakeRadius(s, i), dn = f.ny > 0 ? 1 : -1;
+      c.fillStyle = P.shade; c.beginPath(); c.ellipse(sx(i) + f.nx*dn*r*0.62, sy(i) + f.ny*dn*r*0.62, seg*0.9, r*0.4, Math.atan2(f.dy, f.dx), 0, 6.283); c.fill(); }
+    c.strokeStyle = P.cell; c.lineWidth = 1.7*S; c.lineJoin = 'round';
+    for (const u of [-0.42, 0.42]){ c.beginPath(); for (let i = a; i <= b; i++){ const f = F[i], r = snakeRadius(s, i), x = sx(i) + f.nx*r*u, y = sy(i) + f.ny*r*u; if (i > a) c.lineTo(x, y); else c.moveTo(x, y); } c.stroke(); }
+    c.beginPath();
+    for (let i = a; i <= b; i++){ if (i % 2 || i < 2 || i > n - 3) continue; const f = F[i], r = snakeRadius(s, i);
+      const pt = (u, bw) => [sx(i) + f.nx*r*u + f.dx*r*bw, sy(i) + f.ny*r*u + f.dy*r*bw];
+      const sg = (u0, u1, bow) => { const p0 = pt(u0, 0), m = pt((u0 + u1)/2, bow), z = pt(u1, 0); c.moveTo(p0[0], p0[1]); c.quadraticCurveTo(m[0], m[1], z[0], z[1]); };
+      if (i % 4 === 0) sg(-0.42, 0.42, 0.28); else { sg(-1.1, -0.42, 0.2); sg(0.42, 1.1, 0.2); } }
+    c.stroke();
+    c.globalCompositeOperation = 'lighter';
+    for (let i = a; i <= b; i++){ if (i % 2) continue; const f = F[i], r = snakeRadius(s, i), up = f.ny > 0 ? -1 : 1;
+      c.fillStyle = 'rgba(255,255,255,0.2)'; c.beginPath(); c.ellipse(sx(i) + f.nx*up*r*0.5, sy(i) + f.ny*up*r*0.5, seg*1.1, r*0.14, Math.atan2(f.dy, f.dx), 0, 6.283); c.fill(); }
+    c.globalCompositeOperation = 'source-over';
+    c.restore();
+    c.strokeStyle = P.line; c.lineWidth = 2*S; c.beginPath();
+    for (const E of [Lo, Ro]){ c.moveTo(E[a][0], E[a][1]); for (let i = a + 1; i <= b; i++) c.lineTo(E[i][0], E[i][1]); } c.stroke();
+  }
+  c.globalCompositeOperation = 'lighter'; c.strokeStyle = `rgba(${P.glow},0.4)`; c.lineWidth = 2.5*S; c.beginPath();
+  for (const E of [Lo, Ro]){ c.moveTo(E[0][0], E[0][1]); for (let i = 1; i < n; i++) c.lineTo(E[i][0], E[i][1]); } c.stroke(); c.globalCompositeOperation = 'source-over';
+  snakeHead(c, s, sx(0), sy(0), V, t);
+  c.globalAlpha = 1;
+}
+function snakeHead(c, s, x, y, V, t){
+  const S = V.S, P = V.pal, H0 = s.rad*1.55, jaw = s.jaw;
+  c.save(); c.translate(x, y); c.rotate(V.headAng != null ? V.headAng : s.hdg); c.scale(1, s.mirror);
+  c.save(); c.translate(-H0*0.75, H0*0.22); c.rotate(jaw*0.8);
+  c.fillStyle = P.line; c.beginPath(); c.moveTo(-H0*0.05, -H0*0.05); c.quadraticCurveTo(H0*1.2, -H0*0.02, H0*2.25, H0*0.02); c.quadraticCurveTo(H0*1.5, H0*0.5, -H0*0.15, H0*0.4); c.closePath(); c.fill();
+  c.fillStyle = P.mid; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(H0*1.2, 0.02*H0, H0*2.1, H0*0.05); c.quadraticCurveTo(H0*1.4, H0*0.42, -H0*0.05, H0*0.32); c.closePath(); c.fill();
+  c.strokeStyle = P.cell; c.lineWidth = 1.4*S; for (let k = 0; k < 5; k++){ const xx = H0*(0.2 + k*0.38); c.beginPath(); c.moveTo(xx, H0*0.06); c.quadraticCurveTo(xx + H0*0.15, H0*0.22, xx + H0*0.05, H0*0.36 - k*H0*0.05); c.stroke(); }
+  c.fillStyle = '#FFFFFF'; for (let k = 0; k < 6; k++){ const xx = H0*(0.5 + k*0.25); c.beginPath(); c.moveTo(xx, H0*0.02); c.lineTo(xx + H0*0.05, -H0*0.1); c.lineTo(xx + H0*0.1, H0*0.02); c.fill(); }
+  c.restore();
+  if (jaw > 0.08){ c.fillStyle = P.mouth; c.beginPath(); c.moveTo(-H0*0.8, H0*0.2); c.lineTo(H0*1.45, H0*0.16); c.lineTo(H0*1.1, H0*0.2 + jaw*H0*1.6); c.closePath(); c.fill(); }
+  const shape = () => { c.beginPath(); c.moveTo(-H0*1.25, -H0*0.05);
+    c.bezierCurveTo(-H0*1.15, -H0*0.72, -H0*0.35, -H0*0.86, H0*0.45, -H0*0.72); c.quadraticCurveTo(H0*1.1, -H0*0.6, H0*1.55, -H0*0.38); c.quadraticCurveTo(H0*1.95, -H0*0.2, H0*1.85, H0*0.02);
+    c.quadraticCurveTo(H0*1.7, H0*0.18, H0*1.35, H0*0.2); c.lineTo(-H0*0.75, H0*0.24); c.quadraticCurveTo(-H0*1.25, H0*0.26, -H0*1.25, -H0*0.05); c.closePath(); };
+  shape(); c.lineWidth = 6*S; c.strokeStyle = P.line; c.stroke();
+  shape(); const g = c.createLinearGradient(0, -H0*0.8, 0, H0*0.25); g.addColorStop(0, P.bright); g.addColorStop(0.65, P.mid); g.addColorStop(1, P.deep); c.fillStyle = g; c.fill();
+  c.strokeStyle = P.cell; c.lineWidth = 1.6*S; c.beginPath();
+  c.moveTo(-H0*0.95, -H0*0.5); c.quadraticCurveTo(-H0*0.5, -H0*0.35, -H0*0.6, H0*0.05);
+  c.moveTo(-H0*0.45, -H0*0.78); c.quadraticCurveTo(-H0*0.05, -H0*0.5, -H0*0.15, -H0*0.15);
+  c.moveTo(H0*0.85, -H0*0.62); c.quadraticCurveTo(H0*1.05, -H0*0.4, H0*0.95, -H0*0.1);
+  c.moveTo(H0*1.25, -H0*0.48); c.quadraticCurveTo(H0*1.4, -H0*0.3, H0*1.3, -H0*0.08);
+  c.moveTo(-H0*0.2, H0*0.05); c.quadraticCurveTo(H0*0.5, -H0*0.02, H0*1.3, H0*0.05); c.stroke();
+  c.strokeStyle = P.line; c.lineWidth = 2.6*S; c.beginPath(); c.moveTo(-H0*0.75, H0*0.22); c.quadraticCurveTo(H0*0.4, H0*0.26, H0*1.5, H0*0.14); c.stroke();
+  const fl = H0*(0.15 + jaw*0.55); c.fillStyle = '#FFFFFF'; c.strokeStyle = P.line; c.lineWidth = 1.4*S;
+  for (const fx of [H0*1.12, H0*0.88]){ c.beginPath(); c.moveTo(fx, H0*0.18); c.quadraticCurveTo(fx + H0*0.1, H0*0.22 + fl*0.5, fx + H0*0.02, H0*0.2 + fl); c.lineTo(fx - H0*0.06, H0*0.2); c.closePath(); c.fill(); c.stroke(); }
+  c.fillStyle = P.line; c.beginPath(); c.ellipse(H0*1.62, -H0*0.2, H0*0.07, H0*0.035, -0.4, 0, 6.283); c.fill();
+  const ex = H0*0.55, ey = -H0*0.36;
+  c.fillStyle = P.line; c.beginPath(); c.ellipse(ex, ey, H0*0.32, H0*0.2, -0.15, 0, 6.283); c.fill();
+  const eg = c.createRadialGradient(ex - H0*0.05, ey - H0*0.04, 0, ex, ey, H0*0.28); eg.addColorStop(0, '#FFF3B0'); eg.addColorStop(0.55, '#F2B630'); eg.addColorStop(1, '#B06A10');
+  c.fillStyle = eg; c.beginPath(); c.ellipse(ex, ey, H0*0.27, H0*0.16, -0.15, 0, 6.283); c.fill();
+  c.fillStyle = '#120802'; c.beginPath(); c.ellipse(ex + H0*0.03, ey, H0*0.045, H0*0.14, -0.15, 0, 6.283); c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.95)'; c.beginPath(); c.arc(ex - H0*0.1, ey - H0*0.05, H0*0.04, 0, 6.283); c.fill();
+  c.fillStyle = P.line; c.beginPath(); c.moveTo(ex - H0*0.42, ey - H0*0.06); c.quadraticCurveTo(ex, ey - H0*0.42, ex + H0*0.45, ey - H0*0.1); c.quadraticCurveTo(ex, ey - H0*0.24, ex - H0*0.42, ey - H0*0.06); c.fill();
+  if (s.tongue > 0 && jaw < 0.4){ const k = Math.sin(s.tongue/0.35*Math.PI), tl = H0*1.1*k, f2 = Math.sin(t*40)*H0*0.07;
+    c.strokeStyle = '#E04A6A'; c.lineWidth = 2.4*S; c.lineCap = 'round'; c.beginPath(); c.moveTo(H0*1.8, H0*0.1); c.lineTo(H0*1.8 + tl, H0*0.1 + f2);
+    c.moveTo(H0*1.8 + tl, H0*0.1 + f2); c.lineTo(H0*1.8 + tl + H0*0.22*k, H0*0.1 + f2 - H0*0.13); c.moveTo(H0*1.8 + tl, H0*0.1 + f2); c.lineTo(H0*1.8 + tl + H0*0.22*k, H0*0.1 + f2 + H0*0.13); c.stroke(); }
+  c.restore();
+}
+const SNK_PAL_SERPENT = { glow:'46,229,157', bright:'#EFFFF7', mid:'#A8F2CF', deep:'#43C98E', line:'#0B3A26', cell:'rgba(11,58,38,0.75)', shade:'rgba(20,120,80,0.3)', mouth:'#06261A' };
+
+/* =========================================================
+   SERPENT BREATHING, FIFTH FORM: KING OF SERPENT
+   A giant serpent of green breath drops from the blade to the ground and crawls at the enemies the
+   way a real snake does (no sideways slip, the wave held on the ground, speed with inertia). Close
+   enough, it strikes: the neck rises, the head is thrown forward, and the enemy is swallowed whole;
+   the meal is seen travelling down the body. How many it eats follows the breath you had when you
+   called it (the same tiers as the Flame Dragon). Bosses are bitten and poisoned instead.
+   ========================================================= */
+const SRP_DEPTH = 0.36;
+const SRP_GLOW = drgSprite([[0, 'rgba(46,229,157,0.55)'], [0.45, 'rgba(46,229,157,0.16)'], [1, 'rgba(46,229,157,0)']], 96);
+function summonSerpent(P){
+  const tier = breathTier(P), sz = tier.size;
+  const s = snakeNew({ n:62, seg:9.5*sz, rad:16*sz, x:P.x + P.face*44, z:6, ang:P.face > 0 ? 0 : Math.PI, coiled:true });
+  Object.assign(s, { tier, face:P.face, kills:0, eaten:new Set(), mode:'hunt', cd:0.3, strikeT:0, alpha:0, age:0, target:null });
+  s.lh = 44; s.lv = 0;   // it leaves the blade at hand height and drops to the ground
+  (G.serpents || (G.serpents = [])).push(s);
+  pop(P.x, P.y - 110, tier.label, tier.col);
+  sfx('serpent'); sfx('boom', 0.08); flash('#2EE59D', 0.3); G.shake = Math.max(G.shake, 9); zoomPunch(1.06); vib(60);
+  emit(P.x + P.face*44, P.y - 46, { n:18, col:['#EFFFF7','#9CFFD6','#2EE59D'], spd:300, size:6, life:0.5, kind:'ember', g:-0.3, dir:P.face > 0 ? 0 : Math.PI, spread:0.6 });
+  return s;
+}
+function tickSerpents(dt){
+  if (!G.serpents || !G.serpents.length) return;
+  for (const s of G.serpents){
+    s.age += dt; s.alpha = Math.min(1, s.alpha + dt*4);
+    let tx, tz = 0, go = 1, lift = 0;
+    if (s.mode === 'hunt'){
+      const L = G.camX - 200, R = G.camX + VW + 200;
+      const list = G.E.filter(e => !e.dead && !e.remote && !s.eaten.has(e) && e.x > L && e.x < R);
+      if (!list.length || s.kills >= s.tier.kills || s.age > s.tier.time + 2){ s.mode = 'leave'; }
+      else {
+        let best = null, bd = 1e9; const hd = s.hdg;
+        for (const e of list){ const dx = e.x - s.x[0], dist = Math.abs(dx), ahead = Math.cos(Math.atan2(-s.z[0]*0.5, dx) - hd); const sc = dist*(1.3 - 0.3*ahead); if (sc < bd){ bd = sc; best = e; } }
+        s.target = best; tx = best.x; tz = 0;
+        const dist = Math.hypot(best.x - s.x[0], (0 - s.z[0])*0.6);
+        s.cd -= dt;
+        // in range: rear and strike
+        if (dist < 135 && s.cd <= 0 && s.strikeT <= 0){ s.strikeT = 0.42; s.cd = 0.5; snakeLunge(s, best.x, 0, 1500); sfx('swish'); }
+      }
+    }
+    if (s.mode === 'leave'){ tx = s.x[0] + s.face*600; tz = 40; s.alpha -= dt*0.6; }
+    // the strike: jaws wide, the neck up to the height of what it is going to eat
+    if (s.strikeT > 0){
+      s.strikeT -= dt; go = 0.25;
+      const e = s.target, k = Math.sin(Math.min(1, 1 - s.strikeT/0.42)*Math.PI);
+      lift = (e ? 34*e.size : 30)*k + 6;
+      s.jaw = lerp(s.jaw, 1, Math.min(1, dt*18));
+      // anything in the jaws is taken
+      for (const v of G.E){
+        if (v.dead || v.remote || s.eaten.has(v) || s.kills >= s.tier.kills) continue;
+        if (Math.abs(v.x - s.x[0]) < 46 + 14*v.size && Math.abs(s.z[0]) < 34){
+          s.eaten.add(v);
+          if (isBoss(v)){ damageEnemy(v, 240*FM()*s.tier.dmg, { src:'form', kb:120, dir:sign(v.x - s.x[0]) || s.face, heavy:true, poison:14, unblockable:true }); }
+          else { v.eaten = true; damageEnemy(v, v.maxHp*3 + 999, { src:'form', kb:0, dir:s.face, unblockable:true }); s.kills++; s.bulges.push({ pos:0, size:0.75 }); }
+          const hy = GROUND - (s.lh || 0) - 10;
+          emit(v.x, hy, { n:14, col:['#EFFFF7','#9CFFD6','#2EE59D','#0B3A26'], spd:260, size:5, life:0.5, kind:'ember', g:-0.2 });
+          if (s.kills % 4 === 1) sfx('serpent');
+        }
+      }
+    } else { s.jaw = lerp(s.jaw, 0.15, Math.min(1, dt*8)); lift = s.mode === 'hunt' ? 8 : 0; }
+    snakeStep(s, dt, tx, tz, go, { vmax:s.mode === 'leave' ? 420 : 560, minR:s.rad*3.4, lift, gulp:26 });
+    // keep it on the band of ground in front of the fight
+    for (let i = 0; i < s.n; i++) s.z[i] = clamp(s.z[i], -40, 70);
+    if (Math.random() < 0.6){ const i = (Math.random()*s.n)|0; emit(s.x[i], GROUND + s.z[i]*SRP_DEPTH - s.lift[i] - 8, { n:1, col:['#9CFFD6','#2EE59D'], spd:30, size:4, life:0.5, kind:'ember', g:-0.4 }); }
+  }
+  G.serpents = G.serpents.filter(s => s.alpha > 0 && s.age < 20);
+}
+function drawSerpents(){
+  if (!G.serpents || !G.serpents.length) return;
+  for (const s of G.serpents){
+    ctx.save();
+    snakeDraw(ctx, s, { sx:i => s.x[i], sy:i => GROUND + s.z[i]*SRP_DEPTH - s.lift[i] - s.rad*0.6, gx:i => s.x[i], gy:i => GROUND + s.z[i]*SRP_DEPTH - s.rad*0.2,
+      S:0.7, pal:SNK_PAL_SERPENT, glow:SRP_GLOW, top:GROUND - 160, bottom:GROUND + 40, alpha:clamp(s.alpha, 0, 1) }, G.time);
+    ctx.restore();
+  }
+}
+
+/* =========================================================
    MAIN LOOP
    ========================================================= */
 let last = performance.now();
@@ -10276,6 +10751,7 @@ function step(dt){
   if (G.mode === 'blitz') blitzTick(dt);
   if (G.mode === 'zomb') zombTick(dt);
   if (G.mode === 'world') worldTick(dt, pdt, wdt);
+  tickDragons(pdt); tickSerpents(pdt);
   // lingering hazards tick in world time
   for (const h of G.haz){
     { const hdt = h.follow ? pdt : wdt; h.life -= hdt; h.tick -= hdt; }   // crescents that follow you keep cutting even when time is stopped
