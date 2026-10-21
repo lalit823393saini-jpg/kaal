@@ -10559,7 +10559,12 @@ function frameBody(now){
   if (!G.P){ demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
   if (pressed.pause && G.running && (!G.over || G.mode === 'duel')) togglePause();
   if (pressed.slowToggle){ slowToggled = !slowToggled; document.querySelector('.tb.slow').classList.toggle('held', slowToggled); }
-  if (G.running && !G.paused) step(dt);
+  if (G.running && !G.paused){
+    if ((G.mode === 'coop' || G.mode === 'duel') && raw > 0.034){   // online: never fall behind real time, or the two screens drift apart
+      let left = Math.min(raw, 0.25), first = true;
+      while (left > 0.0005){ const d = Math.min(0.033, left); step(d); left -= d; if (first){ first = false; for (const k in pressed) pressed[k] = false; } }
+    } else step(dt);
+  }
   for (const k in pressed) pressed[k] = false;
   viewFrame(dt);
   safeDraw(render);
@@ -10597,6 +10602,17 @@ function stopGame(kind, e){
   box.querySelector('button').onclick = () => location.reload();
   document.body.appendChild(box);
 }
+/* browsers almost stop a hidden tab's frames: during online play a worker's timer keeps the game and the connection going */
+const BGT = { fns:new Set(), w:null };
+(function(){
+  const fire = () => { for (const f of BGT.fns) try { f(); } catch(e){} };
+  try { BGT.w = new Worker(URL.createObjectURL(new Blob(['setInterval(function(){postMessage(0)},33)'], { type:'text/javascript' }))); BGT.w.onmessage = fire; }
+  catch(e){ setInterval(fire, 33); }
+})();
+BGT.fns.add(() => {
+  if (!document.hidden || loopStopped || !G.running || (G.mode !== 'coop' && G.mode !== 'duel')) return;
+  try { frameBody(performance.now()); } catch (e){ stopGame('frame', e); }
+});
 function frame(now){
   try { frameBody(now); }
   catch (e){ stopGame('frame', e); }   // simulation / input / camera: the state may be inconsistent, so stop instead of carrying on
@@ -12066,19 +12082,23 @@ function makeP2PRoom(){
     const st = { me:null, mine:{ r:role }, opp:null, oppId:null, conn:null, peer:null, subs:[], gone:false, lastMsg:0 };
     const room = {
       p2p:true,
-      presence(patch){ Object.assign(st.mine, patch || {}); if (st.conn && st.conn.open){ try { st.conn.send(st.mine); } catch(e){} } return Promise.resolve(); },
+      presence(patch){ Object.assign(st.mine, patch || {}); st.dirty = true; pump(); return Promise.resolve(); },
       peers(){ const out = [{ peer:st.me || 'me', isMe:true, sameTab:true, kind:'user', presence:st.mine }];
-        if (st.oppId && st.opp) out.push({ peer:st.oppId, isMe:false, sameTab:false, kind:'user', presence:st.opp }); return out; },
+        if (st.oppId && st.opp) out.push({ peer:st.oppId, isMe:false, sameTab:false, kind:'user', presence:st.opp, updatedAt:st.oppAt }); return out; },
       onPeers(cb){ st.subs.push(cb); return () => { st.subs = st.subs.filter(f => f !== cb); }; },
-      leave(){ st.gone = true; clearInterval(st.watch); try { st.conn && st.conn.close(); } catch(e){} try { st.peer && st.peer.destroy(); } catch(e){} }
+      leave(){ st.gone = true; clearInterval(st.watch); BGT.fns.delete(pump); try { st.conn && st.conn.close(); } catch(e){} try { st.peer && st.peer.destroy(); } catch(e){} }
     };
+    // send the latest state when the link is free; if the link is backed up, skip (a newer state will follow)
+    const pump = () => { const c = st.conn; if (!st.dirty || !c || !c.open) return; const dc = c.dataChannel;
+      if (dc && dc.bufferedAmount > 48000) return; st.dirty = false; try { c.send(st.mine); } catch(e){} };
+    st.pump = pump; BGT.fns.add(pump);
     const emit = (joined, left) => { for (const f of st.subs.slice()) try { f({ joined, left }); } catch(e){} };
     const drop = () => { if (!st.oppId) return; const p = { peer:st.oppId }; st.oppId = null; st.opp = null; st.conn = null; emit([], [p]); };
     const wire = conn => {
       if (st.conn && st.conn.open){ try { conn.close(); } catch(e){} return; }   // only one rival at a time
       st.conn = conn;
       conn.on('open', () => { try { conn.send(st.mine); } catch(e){} });
-      conn.on('data', d => { if (!d || typeof d !== 'object') return; st.lastMsg = performance.now(); const first = !st.opp; st.opp = d; st.oppId = conn.peer; if (first) emit([{ peer:conn.peer, presence:d }], []); });
+      conn.on('data', d => { if (!d || typeof d !== 'object') return; st.lastMsg = performance.now(); const first = !st.opp; st.opp = d; st.oppAt = Date.now(); st.oppId = conn.peer; if (first) emit([{ peer:conn.peer, presence:d }], []); });
       conn.on('close', drop); conn.on('error', drop);
     };
     const isHost = st.mine.r === 'host';
@@ -12089,7 +12109,7 @@ function makeP2PRoom(){
       peer.on('error', e => { clearTimeout(t); if (e && e.type === 'peer-unavailable'){ st.noHost = true; return; } rej(Object.assign(new Error(e && e.type || 'p2p'), { code:e && e.type === 'unavailable-id' ? 'taken' : (e && e.type) || 'p2p' })); });
       peer.on('connection', wire);
     });
-    room.dial = () => { if (st.peer && !st.conn) wire(st.peer.connect(hostId, { reliable:true, serialization:'json' })); };
+    room.dial = () => { if (st.peer && !st.conn) wire(st.peer.connect(hostId, { reliable:false, serialization:'json' })); };
     st.watch = setInterval(() => { if (st.oppId && performance.now() - st.lastMsg > 8000) drop(); }, 1000);
     return room;
   };
@@ -12422,6 +12442,7 @@ function netSyncIn(dt){
 function netSyncOut(dt){
   const P = G.P, room = NET.room; if (!room || !P) return;
   NET.hb += dt;
+  NET.sendAcc = (NET.sendAcc || 0) + dt; if (NET.sendAcc < 1/30) return; NET.sendAcc = 0;
   const patch = {
     r:NET.role, nm:SV.name || 'Ronin', hb:Math.floor(NET.hb*2),
     x:Math.round(P.x), y:Math.round(P.y), vx:Math.round(P.vx), f:P.face, g:P.onG ? 1 : 0,
@@ -12579,6 +12600,7 @@ function coopApplyHit(ev){
 /* ---------- the guest's puppets ---------- */
 function coopPuppets(en){
   if (!Array.isArray(en)) return;
+  const fresh = en !== NET.lastEn; NET.lastEn = en;
   const seen = new Set();
   for (const a of en.slice(0, 48)){
     if (!Array.isArray(a)) continue;
@@ -12589,6 +12611,7 @@ function coopPuppets(en){
     if (!e){ e = makeEnemy(type, okNum(a[2], -400, G.worldW + 400, 0), G.diff, false); e.puppet = true; e.nid = nid; e.alert = true; e.tx = e.x; e.ty = GROUND; NET.puppets.set(nid, e); G.E.push(e); }
     if (e.dead) continue;
     e.tx = okNum(a[2], -400, G.worldW + 400, e.x); e.ty = okNum(a[3], -600, GROUND + 50, e.y);
+    if (fresh){ (e.snaps || (e.snaps = [])).push([performance.now(), e.tx, e.ty]); if (e.snaps.length > 8) e.snaps.shift(); }
     e.face = a[4] === 1 ? 1 : -1; e.hp = okNum(a[5], 0, 1e7, e.hp); e.maxHp = okNum(a[6], 1, 1e7, e.maxHp);
     e.state = typeof a[7] === 'string' && a[7].length < 16 ? a[7] : 'idle'; e.timer = okNum(a[8], -5, 30, 0); e.onG = !!a[9];
     if (a[10] || e.hp <= 0) killEnemy(e);
@@ -12597,7 +12620,13 @@ function coopPuppets(en){
 }
 function coopPuppetTick(e, dt){
   if (e.tx == null) return;
-  const ox = e.x; e.x = lerp(e.x, e.tx, Math.min(1, dt*14)); e.y = lerp(e.y, e.ty, Math.min(1, dt*14));
+  const ox = e.x, S = e.snaps, rt = performance.now() - 100;
+  if (S && S.length >= 2){
+    let i = S.length - 1; while (i > 0 && S[i - 1][0] > rt) i--;
+    const a = S[Math.max(0, i - 1)], b = S[i];
+    if (rt >= b[0]){ const v = S.length >= 2 ? (b[1] - S[S.length - 2][1])/Math.max(1, b[0] - S[S.length - 2][0]) : 0, ex = Math.min(100, rt - b[0]); e.x = b[1] + v*ex; e.y = b[2]; }
+    else { const u = clamp((rt - a[0])/Math.max(1, b[0] - a[0]), 0, 1); e.x = lerp(a[1], b[1], u); e.y = lerp(a[2], b[2], u); }
+  } else { e.x = lerp(e.x, e.tx, Math.min(1, dt*14)); e.y = lerp(e.y, e.ty, Math.min(1, dt*14)); }
   e.vx = (e.x - ox)/Math.max(dt, 1e-3); e.walk = (e.walk || 0) + dt*Math.abs(e.vx)*0.04;
   e.flash -= dt; e.hurtBar -= dt; e.alertFlash -= dt;
 }
