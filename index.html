@@ -51,6 +51,9 @@ p.lead{max-width:34em;font-size:18px;line-height:1.45;opacity:.92}
 .grid .chHead .newTag{font-size:12px;color:#120806;background:#FFB347;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:2px}
 .grid .lv.dojo{box-shadow:inset 0 -3px 0 #C9773A}
 .grid .lv.elite{box-shadow:inset 0 -3px 0 #E8B23A}
+.grid .lv{position:relative}
+.grid .lv .chalK{position:absolute;left:5px;top:3px;font-size:13px;color:#FFB347;opacity:.85}
+.grid .lv .chalK.done{color:#8FE38A}
 .lv{aspect-ratio:1;border:2px solid var(--bone);background:transparent;font-family:Teko,sans-serif;font-size:34px;line-height:1;padding-top:6px;position:relative}
 .lv.boss{border-color:var(--dusk);color:var(--sun)}
 .lv.boss{padding-bottom:10px}
@@ -282,6 +285,14 @@ body.touch #slots{display:none}
 .son{color:var(--coin)} .sold{color:var(--coin);opacity:.5} .soff{opacity:.25}
 #bossBar{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 60px);transform:translateX(-50%);width:min(520px,62cqw);display:none;pointer-events:none;text-align:center}
 #bossBar.on{display:block}
+#trainBox{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 112px);transform:translateX(-50%);display:none;min-width:260px;max-width:min(520px,86vw);
+  background:rgba(12,6,4,.82);border:1.5px solid #FFB347;border-radius:10px;padding:10px 16px 12px;text-align:center;color:#FBEFE0;pointer-events:none;z-index:6}
+#trainBox.on{display:block}
+#trainBox .tbStep{font:600 13px/1.2 Teko,sans-serif;letter-spacing:.08em;color:#FFB347;text-transform:uppercase}
+#trainBox .tbText{font-size:16px;margin:3px 0 6px}
+#trainBox .tbKey{display:inline-block;font:600 18px/1 Teko,sans-serif;color:#120806;background:#FFB347;border-radius:5px;padding:4px 10px 2px}
+#trainBox .tbSkip{pointer-events:auto;position:absolute;right:8px;top:6px;font-size:12px;background:none;border:1px solid rgba(255,179,71,.5);color:#FFB347;border-radius:5px;padding:2px 7px;cursor:pointer}
+body:not(.touch) #trainBox{top:calc(env(safe-area-inset-top,0px) + 78px)}
 #bossBar .bn{display:flex;justify-content:space-between;align-items:baseline;font-family:Teko,sans-serif;font-size:22px;line-height:1;color:#FFD9D4;text-shadow:0 1px 0 #000}
 #bossBar .bn span:last-child{font-size:16px;color:#FF8A7A}
 #bossBar .bb{height:11px;border:1.5px solid #FF3B2F;padding:1.5px;margin-top:3px;background:rgba(0,0,0,.4)}
@@ -615,6 +626,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   </div>
 </div>
 <div id="slowBadge">time slowed</div>
+<div id="trainBox"></div>
 <div id="bossBar"><div class="bn"><span id="bossName"></span><span id="bossPh"></span></div><div class="bb"><i id="bossFill"></i></div></div>
 <div id="toast"></div>
 <div id="formName"></div>
@@ -696,6 +708,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <div class="wallet" id="menuCoins">0</div>
   <div class="btnrow">
     <button class="big primary" id="goLevels">Play levels</button>
+    <button class="big" id="goTrain">Training</button>
     <button class="big" id="goModes">Modes</button>
     <button class="big" id="goDojo">Dojo</button>
     <button class="big" id="goMissions">Missions</button>
@@ -1066,7 +1079,7 @@ const gunTierCost = (id, t) => Math.max(120, Math.round((GUNS[id].price * 0.45 *
 const hasAstra = () => !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
 const hasGun = () => !!(SV.eq.gun && GUNS[SV.eq.gun] && (SV.eq.gun in SV.guns));
 const isFistId = id => !!(SWORDS[id] && SWORDS[id].fist);
-const hasFists = () => 'fists' in SV.swords || !!(G_ref && G_ref.dojo && G_ref.mode === 'levels');   // the dojo lends you fists   // the dojo lends you fists
+const hasFists = () => 'fists' in SV.swords || !!(G_ref && ((G_ref.dojo && G_ref.mode === 'levels') || G_ref.mode === 'train'));   // the dojo lends you fists   // the dojo lends you fists
 const SWORD_TIER_MAX = 3;
 const swordTierCost = (id, t) => Math.max(80, Math.round(((SWORDS[id].price || 160) * 0.5 * (t+1)) / 10) * 10);
 
@@ -1205,14 +1218,113 @@ const brawlOn = () => !!(G.ST && G.ST.sword && G.ST.sword.fist) && G.mode !== 'd
 const brawler = e => !!e && !e.isPlayer && !e.remote && !e.puppet && !e.isClone && !e.T.boss && brawlOn();
 /* enemy strings: punch = high, hkick = high, kick = mid, lkick = low */
 const BRAWL_STRINGS = [['punch','punch'], ['punch','punch','kick'], ['punch','hkick'], ['lkick','punch'], ['punch','lkick'], ['kick'], ['hkick'], ['lkick'], ['punch','punch','punch']];
-const BRAWL_LVL = { punch:'high', hkick:'high', kick:'mid', lkick:'low' };
+const BRAWL_LVL = { punch:'high', hkick:'high', kick:'mid', lkick:'low', throw:'throw', flykick:'mid' };
 function brawlPick(e){
   if (e.str && e.strI < e.str.length - 1){ e.strI++; e.bmove = e.str[e.strI]; return; }   // next hit of the string
-  e.str = e.punish ? ['punch','punch'] : BRAWL_STRINGS[(Math.random()*BRAWL_STRINGS.length)|0];
+  const P = G.P, near = P && Math.abs(P.x - e.x) < 70;
+  if (e.forceStr) e.str = e.forceStr.slice();                                                   // training dummy
+  else if (e.punish) e.str = ['punch','punch'];
+  else if (near && P.blockT > 0.25 && Math.random() < 0.6) e.str = ['throw'];                     // you turtle, they grab
+  else if (e.type === 'brute' && Math.random() < 0.3) e.str = ['throw'];
+  else e.str = BRAWL_STRINGS[(Math.random()*BRAWL_STRINGS.length)|0];
   e.strI = 0; e.bmove = e.str[0]; e.punish = false;
 }
 /* hit reactions by body part, exaggerated so they read at speed:
    head = snaps back and stumbles, body = folds over the blow, legs = the leg buckles, flip = legs swept, body turns flat in the air */
+/* Tekken-style wall splat: a body knocked into the edge of the field bounces off it, open for more hits */
+/* something happens in the middle of a level: arrow volleys, rockfalls, reinforcements */
+function levelEventTick(dt){
+  const L = G.level;
+  if (L < 6 || BOSS_BY_LEVEL[L] || G.dojo || G.waveIdx < 1) return;
+  if (!G.lvEv) G.lvEv = { t:rnd(5, 12), done:false };
+  const V = G.lvEv; if (V.done) return;
+  V.t -= dt; if (V.t > 0) return;
+  V.done = true;
+  const th = G.theme, P = G.P, dm = G.diff.dmg;
+  const kind = (th === 'snow' || th === 'yama') ? 'rocks' : (th === 'grave' || th === 'temple') ? 'reinforce' : (Math.random() < 0.6 ? 'volley' : 'reinforce');
+  if (kind === 'volley'){
+    showBanner('Event', 'Arrow volley!', 'watch the marks on the ground', '#FF8A5A'); sfx('swish');
+    for (let sv=0; sv<3; sv++) for (let j=0; j<6; j++) G.warns.push({ x:clamp(P.x + rnd(-280, 280), 40, G.worldW-40), t:1.0 + sv*0.9 + j*0.04, max:1.0, dmg:9*dm, kind:'arrow' });
+  } else if (kind === 'rocks'){
+    showBanner('Event', th === 'snow' ? 'Avalanche!' : 'The sky is falling!', 'watch the marks on the ground', '#9FD3F0'); sfx('stone');
+    for (let sv=0; sv<2; sv++) for (let j=0; j<4; j++) G.warns.push({ x:clamp(P.x + rnd(-300, 300), 40, G.worldW-40), t:1.1 + sv*1.2 + j*0.1, max:1.1, dmg:16*dm, small:true });
+  } else {
+    showBanner('Event', 'Reinforcements!', 'from both sides', '#FF5A4A'); sfx('boom');
+    const pool = G.waves.flat().filter(t => TYPES[t] && !TYPES[t].boss), n = 3 + Math.floor(L/10);
+    for (let i=0;i<n;i++){ const side = i%2 ? 1 : -1, t = pool[(Math.random()*pool.length)|0] || 'grunt';
+      const e = makeEnemy(t, clamp(P.x + side*(VW*0.6 + i*30), 40, G.worldW-40), G.diff, true); G.E.push(e); }
+  }
+}
+/* ===== TRAINING: a dummy and fifteen short steps that teach every control ===== */
+const TRAIN = [
+  { t:'Move left and right', k:'A D', ok:T => Math.abs(G.P.x - T.x0) > 140 },
+  { t:'Jump', k:'W or Space', ok:T => T.f.jump },
+  { t:'Slash the dummy with your sword', k:'J', ok:T => T.f.slash },
+  { t:'Hold to slow time for everyone else', k:'Shift', ok:T => G.slowK > 0.7 },
+  { t:'Dash', k:'L', ok:T => T.f.dash },
+  { t:'Block its attack (just before it lands is a parry)', k:'hold K', atk:['punch'], sword:true, ok:T => T.f.blocked },
+  { t:'Put the sword away and raise your fists', k:'H', ok:T => G.fistsOut },
+  { t:'Punch it three times', k:'J J J', ok:T => (T.f.punch || 0) >= 3 },
+  { t:'Kick to the head', k:'U', ok:T => T.f['Head Kick'] },
+  { t:'Kick to the legs: it flips into the air', k:'N', ok:T => T.f['Leg Kick'] },
+  { t:'Jump kick: two kicks in the air', k:'hold Y + U', ok:T => T.f['Air Kick'] },
+  { t:'Duck under its punch', k:'hold S', atk:['punch'], ok:T => T.f.ducked },
+  { t:'Block its low kick: crouch and block', k:'hold S + K', atk:['lkick'], ok:T => T.f.lowBlocked },
+  { t:'It reaches to grab you: break the throw', k:'J as it grabs', atk:['throw'], ok:T => T.f.throwBreak },
+  { t:'Your own throw: up close, hold Block and Punch', k:'hold K + J', ok:T => T.f['Grab and Slam'] }
+];
+function trainFlag(k){ if (G.mode === 'train' && G.train) G.train.f[k] = true; }
+function trainHit(d, sw){
+  if (G.mode !== 'train' || !G.train) return; const f = G.train.f;
+  if (!sw.fist) f.slash = true; else if (!d.kick && !d.grab) f.punch = (f.punch || 0) + 1;
+  if (d.nm) f[d.nm] = true;
+}
+function startTraining(){
+  G.mode = 'train'; G.level = 0; G.nightmare = false; G.dojo = false; G.theme = 'dojo'; G.worldW = 1500; G.diff = diffFor(2);
+  resetCommon();
+  G.P.x = 420; G.P.maxHp = G.P.hp = 99999; G.camX = 0;
+  const d = makeEnemy('grunt', 760, G.diff, true); d.hp = d.maxHp = 1e7; d.dummy = true; d.noBlock = true; d.dmg = 3; d.cd = 99; d.alert = true; d.state = 'chase'; G.E.push(d);
+  G.train = { i:0, x0:G.P.x, f:{}, doneT:0, dummy:d };
+  setScreen(null); G.running = true; trainShow();
+  callout('TRAINING', '#FFB347', 0.9, 'Training', 'The Iron Dojo');
+}
+function trainShow(){
+  const T = G.train, el = $('trainBox'); if (!el) return;
+  if (!T){ el.classList.remove('on'); return; }
+  el.classList.add('on');
+  if (T.i >= TRAIN.length){ el.innerHTML = `<div class="tbStep">Training complete</div><div class="tbText">You know every move. Go fight.</div>`; return; }
+  const st = TRAIN[T.i];
+  el.innerHTML = `<div class="tbStep">Step ${T.i + 1} of ${TRAIN.length}</div><div class="tbText">${st.t}</div><div class="tbKey">${st.k}</div><button class="tbSkip" id="tbSkip">Skip</button>`;
+  $('tbSkip').onclick = () => { T.i++; T.f = {}; T.x0 = G.P.x; trainShow(); };
+}
+function trainTick(dt){
+  const T = G.train, P = G.P; if (!T) return;
+  if (!P.onG) T.f.jump = true; if (P.dashT > 0) T.f.dash = true;
+  const d = T.dummy;
+  if (d && !d.dead){ d.hp = d.maxHp;
+    const st = TRAIN[T.i];
+    if (st && st.atk){ d.forceStr = st.atk; if (d.state === 'chase' && d.cd > 1.6) d.cd = 1.6; }   // the dummy attacks for the defence steps
+    else { d.forceStr = null; d.cd = 99; }
+  }
+  if (T.i >= TRAIN.length){ T.doneT += dt;
+    if (T.doneT > 2.5 && !T.paid){ T.paid = true;
+      if (!SV.trainDone){ SV.trainDone = true; addCoins(300); toast('Training complete: +300 coins', 1.6); } else toast('Training complete', 1.2); save();
+      setTimeout(() => { if (G.mode === 'train'){ G.train = null; trainShow(); toMenu(); } }, 1600); }
+    return; }
+  const st = TRAIN[T.i];
+  if (T.i <= 5 && G.fistsOut) switchWeapon();      // the first steps are done with the sword
+  else if (T.i >= 7 && !G.fistsOut) switchWeapon(); // the rest with fists, even if a step was skipped
+  if (st.ok(T)){ T.i++; T.f = {}; T.x0 = P.x; sfx('coin'); pop(P.x, P.y - 100, 'Good!', '#8FE38A'); trainShow(); }
+}
+function wallSplat(e){
+  const side = e.x < 30 ? -1 : 1;
+  e.wallCd = 0.7; e.vx = -side*90; e.vy = Math.min(e.vy, -260); e.onG = false; e.lowG = 0.9;
+  e.state = 'hurt'; e.timer = 0.8; e.juggle = Math.max(e.juggle || 0, 1); e.comboLeft = 0;
+  e.react = { k:'head', t:0, d:0.45, big:true };
+  e.hp -= 6; if (e.hp <= 0 && !e.dead){ e.hp = 0; killEnemy(e); return; }
+  pop(e.x - side*20, e.y - 92*e.size, 'Wall splat!', '#FFB347'); sfx('kick'); G.shake = Math.max(G.shake, 4);
+  emit(side < 0 ? 26 : G.worldW - 26, e.y - 40*e.size, { n:10, col:['rgba(200,180,160,0.6)','rgba(120,100,90,0.5)'], spd:180, size:7, life:0.45, kind:'mist', g:-0.1, real:false });
+}
 function hitReact(e, d){
   if (!e || e.dead || e.remote) return;
   const k = d.legSweep ? 'flip' : d.kick ? (d.aim === 'head' ? 'head' : d.aim === 'legs' ? 'legs' : 'body')
@@ -1260,7 +1372,7 @@ function brawlContact(e){
   return tip[1] > P.y - 74 && tip[1] < P.y + 8;
 }
 function brawlBlockP(e, o){
-  if (e.T.zombie) return 0;                                   // the dead never block
+  if (e.T.zombie || e.noBlock) return 0;                                   // the dead never block
   let p = e.T.block ? 0.5 : e.T.ninja ? 0.4 : e.T.armor ? 0.18 : 0.3;
   if (e.state === 'block') p += 0.1;                          // already guarding
   if (o.heavy) p *= 0.5;
@@ -1707,6 +1819,8 @@ const MOVE_LIST = [
   ['sp','Down, Down + Kick','Earthshaker','Smashes the ground and stuns everyone around you.'],
   ['sp','Hold Block + Punch','Grab and Slam','Up close only. Cannot be blocked. Slams them behind you.'],
   ['sys','High, Mid, Low','Like Tekken','Highs miss a ducking enemy. Lows go under a standing guard. Mids hit a crouching enemy. Enemies learn: hit them low and they start crouching.'],
+  ['sys','Punch as they grab','Throw break','A red-handed reach is a throw. Hit Punch right then to break it, or duck under it. Blocking does not stop a throw.'],
+  ['sys','Edge of the field','Wall splat','Knock an enemy into the edge and they bounce off it, open for more hits.'],
   ['sys','Down','Duck','Hold Down in hand to hand: punches and head kicks go over you. Down + Block stops low kicks.'],
   ['sys','Counter hit','+40% damage','Hit an enemy while they are winding up a swing.'],
   ['sys','Juggle','Air hits chain','An enemy in the air can be hit again and again, each hit a little weaker.']
@@ -1782,6 +1896,17 @@ const LV = {
 };
 const MOD_TEXT = { ambush:'Ambush: they come from both sides at once.', elite:'Elite: some enemies glow gold, tougher and worth triple coins.',
   horde:'Horde: many weak enemies, a good place for a long combo.', dojo:'Dojo: hand to hand only. Your sword stays sheathed and so does theirs.' };
+const CHAL = { 4:{ k:'clock', t:80 }, 9:{ k:'parry', n:6 }, 14:{ k:'combo', n:35 }, 19:{ k:'clock', t:170 },
+  24:{ k:'parry', n:8 }, 29:{ k:'combo', n:45 }, 34:{ k:'clock', t:230 }, 39:{ k:'nohit' } };
+const chalText = c => c.k === 'clock' ? `Clear it in under ${c.t} seconds` : c.k === 'parry' ? `Parry ${c.n} attacks` : c.k === 'combo' ? `Reach a ${c.n}-hit combo` : 'Take no damage at all';
+function chalState(){   // { txt, ok, fail } for the HUD and the result
+  const c = G.mode === 'levels' && CHAL[G.level]; if (!c) return null;
+  if (c.k === 'clock'){ const left = c.t - G.time; return { txt: left > 0 ? `${Math.ceil(left)}s` : 'time up', ok: left > 0, fail: left <= 0 }; }
+  if (c.k === 'parry'){ const n = G.parryN || 0; return { txt:`parries ${Math.min(n, c.n)}/${c.n}`, ok: n >= c.n, fail:false }; }
+  if (c.k === 'combo'){ return { txt:`best combo ${G.bestCombo}/${c.n}`, ok: G.bestCombo >= c.n, fail:false }; }
+  return { txt: G.tookDamage ? 'hit taken' : 'untouched', ok: !G.tookDamage, fail: G.tookDamage };
+}
+const chalReward = L => 200 + 15*L;
 const MOD_SHORT = { ambush:'Ambush', elite:'Gold elites', horde:'Horde', dojo:'Dojo: hand to hand' };
 const lvMods = L => (LV[L] && LV[L].mods) || [];
 function diffFor(L){
@@ -1842,6 +1967,7 @@ function levelBlurb(L){
   if (L===26) add.push('The Iron Dojo: hand-to-hand. Highs, mids and lows, like Tekken.');
   for (const m of lvMods(L)) add.push(MOD_TEXT[m]);
   if (BOSS_BY_LEVEL[L]) add.push(`Boss: ${BOSS_NAME_BY_LEVEL[L] || TYPES[BOSS_BY_LEVEL[L]].name}.`);
+  if (CHAL[L]) add.push(`Challenge: ${chalText(CHAL[L])} for ${chalReward(L)} bonus coins${(SV.chal || {})[L] ? ' (done)' : ''}.`);
   const w = levelPlan(L); const n = w.reduce((s,x)=>s+x.length,0);
   if (nightmareOn && L <= SV.beat) return `Nightmare ${L}: ${n} enemies with +60% health and +45% damage, double coins. Clear bonus ${(50+10*L)*2} coins.${SV.nm[L] ? ' Already cleared on Nightmare.' : ''}`;
   return `Level ${L}, ${(LV[L] && LV[L].n) || ''}: ${n} enemies in ${w.length} wave${w.length>1?'s':''}. Clear bonus ${50+10*L} coins. ` + add.join(' ');
@@ -1895,7 +2021,7 @@ function startLevel(L){
   }
   G.theme = themeForLevel(L);
   G.mode='levels'; G.level=L; G.nightmare = nightmareOn && L <= SV.beat;
-  G.dojo = lvMods(L).includes('dojo');
+  G.dojo = lvMods(L).includes('dojo'); G.parryN = 0; G.lvEv = null;
   G.diff = G.nightmare ? nightmareDiff(diffFor(L)) : diffFor(L);
   G.worldW = 2400 + L*80;
   resetCommon();
@@ -1903,6 +2029,7 @@ function startLevel(L){
   spawnWave(true);
   setScreen(null); G.running = true;
   callout(G.nightmare ? `NIGHTMARE ${L}` : `LEVEL ${L}`, G.nightmare ? '#FF5A4A' : '#FBEFE0', 0.9, `Level ${L}`, (LV[L] && LV[L].n) || (THEMES[G.theme] || {}).name || '');
+  if (CHAL[L]) setTimeout(() => { if (G.running && G.mode === 'levels' && G.level === L) showBanner('Challenge', chalText(CHAL[L]), `+${chalReward(L)} coins`, '#8FE38A'); }, lvMods(L).length ? 4600 : 2300);
   { const mt = lvMods(L).map(m => MOD_SHORT[m]); if (mt.length && !BOSS_BY_LEVEL[L]) setTimeout(() => { if (G.running && G.mode === 'levels' && G.level === L) showBanner((LV[L] && LV[L].n) || 'Level ' + L, mt.join(' + '), '', '#FFB347'); }, 2200); }
   setTimeout(() => { if (G.running && G.mode === 'levels' && G.level === L) callout('FIGHT!', '#FFB347', 0.8, 'Fight!'); }, 1250);
 }
@@ -2927,6 +3054,12 @@ function updatePlayer(dt){
       P.dashT = 0.17; P.dashCd = 0.5; P.inv = 0.24; if (mv) P.face = mv; P.atk = null; P.blockT=-1; sfx('dash'); P.dashHits = new Set();
     }
     if (pressed.ymod) P.yT = G.time;
+    if (pressed.attack){   // throw break: hit punch as they reach for you
+      for (const o of G.E){ if (o.dead || o.sword !== EFIST || o.bmove !== 'throw' || Math.abs(o.x - P.x) > 75) continue;
+        if (o.state === 'windup' || (o.state === 'swing' && !o.hitDone)){
+          o.state = 'recover'; o.timer = 0.55; o.hitDone = true; o.bmove = null; o.vx = -o.face*220; P.vx = -P.face*200;
+          pop((o.x + P.x)/2, P.y - 92, 'Throw break', '#9FE8FF'); sfx('parry'); trainFlag('throwBreak'); pressed.attack = false; break; } }
+    }
     if (pressed.kick && ST.sword.fist && P.onG && !P.atk && !P.vthrow && !P.gsum && (held.ymod || G.time - (P.yT || -9) < 0.25)){   // Y + U: jump kick
       const jb = (ST.passive === 'gale' || ST.passive === 'kaal') ? 1.18 : 1;
       P.vy = -720*jb; P.onG = false; P.jumpsLeft = Math.max(0, P.jumpsLeft - 1); burst(P.x, P.y, 5, '#2a1418', 120, 3);
@@ -3219,6 +3352,7 @@ function slashHits(who, A, mult){
         burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
         launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0), breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0), poison: poisonHit });
+      if (ok && !who.isClone) trainHit(d, sw);
       if (ok && sw.fist){
         hitReact(e, d);
       }
@@ -3805,6 +3939,8 @@ function updateEnemy(e, dt){
             const od = o.x - e.x;
             if (Math.abs(od) < 34*e.size && sign(od)===e.face && Math.abs(o.x-P.x) < dist) want *= 0.15;
           } } }
+      if (e.sword === EFIST && e.T.ninja && e.cd <= 0 && e.onG && dist > 90 && dist < 230 && Math.random() < dt*1.2 && (G.atkN ?? attackersNow()) < G.diff.maxAtk){
+        G.atkN = (G.atkN || 0) + 1; e.state = 'windup'; e.timer = e.wind*0.7; e.str = ['flykick']; e.strI = 0; e.bmove = 'flykick'; e.comboLeft = 0; e.lastK = null; break; }
       if (e.sword === EFIST && want === 0 && dist < rng + 30){ e.foot = (e.foot || rnd(0, 6)) + dt*3.2; want = Math.sin(e.foot)*e.spd*0.35*e.face; }   // footsies: step in, step out
       if (e.onG) e.vx = lerp(e.vx, want, Math.min(1, dt*8));
       if (dist < rng + 6 && e.cd <= 0 && (G.atkN ?? attackersNow()) < G.diff.maxAtk && Math.abs(P.y - e.y) < 90*e.size && e.onG){
@@ -3820,7 +3956,9 @@ function updateEnemy(e, dt){
         e.state='swing'; e.timer=e.swingT; e.hitDone=false;
         if ((G.onN || 0) < 40 && FXL() > 0 && e.x > G.camX - 60 && e.x < G.camX + VW + 60 && !e.T.ranged && e.sword !== EFIST) G.slashes.push({ x:e.x, y:e.y-46*e.size, face:e.face, d:{ from:[0,-1.7], to:[0,0.75], range:(e.range||60)*0.95, heavy:isUnblockable(e) }, t:0, life:0.16, col:ENEMY_AURA });
         e.vx = e.T.lunge ? e.face * (dist+40)/e.swingT : e.face*120;
-        if (e.sword === EFIST){ e.throwStar = false; if (!e.T.lunge) e.vx = e.face*clamp((dist - (e.bmove === 'punch' ? 30 : 34)*e.size)/Math.max(0.08, e.swingT), -60, 260); sfx('whoosh'); }
+        if (e.sword === EFIST){ e.throwStar = false; if (!e.T.lunge) e.vx = e.face*clamp((dist - (e.bmove === 'punch' ? 30 : 34)*e.size)/Math.max(0.08, e.swingT), -60, 260); sfx('whoosh');
+          if (e.bmove === 'throw'){ e.vx = e.face*clamp((dist - 26*e.size)/0.15, 0, 300); e.timer = 0.22; }
+          if (e.bmove === 'flykick'){ e.vy = -560; e.onG = false; e.vx = e.face*clamp((dist + 10)/0.55, 220, 540); e.timer = 0.55; } }
         else if (e.T.gun){ e.vx = -e.face*140; aimShot(e, 'ball', 1150, { g:0, dmg:e.dmg, r:6, life:1.4 }); e.hitDone = true; sfx('gun');
           const mx = e.x + e.face*30*e.size, my = e.y - 44*e.size; impactFx(mx, my, '#FFE7A8', 1.1); emit(mx, my, {n:8, col:['#FFE7A8','#FF9A3C','#555'], spd:220, size:3, life:0.35, kind:'spark', g:-0.2, dir:e.face>0?0:Math.PI, spread:0.5, real:false}); smoke(mx, my, 4); }
         else if (e.T.ranged){ e.vx = 0; aimShot(e, 'arrow', 640, { g:220, dmg:e.dmg }); e.hitDone = true; sfx('swish'); }
@@ -3828,14 +3966,14 @@ function updateEnemy(e, dt){
       }
       break;
     case 'swing':
-      if (!e.T.lunge) e.vx = lerp(e.vx, 0, Math.min(1,dt*6));
+      if (!e.T.lunge && e.bmove !== 'flykick') e.vx = lerp(e.vx, 0, Math.min(1,dt*6));
       if (!e.hitDone) tryHitPlayer(e);
       if (e.timer <= 0){
         if (e.comboLeft > 0){ e.comboLeft--; e.state='windup'; e.timer=e.wind*(e.sword === EFIST ? 0.3 : 0.45); e.bmove = null; }
         else { e.state='recover'; e.timer=e.rec; if (e.T.lunge) e.vx*=0.2; }
       }
       break;
-    case 'recover': if (e.bmove && e.bmove !== 'punch' && G.P && !e.lastK){ const am = e.bmove === 'hkick' ? 'head' : e.bmove === 'lkick' ? 'legs' : 'body', tp = kickPoint(e, am, G.P); e.lastK = { aim:am, ik:kickIK(e, tp[0], tp[1], 1) }; }
+    case 'recover': if (e.bmove && e.bmove !== 'punch' && e.bmove !== 'throw' && G.P && !e.lastK){ const am = (e.bmove === 'hkick' || e.bmove === 'flykick') ? 'head' : e.bmove === 'lkick' ? 'legs' : 'body', tp = kickPoint(e, am, G.P); e.lastK = { aim:am, ik:kickIK(e, tp[0], tp[1], 1) }; }
       if (e.bmove === 'punch') e.lastK = null; e.bmove = null; e.vx = lerp(e.vx,0,Math.min(1,dt*10)); if (e.timer<=0){ e.state='chase'; e.cd = e.cdBase*rnd(0.6,1.4); } break;
     case 'hurt': if (e.onG) e.vx = lerp(e.vx,0,Math.min(1,dt*5)); if (e.timer<=0 && e.onG){ e.state='chase'; e.cd = Math.max(e.cd, 0.25); } break;
     case 'stun': e.vx = lerp(e.vx,0,Math.min(1,dt*6)); if (e.timer<=0){ e.state='chase'; e.cd=0.4; } break;
@@ -3879,6 +4017,9 @@ function updateEnemy(e, dt){
       if (e.juggle > 0){ e.state='down'; e.timer = 0.9; emit(e.x, GROUND-4, {n:8, col:'rgba(120,90,80,0.55)', spd:140, size:9, life:0.5, kind:'mist', g:-0.2}); } }
     e.y = GROUND; e.vy = 0; e.onG = true; e.juggle = 0; e.lowG = 0;
   } else e.onG = false;
+  if (e.wallCd > 0) e.wallCd -= dt;
+  if ((e.x < 30 || e.x > G.worldW - 30) && Math.abs(e.vx) > 240 && !isBoss(e) && !e.remote && !(e.wallCd > 0) && G.mode !== 'world'
+      && (e.state === 'hurt' || e.state === 'down' || e.state === 'stun' || !e.onG)) wallSplat(e);
   e.x = clamp(e.x, 30, G.worldW-30);
   e.walk += dt*Math.abs(e.vx)*0.045/e.size;
 }
@@ -3909,7 +4050,7 @@ function enemyBrain(e, dt, dx, dist){
     if (e.cd <= 0 && dist < T.keep[1] + 70 && e.onG){ e.state='windup'; e.timer=e.wind; e.comboLeft=0; }
     return true;
   }
-  if (T.ninja && e.cd <= 0 && e.onG){
+  if (T.ninja && !B && e.cd <= 0 && e.onG){
     if (dist > 110 && dist < 250 && Math.random() < 0.6){
       e.state='leap'; e.timer=0.9; e.vy=-760; e.onG=false; e.face = sign(dx);
       e.vx = e.face*(dist+100)/0.68; smoke(e.x, e.y-10, 6); e.cd = e.cdBase*1.2; return true;
@@ -4104,9 +4245,17 @@ function tryHitPlayer(e){
   const reach = e.T.lunge ? 50 : e.range + 10;
   if (dxp < -12 || dxp > reach) return;
   if (e.y - P.y > 46*e.size + 10) return; // jumped over it
+  if (e.sword === EFIST && e.bmove === 'throw'){
+    if (Math.abs(P.x - e.x) > 50*e.size || !P.onG) return;
+    e.hitDone = true;
+    if (P.crouching){ pop(P.x, P.y-70, 'Ducked', '#FFD9B0'); trainFlag('ducked'); return; }                  // a crouch slips the grab
+    hurtPlayer(e.dmg*1.3, 0, e, true); P.x = clamp(e.x - e.face*38, 40, G.worldW - 40); P.vx = -e.face*280; P.vy = -420; P.onG = false;
+    e.face = -e.face; pop(P.x, P.y-80, 'Thrown', '#FF8A5A'); sfx('kick'); G.shake = Math.max(G.shake, 6);
+    return;
+  }
   if (e.sword === EFIST){
     const lv = BRAWL_LVL[e.bmove] || 'high';
-    if (lv === 'high' && P.crouching){ e.hitDone = true; if (!e.duckPop){ e.duckPop = true; pop(P.x, P.y-70, 'Ducked', '#FFD9B0'); } return; }   // it goes over your head
+    if (lv === 'high' && P.crouching){ e.hitDone = true; trainFlag('ducked'); if (!e.duckPop){ e.duckPop = true; pop(P.x, P.y-70, 'Ducked', '#FFD9B0'); } return; }   // it goes over your head
     if (!brawlContact(e)) return;   // only a fist or foot that touches you hurts
     e.duckPop = false;
     if (lv === 'low' && P.blockT >= 0 && !P.crouching){ e.hitDone = true; hurtPlayer(e.dmg*0.85, 200, e, true); sfx('kick'); return; }   // a low goes under a standing guard
@@ -4126,7 +4275,9 @@ function tryHitPlayer(e){
     return;
   }
   if (P.blockT >= 0 && facing){
+    trainFlag('blocked'); if (e.sword === EFIST && e.bmove === 'lkick' && P.crouching) trainFlag('lowBlocked');
     if (P.blockT < G.ST.parry){
+      G.parryN = (G.parryN || 0) + 1;
       if (e.state!=='special'){ e.state='stun'; e.timer = isBoss(e) ? 0.8 : 1.4; } e.vx = e.face*-200; e.comboLeft=0;
       sparks(P.x + P.face*20, P.y-44); sparks(P.x + P.face*20, P.y-44);
       G.hitstop=0.12; G.shake=7; G.ring = 1; toast('Parry', 0.5);
@@ -4913,12 +5064,17 @@ function getPose(e){
     if (e.sword && e.sword.fist){   // hand to hand: guard up, then a punch or a kick
       const tm = G.time + (e.walk || 0)*0.07, mv = e.bmove, kk = mv && mv !== 'punch';
       const guard = () => { a = -0.2 + Math.sin(tm*5)*0.06; a2 = 0.45 + Math.sin(tm*5 + 1)*0.05; ext = 1.05; ext2 = 0.85; };
-      const kAim = mv === 'hkick' ? 'head' : mv === 'lkick' ? 'legs' : 'body', kIK = () => { const tp = kickPoint(e, kAim, G.P); return kickIK(e, tp[0], tp[1], crouch); };
+      if (mv === 'throw' && (st === 'windup' || st === 'swing')){
+        const p = st === 'windup' ? ease(clamp(1 - e.timer/e.wind, 0, 1)) : 1;
+        a = lerp(-0.2, -0.05, p); a2 = lerp(0.45, 0.0, p); ext = lerp(1.05, st === 'swing' ? 1.9 : 0.8, p); ext2 = lerp(0.85, st === 'swing' ? 1.8 : 0.8, p); crouch = 7*p; lean = 0.45*p;
+      }
+      const kAim = mv === 'hkick' || mv === 'flykick' ? 'head' : mv === 'lkick' ? 'legs' : 'body', kIK = () => { const tp = kickPoint(e, kAim, G.P); return kickIK(e, tp[0], tp[1], crouch); };
       if (st==='windup'){ const p = ease(clamp(1 - e.timer/e.wind, 0, 1));
-        if (kk){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = kAim === 'legs' ? 4 : 1; lean = (kAim === 'head' ? -0.45 : kAim === 'legs' ? -0.15 : -0.28)*p; kL = kickLeg(kIK(), kAim, 0, clamp((p - 0.35)/0.65, 0, 1)); }
+        if (kk && mv !== 'throw'){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = kAim === 'legs' ? 4 : 1; lean = (kAim === 'head' ? -0.45 : kAim === 'legs' ? -0.15 : -0.28)*p; kL = kickLeg(kIK(), kAim, 0, clamp((p - 0.35)/0.65, 0, 1)); }
         else { a = lerp(-0.2, 0.6, p); ext = lerp(1.05, 0.62, p); a2 = 0.45; ext2 = 0.85; crouch = 3*p; lean = 0.1*p; }
       } else if (st==='swing'){ const p = Math.min(1, ease(clamp(1 - e.timer/e.swingT, 0, 1))*1.6);
-        if (kk){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = kAim === 'legs' ? 4 : 1; lean = kAim === 'head' ? -0.45 : kAim === 'legs' ? -0.15 : -0.28; kL = kickLeg(kIK(), kAim, 1, p); }
+        if (kk && mv !== 'throw'){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = kAim === 'legs' ? 4 : 1; lean = kAim === 'head' ? -0.45 : kAim === 'legs' ? -0.15 : -0.28; kL = kickLeg(kIK(), kAim, mv === 'flykick' ? 1 : 1, mv === 'flykick' ? Math.min(1, p*2.2) : p); }
+        else if (mv === 'throw'){}
         else { a = lerp(0.6, -0.05, p); ext = lerp(0.62, 2.0, p); a2 = 0.5; ext2 = 0.85; lean = 0.45; crouch = 4; }
       } else if (st==='recover'){ const p = clamp(1 - e.timer/e.rec, 0, 1); guard();
         if (e.lastK){ kL = kickLeg(e.lastK.ik, e.lastK.aim, 2, clamp(p*1.6, 0, 1)); lean = -0.3*(1 - p); }
@@ -11088,13 +11244,16 @@ function step(dt){
   G.eproj = G.eproj.filter(q => q.life > 0 && q.x > -60 && q.x < G.worldW + 60);
   for (const w of G.warns){
     w.t -= wdt;
-    if (w.t <= 0 && !w.fired){ w.fired = true; eproj(null, 'meteor', w.x + rnd(-10,10), GROUND - 560, 0, 1300, { dmg:w.dmg, unblock:true, r:20, life:2 }); }
+    if (w.t <= 0 && !w.fired){ w.fired = true;
+      if (w.kind === 'arrow') eproj(null, 'arrow', w.x + rnd(-6,6), GROUND - 620, rnd(-30,30), 1050, { dmg:w.dmg, r:6, life:2 });
+      else eproj(null, 'meteor', w.x + rnd(-10,10), GROUND - 560, 0, 1300, { dmg:w.dmg, unblock:true, r:w.small ? 14 : 20, life:2 }); }
   }
   G.warns = G.warns.filter(w => !w.fired);
   updateAmbient(wdt);
   if (G.mode === 'survival') survivalTick(dt);
   if (G.mode === 'rush') rushTick(dt);
   if (G.mode === 'blitz') blitzTick(dt);
+  if (G.mode === 'train') trainTick(dt);
   if (G.mode === 'zomb') zombTick(dt);
   if (G.mode === 'world') worldTick(dt, pdt, wdt);
   tickDragons(pdt); tickSerpents(pdt);
@@ -11173,6 +11332,7 @@ function step(dt){
 
   // waves / win
   const alive = G.E.filter(e=>!e.dead).length;
+  if (G.mode === 'levels' && !G.over && !P.dead) levelEventTick(dt);
   if (G.mode==='levels' && !G.over && !P.dead){
     if (G.waveIdx < G.waves.length-1 && alive <= 1){ G.waveIdx++; spawnWave(false); }
     else if (alive === 0 && G.waveIdx >= G.waves.length-1){ G.over = true; sheathTrigger(); resultAfterSheath(1600); if (G.tookDamage) callout('K.O.', '#FFE14D', 1.2, 'K.O.!', 'LEVEL CLEAR'); else callout('PERFECT', '#9FE8FF', 1.3, 'Perfect!', 'NO DAMAGE TAKEN'); }
@@ -11358,7 +11518,8 @@ function updateHUD(alive){
     hudCoins.textContent = SV.coins;
     if (G.mode === 'world') wmapUpdate();
     info.innerHTML = G.mode==='levels'
-      ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>`
+      ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>${(() => { const c = chalState(); return c ? ` &nbsp; <b style="color:${c.fail ? '#FF6A5A' : c.ok ? '#8FE38A' : '#FFB347'}">⚑ ${c.txt}</b>` : ''; })()}`
+      : G.mode==='train' ? `Training &nbsp; step <span>${G.train ? Math.min(G.train.i + 1, TRAIN.length) : 0}</span>/${TRAIN.length}`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
       : G.mode==='coop' ? `Wave <span>${NET.wave}</span>/${NET.coopCfg.waves} &nbsp; enemies <span>${G.E.filter(e => !e.dead && !e.remote).length}</span> &nbsp; with ${escH(NET.oppName || 'Ally')}`
       : G.mode==='duel' ? `Round <span>${NET.round}</span> &nbsp; you <span>${NET.wins[NET.role==='host'?0:1]}</span> : <span>${NET.wins[NET.role==='host'?1:0]}</span> rival`
@@ -11393,6 +11554,7 @@ const fd = $('fd'), god = $('god'), waves = $('waves');
 let freeHidden = isTouch, freePause = false;
 let curScreen = 'menu';
 function setScreen(id){
+  if (id && id !== 'pause' && typeof G !== 'undefined' && G.mode === 'train' && id !== 'result'){ const tb = document.getElementById('trainBox'); if (tb) tb.classList.remove('on'); }
   if (id && id !== 'pause' && id !== 'result' && typeof G !== 'undefined') G.dojo = false;   // borrowed dojo fists go back when you leave
   curScreen = id;
   for (const k in screens) screens[k].classList.toggle('on', k===id);
@@ -11452,7 +11614,7 @@ function buildGrid(){
     const b = document.createElement('button'); b.className='lv'+(BOSS_BY_LEVEL[i]?' boss':'')+(lvMods(i).includes('dojo')?' dojo':'')+(lvMods(i).includes('elite')?' elite':'')+(i<=SV.beat?' done':'')+(nightmareOn && i<=SV.beat?' nm':'');
     const m = SV.stars[i] || 0;
     const rk = SV.ranks[i];
-    b.innerHTML = `${i}${rk ? `<span class="lvRank r${rk}">${rk}</span>` : ''}${SV.nm[i] ? '<span class="nmk">☠</span>' : ''}<span class="st">${[1,2,4].map(bit => m&bit ? '★' : '<i>★</i>').join('')}</span>`;
+    b.innerHTML = `${i}${CHAL[i] ? `<span class="chalK${(SV.chal || {})[i] ? ' done' : ''}" title="Challenge">⚑</span>` : ''}${rk ? `<span class="lvRank r${rk}">${rk}</span>` : ''}${SV.nm[i] ? '<span class="nmk">☠</span>' : ''}<span class="st">${[1,2,4].map(bit => m&bit ? '★' : '<i>★</i>').join('')}</span>`;
     b.setAttribute('aria-label', `Level ${i}${BOSS_BY_LEVEL[i] ? ', boss' : ''}, ${(m&1?1:0)+(m&2?1:0)+(m&4?1:0)} of 3 stars${rk ? ', rank ' + rk : ''}`);
     b.disabled = i > SV.unlocked || (nightmareOn && i > SV.beat);
     b.onclick = () => startLevel(i);
@@ -11589,6 +11751,9 @@ function showResult(win){
       sfx('win');
       starsHtml = `<div class="rankRow"><span class="rankBig r${R.rank}">${R.rank}</span><span class="rankWhy">${R.why}${better ? '<br><b>new best rank</b>' : (prev ? `<br>best so far ${prev}` : '')}</span></div>` + starsHtml;
       breakdown = (G.nightmare ? '<b style="color:#FF5A3D">Nightmare cleared</b> &nbsp; double coins<br>' : '') + `Time <b>${G.time.toFixed(1)}s</b> &nbsp; best combo <b>${G.bestCombo}</b><br>Coins from enemies <b>${G.earned}</b><br>Clear bonus <b>${clear}</b><br>No-damage bonus <b>${noDmg || '—'}</b><br>Rank bonus <b>${rankBonus || '—'}</b><br>Total earned <b>${G.earned+clear+noDmg+rankBonus}</b> &nbsp; wallet <b>${SV.coins}</b>`;
+      { const c = chalState(); if (c){ SV.chal = SV.chal || {};
+          if (c.ok && !SV.chal[G.level]){ SV.chal[G.level] = true; addCoins(chalReward(G.level)); breakdown += `<br><b style="color:#8FE38A">⚑ Challenge done</b> &nbsp; +${chalReward(G.level)} coins`; }
+          else breakdown += c.ok ? '<br>⚑ Challenge done (already rewarded)' : `<br><span style="color:#FF8A7A">⚑ Challenge missed: ${chalText(CHAL[G.level])}</span>`; } }
       SV.beat = Math.max(SV.beat, G.level); SV.unlocked = Math.max(SV.unlocked, Math.min(LEVELS, G.level+1)); save();
     } else {
       breakdown = `Coins kept <b>${G.earned}</b> &nbsp; wallet <b>${SV.coins}</b>`;
@@ -12380,6 +12545,7 @@ function renderPreview(dt){
    BUTTON WIRING
    ========================================================= */
 $('goLevels').onclick = () => { buildGrid(); setScreen('levels'); };
+$('goTrain').onclick = () => startTraining();
 $('goModes').onclick = () => setScreen('modes');
 $('modesBack').onclick = () => setScreen('menu');
 $('goSurv').onclick = startSurvival;
@@ -13558,7 +13724,7 @@ $('zoomOut').onclick = () => setZoom(VIEW.zoom - 0.1);
 $('viewReset').onclick = () => { VIEW.mode = 'default'; VIEW.size = 'full'; VIEW.zoom = 1; combatTX = null; saveView(); syncView(); };
 loadView(); syncView();
 $('restart').style.display = '';
-const restartMode = () => { G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
+const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
 $('restart').onclick = restartMode;
 $('resRetry').onclick = restartMode;
 $('resNext').onclick = () => { if (G.mode === 'zomb') startZomb(G.level+1); else startLevel(G.level+1); };
