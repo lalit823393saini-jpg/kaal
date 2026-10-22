@@ -288,6 +288,19 @@ body.touch #slots{display:none}
 #trainBox{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 112px);transform:translateX(-50%);display:none;min-width:260px;max-width:min(520px,86vw);
   background:rgba(12,6,4,.82);border:1.5px solid #FFB347;border-radius:10px;padding:10px 16px 12px;text-align:center;color:#FBEFE0;pointer-events:none;z-index:6}
 #trainBox.on{display:block}
+#arenaHud{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 10px);display:none;justify-content:center;align-items:flex-start;gap:14px;padding:0 70px;pointer-events:none;z-index:5;font-family:Teko,sans-serif}
+#arenaHud.on{display:flex}
+#arenaHud .arSide{flex:1;max-width:380px}
+#arenaHud .arName{font-size:22px;line-height:1;letter-spacing:.03em;text-shadow:0 1px 0 #000}
+#arenaHud .arSide.r .arName{text-align:right}
+#arenaHud .arName span{color:#FFE14D;font-size:15px;letter-spacing:.15em;margin:0 6px}
+#arenaHud .arBar{height:14px;border:2px solid #FBEFE0;background:rgba(0,0,0,.45);margin-top:3px;display:flex}
+#arenaHud .arBar.r{justify-content:flex-end}
+#arenaHud .arBar i{display:block;height:100%;background:linear-gradient(#FFE14D,#F2A23A);transition:width .12s}
+#arenaHud .arMid{font-size:22px;color:#FBEFE0;padding-top:12px;text-shadow:0 1px 0 #000;white-space:nowrap}
+#arenaHud .arCombo{font-size:30px;color:#FFE14D;text-shadow:0 2px 0 #000;margin-top:6px;min-height:30px}
+#arenaHud .arSide.r .arCombo{text-align:right}
+body.arena #hud .bars, body.arena #info, body.arena #hudCoins, body.arena #extraBtns, body.arena #slots, body.arena #combo{display:none!important}
 #trainBox .tbStep{font:600 13px/1.2 Teko,sans-serif;letter-spacing:.08em;color:#FFB347;text-transform:uppercase}
 #trainBox .tbText{font-size:16px;margin:3px 0 6px}
 #trainBox .tbKey{display:inline-block;font:600 18px/1 Teko,sans-serif;color:#120806;background:#FFB347;border-radius:5px;padding:4px 10px 2px}
@@ -627,6 +640,9 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 </div>
 <div id="slowBadge">time slowed</div>
 <div id="trainBox"></div>
+<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arCombo" id="arCombo1"></div></div>
+  <div class="arMid" id="arRound">ROUND 1</div>
+  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> Rival</div><div class="arBar r"><i id="arHp2"></i></div><div class="arCombo" id="arCombo2"></div></div></div>
 <div id="bossBar"><div class="bn"><span id="bossName"></span><span id="bossPh"></span></div><div class="bb"><i id="bossFill"></i></div></div>
 <div id="toast"></div>
 <div id="formName"></div>
@@ -721,6 +737,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Modes</h2>
   <div class="wallet" id="modesCoins">0</div>
   <div class="modeGrid">
+    <button class="mode new" id="goArena" style="--mc:#FF7A1A"><span class="mn">Duelist Arena</span><span class="md">One on one in a cage. Thick-limbed stickmen, ragdoll physics: kick them into the wall, launch them and keep them in the air. Best of three.</span><span class="mb">New</span></button>
     <button class="mode new" id="goWorld3D" style="--mc:#7FD1FF"><span class="mn">KAAL: Open World</span><span class="md">The story in 3D. See the night Hinode burned, then roam a whole valley: ride your horse, follow the map, clear bandit camps, walk into any house.</span><span class="mb" id="mbWorld3D"></span></button>
     <button class="mode" id="goSurv" style="--mc:#9FD3F0"><span class="mn">Survival</span><span class="md">Endless waves, a boss every fifth. Score goes to the shared leaderboard.</span><span class="mb" id="mbSurv"></span></button>
     <button class="mode new" id="goRush" style="--mc:#FF5A3D"><span class="mn">Boss Rush</span><span class="md">Iron Ronin, Kage, Gorath and Asura back to back. Beat the clock.</span><span class="mb" id="mbRush"></span></button>
@@ -7351,6 +7368,7 @@ function render(){
 function renderScene(){
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,cv.width,cv.height);
+  if (G.mode === 'arena' && AR.p1 && G.P){ arRender(); return; }
   const sk = SHAKE();
   const ck = G.calmK || 1;
   const shx = ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickX)*ck, shy = ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickY)*ck;
@@ -11100,6 +11118,7 @@ function frame(now){
 }
 function step(dt){
   G.time += dt;
+  if (G.mode === 'arena' && AR.p1){ arStep(dt); return; }   // the Duelist Arena runs its own fight
   const P = G.P;
   if (G.mode === 'duel') duelFocus(dt);
   const slowOn = G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (G.mode === 'coop' && !NET.coopCfg.slow) ? false : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead;
@@ -11575,6 +11594,7 @@ const fd = $('fd'), god = $('god'), waves = $('waves');
 let freeHidden = isTouch, freePause = false;
 let curScreen = 'menu';
 function setScreen(id){
+  if (id && id !== 'pause' && id !== 'result'){ document.body.classList.remove('arena'); const ah = document.getElementById('arenaHud'); if (ah) ah.classList.remove('on'); }
   if (id && id !== 'pause' && typeof G !== 'undefined' && G.mode === 'train' && id !== 'result'){ const tb = document.getElementById('trainBox'); if (tb) tb.classList.remove('on'); }
   if (id && id !== 'pause' && id !== 'result' && typeof G !== 'undefined') G.dojo = false;   // borrowed dojo fists go back when you leave
   curScreen = id;
@@ -12567,6 +12587,7 @@ function renderPreview(dt){
    ========================================================= */
 $('goLevels').onclick = () => { buildGrid(); setScreen('levels'); };
 $('goTrain').onclick = () => startTraining();
+$('goArena').onclick = () => startArena();
 $('goModes').onclick = () => setScreen('modes');
 $('modesBack').onclick = () => setScreen('menu');
 $('goSurv').onclick = startSurvival;
@@ -13745,7 +13766,7 @@ $('zoomOut').onclick = () => setZoom(VIEW.zoom - 0.1);
 $('viewReset').onclick = () => { VIEW.mode = 'default'; VIEW.size = 'full'; VIEW.zoom = 1; combatTX = null; saveView(); syncView(); };
 loadView(); syncView();
 $('restart').style.display = '';
-const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
+const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } if (G.mode === 'arena'){ startArena(); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
 $('restart').onclick = restartMode;
 $('resRetry').onclick = restartMode;
 $('resNext').onclick = () => { if (G.mode === 'zomb') startZomb(G.level+1); else startLevel(G.level+1); };
@@ -13939,6 +13960,411 @@ heroBladeEnergy = visOnly(heroBladeEnergy);
 updateAmbient = visOnly(updateAmbient);
 flash = visOnly(flash);
 zoomPunch = visOnly(zoomPunch);
+/* =========================================================
+   DUELIST ARENA — one on one, thick coloured stickmen with ragdoll physics.
+   A fighter is either driven by poses (control) or thrown around as a ragdoll
+   (verlet points + bone constraints) after a big hit, then gets back up.
+   ========================================================= */
+const AR = { W:620, CEIL:-1000, GRAV:2500, STEP:1/120 };
+// skeleton: 0 head, 1 neck, 2 pelvis, 3 elbow F, 4 hand F, 5 elbow B, 6 hand B, 7 knee F, 8 foot F, 9 knee B, 10 foot B
+const ARB = { neckHead:18, torso:34, uArm:19, lArm:19, thigh:23, shin:23, headR:14 };
+const AR_BONES = [[0,1,ARB.neckHead],[1,2,ARB.torso],[1,3,ARB.uArm],[3,4,ARB.lArm],[1,5,ARB.uArm],[5,6,ARB.lArm],[2,7,ARB.thigh],[7,8,ARB.shin],[2,9,ARB.thigh],[9,10,ARB.shin],
+  [0,2,ARB.neckHead + ARB.torso, 'stiff']];   // keeps the spine straight in the air
+const AR_KEYS = ['lean','head','fU','fL','bU','bL','fT','fS','bT','bS'];
+const AR_POSE = {
+  guard:{ lean:0.1,  head:0.05, fU:0.55, fL:2.55, bU:0.25, bL:2.35, fT:0.34, fS:-0.12, bT:-0.32, bS:-0.62 },
+  block:{ lean:-0.06,head:0.12, fU:0.95, fL:2.95, bU:0.75, bL:2.9,  fT:0.42, fS:-0.38, bT:-0.36, bS:-0.95 },
+  air:  { lean:0.05, head:0.0,  fU:0.9,  fL:2.2,  bU:-0.5, bL:0.5,  fT:1.25, fS:0.15, bT:0.25, bS:-0.75 },
+  fall: { lean:0.0,  head:0.0,  fU:0.7,  fL:1.6,  bU:-0.6, bL:0.3,  fT:0.5,  fS:0.25, bT:-0.1, bS:-0.35 },
+  dash: { lean:0.6,  head:0.1,  fU:-0.6, fL:-0.3, bU:-0.85,bL:-0.5, fT:0.95, fS:0.1,  bT:-0.7, bS:-1.25 },
+  hurt: { lean:-0.45,head:-0.3, fU:-0.6, fL:0.4,  bU:-0.9, bL:0.2,  fT:0.45, fS:0.12, bT:-0.4, bS:-0.75 },
+  win:  { lean:-0.1, head:-0.2, fU:2.6,  fL:3.0,  bU:0.2,  bL:0.4,  fT:0.2,  fS:0.0,  bT:-0.2, bS:-0.1 }
+};
+/* moves: tip = the point that hits (4 front hand, 6 back hand, 8 front foot), kb = knock (x along the attacker's facing, y),
+   rag = throws the target into a ragdoll, wp / ap = pose overrides in wind-up and strike */
+const AR_MOVES = {
+  jab:   { wind:0.06, act:0.08, total:0.22, tip:4, dmg:5,  kb:[150,-30],  wp:{ fU:0.95, fL:2.2 },                    ap:{ lean:0.25, fU:1.57, fL:1.57 } },
+  cross: { wind:0.07, act:0.08, total:0.27, tip:6, dmg:7,  kb:[210,-60],  wp:{ bU:0.4, bL:2.6, lean:-0.05 },         ap:{ lean:0.42, bU:1.57, bL:1.57, fU:0.6, fL:2.6 } },
+  upper: { wind:0.10, act:0.10, total:0.42, tip:4, dmg:10, kb:[110,-1000], rag:true, wp:{ fU:0.15, fL:1.1, lean:0.15, fT:0.6, fS:-0.5, bT:-0.5, bS:-1.1 }, ap:{ fU:2.7, fL:2.95, lean:-0.15 } },
+  hkick: { wind:0.11, act:0.10, total:0.42, tip:8, dmg:11, kb:[560,-430], rag:true, wp:{ fT:1.7, fS:0.25, lean:-0.2, bU:-0.4, bT:-0.1, bS:-0.2 },
+           ap:{ fT:2.2, fS:2.25, lean:-0.6, bU:-0.9, bL:-0.5, fU:0.9, fL:2.8, bT:-0.12, bS:-0.18 } },
+  launch:{ wind:0.12, act:0.12, total:0.5,  tip:8, dmg:9,  kb:[70,-1180],  rag:true, wp:{ fT:-0.25, fS:-0.7, lean:0.25, bT:-0.5, bS:-1.2 },
+           ap:{ fT:2.85, fS:3.05, lean:-0.45, bT:-0.1, bS:-0.15, fU:1.2, fL:2.4 } },
+  akick: { wind:0.06, act:0.10, total:0.26, tip:8, dmg:8,  kb:[430,-260],  rag:true, air:true, wp:{ fT:1.0, fS:-0.4, lean:0.1 }, ap:{ fT:1.6, fS:1.62, lean:-0.3, bT:0.3, bS:-0.5 } },
+  apunch:{ wind:0.06, act:0.10, total:0.30, tip:4, dmg:8,  kb:[220,760],   rag:true, air:true, wp:{ fU:2.4, fL:2.8, lean:-0.1 }, ap:{ lean:0.55, fU:1.0, fL:0.85, bU:-0.6, bL:0.0 } }
+};
+const AR_PUNCH = ['jab','cross','upper'];
+const arSign = v => v < 0 ? -1 : 1;
+const arShade = (hex, k) => { const n = parseInt(hex.slice(1), 16), f = v => Math.round(Math.max(0, Math.min(255, v*k)));
+  return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`; };
+
+function arFighter(x, face, col, name, isAI){
+  const F = { x, y:0, vx:0, vy:0, face, col, name, ai:isAI ? { cd:0.8, q:[], blockT:0, plan:0, jumpT:0 } : null,
+    hp:100, maxHp:100, onG:true, jumps:2, state:'ctrl', atk:null, chainN:0, chainT:9, blocking:false, hurtT:0, dashT:0, dashCd:0,
+    inv:0, pose:Object.assign({}, AR_POSE.guard), walk:0, pts:[], prev:[], rag:null, comboN:0, comboT:0, airK:0, trail:[] };
+  for (let i=0;i<11;i++){ F.pts.push([x, -50]); F.prev.push([x, -50]); }
+  arFK(F); return F;
+}
+/* forward kinematics: pose angles (0 = straight down, + = toward the facing side) to joint points */
+function arFK(F){
+  const P = F.pose, f = F.face, pt = F.pts;
+  const hF = ARB.thigh*Math.cos(P.fT) + ARB.shin*Math.cos(P.fS), hB = ARB.thigh*Math.cos(P.bT) + ARB.shin*Math.cos(P.bS);
+  const px = F.x, py = F.y - Math.max(hF, hB, 20);              // the lower foot stands on the ground
+  const at = (a, L, o) => [o[0] + Math.sin(a)*L*f, o[1] + Math.cos(a)*L];
+  const pel = [px, py], neck = [px + Math.sin(P.lean)*ARB.torso*f, py - Math.cos(P.lean)*ARB.torso];
+  const head = [neck[0] + Math.sin(P.lean + P.head)*ARB.neckHead*f, neck[1] - Math.cos(P.lean + P.head)*ARB.neckHead];
+  const eF = at(P.fU + P.lean*0.5, ARB.uArm, neck), hFp = at(P.fL + P.lean*0.5, ARB.lArm, eF);
+  const eB = at(P.bU + P.lean*0.5, ARB.uArm, neck), hBp = at(P.bL + P.lean*0.5, ARB.lArm, eB);
+  const kF = at(P.fT, ARB.thigh, pel), fF = at(P.fS, ARB.shin, kF), kB = at(P.bT, ARB.thigh, pel), fB = at(P.bS, ARB.shin, kB);
+  const out = [head, neck, pel, eF, hFp, eB, hBp, kF, fF, kB, fB];
+  for (let i=0;i<11;i++){ pt[i][0] = out[i][0]; pt[i][1] = out[i][1]; }
+}
+/* the pose this fighter wants right now (smoothed toward it every frame) */
+function arTargetPose(F){
+  const T = Object.assign({}, AR_POSE.guard), A = F.atk;
+  if (F.state === 'won') return Object.assign(T, AR_POSE.win);
+  if (F.hurtT > 0) return Object.assign(T, AR_POSE.hurt);
+  if (A){ const d = A.d; Object.assign(T, F.onG ? {} : AR_POSE.air);
+    if (A.t < d.wind) Object.assign(T, d.wp); else if (A.t < d.wind + d.act + 0.06) Object.assign(T, d.wp, d.ap); else Object.assign(T, d.wp, d.ap);
+    return T; }
+  if (F.dashT > 0) return Object.assign(T, AR_POSE.dash);
+  if (!F.onG) return Object.assign(T, F.vy < 0 ? AR_POSE.air : AR_POSE.fall);
+  if (F.blocking) return Object.assign(T, AR_POSE.block);
+  const sp = Math.abs(F.vx);
+  if (sp > 40){   // run cycle: legs swing, knees fold on the way back, arms swing opposite
+    const ph = F.walk, m = Math.min(1, sp/380), back = (F.vx*F.face) < 0 ? -1 : 1;
+    const legA = Math.sin(ph)*0.85*m*back, legB = Math.sin(ph + Math.PI)*0.85*m*back;
+    T.fT = 0.1 + legA; T.fS = T.fT - Math.max(0, Math.cos(ph))*1.2*m - 0.1;
+    T.bT = 0.1 + legB; T.bS = T.bT - Math.max(0, Math.cos(ph + Math.PI))*1.2*m - 0.1;
+    T.lean = 0.12 + 0.22*m; T.fU = 0.55 - Math.sin(ph)*0.5*m; T.bU = 0.25 + Math.sin(ph)*0.5*m;
+  } else {        // fighting stance: a light bounce in the knees
+    const b = Math.sin(AR.t*7)*0.07; T.fS -= b; T.bS -= b*1.4; T.fT += b*0.3;
+  }
+  return T;
+}
+function arStartMove(F, key, O){
+  const d = AR_MOVES[key]; if (!d) return;
+  F.atk = { key, d, t:0, hit:false }; F.trail = [];
+  sfx(d.tip === 8 ? 'whoosh' : 'swish');
+  // step in to the distance this strike reaches, so the hand or foot really lands
+  const gap = O ? Math.abs(arRootX(O) - F.x) : 999, ideal = d.tip === 8 ? (key === 'launch' ? 40 : 50) : 38;
+  if (gap < 170) F.vx = F.face*Math.max(-120, Math.min(F.onG ? 720 : 420, (gap - ideal)/(d.wind + d.act*0.5)));
+  else if (F.onG) F.vx = F.face*(key === 'hkick' ? 160 : key === 'launch' ? 60 : 120);
+}
+/* input: I = { h:{held}, p:{pressed} } — the same for the player and the AI */
+function arControl(F, O, I, dt){
+  if (F.state !== 'ctrl') return;
+  if (F.hurtT > 0){ F.hurtT -= dt; return; }
+  const h = I.h, p = I.p, mv = (h.right ? 1 : 0) - (h.left ? 1 : 0);
+  if (F.dashCd > 0) F.dashCd -= dt;
+  if (F.chainT < 9) F.chainT += dt;
+  F.blocking = !!h.block && F.onG && !F.atk && F.dashT <= 0;
+  if (!F.atk && F.onG && F.dashT <= 0) F.face = arSign(arRootX(O) - F.x);
+  if (F.dashT > 0){ F.dashT -= dt; if (!F.onG) F.vy = Math.min(F.vy, 60); }
+  else if (!F.atk && !F.blocking){ const want = mv*370; F.vx += (want - F.vx)*Math.min(1, dt*(F.onG ? 14 : 4)); }
+  else if (F.onG && !(F.atk && F.atk.t < F.atk.d.wind + F.atk.d.act)) F.vx += (0 - F.vx)*Math.min(1, dt*10);   // keep the step-in until the strike lands
+  if (p.jump && F.jumps > 0 && !F.blocking && !F.atk){ F.vy = F.onG ? -980 : -860; F.jumps--; F.onG = false; F.airK = 0; sfx('swish'); arDust(F.x, 0, 4); }
+  if (p.dash && F.dashCd <= 0 && !F.atk){ F.dashT = 0.18; F.dashCd = 0.55; const dir = mv || F.face; F.face = dir; F.vx = dir*980; if (!F.onG) F.vy = Math.min(F.vy, -80); sfx('dash'); }
+  const wantAtk = p.attack || p.kick || p.launch;
+  if (wantAtk && (!F.atk || F.atk.t > F.atk.d.wind + F.atk.d.act + 0.03) && !F.blocking){
+    let key;
+    if (!F.onG){ if (F.airK >= 3) key = null; else { key = p.attack ? 'apunch' : 'akick'; F.airK++; } }
+    else if (p.launch || (p.kick && h.down)) key = 'launch';
+    else if (p.kick) key = 'hkick';
+    else { F.chainN = F.chainT < 0.45 ? (F.chainN + 1) % AR_PUNCH.length : 0; key = AR_PUNCH[F.chainN]; }
+    F.chainT = 0;
+    if (key) arStartMove(F, key, O);
+  }
+}
+const arRootX = F => F.state === 'ctrl' ? F.x : F.pts[2][0];
+function arPhysics(F, dt){
+  if (F.state === 'rag' || F.state === 'ko'){ arRagStep(F, dt); return; }
+  if (F.state === 'getup'){ F.getT += dt; if (F.getT >= 0.45){ F.state = 'ctrl'; F.inv = 0.25; } }
+  if (F.inv > 0) F.inv -= dt;
+  const g = (F.atk && F.atk.d.air && F.atk.t < F.atk.d.wind + F.atk.d.act) ? 0.35 : 1;   // a short hang while kicking in the air
+  F.vy += AR.GRAV*g*dt; F.x += F.vx*dt; F.y += F.vy*dt;
+  if (F.y >= 0){ if (!F.onG && F.vy > 500) arDust(F.x, 0, 5); F.y = 0; F.vy = 0; F.onG = true; F.jumps = 2; F.airK = 0; } else F.onG = false;
+  if (F.y < AR.CEIL + 120){ F.y = AR.CEIL + 120; F.vy = Math.max(0, F.vy); }
+  F.x = Math.max(-AR.W + 24, Math.min(AR.W - 24, F.x));
+  if (F.onG && F.dashT <= 0 && !F.atk && Math.abs(F.vx) > 40) F.walk += dt*Math.abs(F.vx)*0.034;
+  if (F.atk){ F.atk.t += dt; if (F.atk.t >= F.atk.d.total) F.atk = null; }
+  // pose: ease every angle toward the target, fast while striking
+  const T = arTargetPose(F), k = Math.min(1, dt*((F.atk && F.atk.t >= F.atk.d.wind) ? 38 : F.atk ? 26 : 16));
+  for (const key of AR_KEYS) F.pose[key] += (T[key] - F.pose[key])*k;
+  if (F.state === 'getup'){
+    arFK(F); const q = Math.min(1, F.getT/0.45), e = q*q*(3 - 2*q);
+    for (let i=0;i<11;i++){ F.pts[i][0] = F.ragFrom[i][0] + (F.pts[i][0] - F.ragFrom[i][0])*e; F.pts[i][1] = F.ragFrom[i][1] + (F.pts[i][1] - F.ragFrom[i][1])*e; }
+  } else arFK(F);
+  if (F.atk && F.atk.t >= F.atk.d.wind - 0.02 && F.atk.t <= F.atk.d.wind + F.atk.d.act + 0.04){ const tp = F.pts[F.atk.d.tip]; F.trail.push([tp[0], tp[1], 0.16]); }
+}
+/* ---------- ragdoll ---------- */
+function arToRag(F, vx, vy, spin){
+  F.state = F.hp <= 0 ? 'ko' : 'rag'; F.atk = null; F.blocking = false; F.hurtT = 0;
+  F.rag = { t:0, still:0 };
+  const dt = AR.STEP;
+  for (let i=0;i<11;i++){
+    const p = F.pts[i], s = (i <= 1 ? 1 : i >= 7 ? -1 : 0)*spin;   // top and feet move opposite ways: the body turns over
+    F.prev[i][0] = p[0] - (vx + s)*dt; F.prev[i][1] = p[1] - vy*dt;
+  }
+}
+function arRagStep(F, dt){
+  const R = F.rag; R.t += dt;
+  const n = Math.max(1, Math.round(dt/AR.STEP)), h = dt/n, g = AR.GRAV*h*h;
+  for (let s=0; s<n; s++){
+    for (let i=0;i<11;i++){
+      const p = F.pts[i], q = F.prev[i], vx = (p[0] - q[0])*0.998, vy = (p[1] - q[1])*0.998;
+      q[0] = p[0]; q[1] = p[1]; p[0] += vx; p[1] += vy + g;
+    }
+    for (let it=0; it<5; it++){
+      for (const [a, b, L, stiff] of AR_BONES){
+        const A = F.pts[a], B = F.pts[b], dx = B[0] - A[0], dy = B[1] - A[1], d = Math.hypot(dx, dy) || 0.001;
+        const k = (d - L)/d*(stiff ? 0.25 : 0.5);
+        A[0] += dx*k; A[1] += dy*k; B[0] -= dx*k; B[1] -= dy*k;
+      }
+      for (let i=0;i<11;i++){ const p = F.pts[i], q = F.prev[i], r = i === 0 ? ARB.headR : 5;
+        if (p[1] > -r){ const vy = p[1] - q[1], vx = p[0] - q[0]; p[1] = -r; q[1] = p[1] + vy*0.35; q[0] = p[0] - vx*0.8;   // floor: bounce a little, slide with friction
+          if (vy > 9 && i === 2) arDust(p[0], 0, 4); }
+        if (p[0] < -AR.W + r){ const vx = p[0] - q[0]; p[0] = -AR.W + r; q[0] = p[0] + vx*0.55; if (vx < -8 && i === 2) arWallHit(F, -1); }   // the cage throws them back
+        if (p[0] >  AR.W - r){ const vx = p[0] - q[0]; p[0] =  AR.W - r; q[0] = p[0] + vx*0.55; if (vx >  8 && i === 2) arWallHit(F, 1); }
+        if (p[1] < AR.CEIL + r){ p[1] = AR.CEIL + r; q[1] = p[1]; }
+      }
+    }
+  }
+  // settled on the floor? get up (a knocked-out fighter stays down)
+  let sp = 0; for (let i=0;i<11;i++) sp += Math.abs(F.pts[i][0] - F.prev[i][0]) + Math.abs(F.pts[i][1] - F.prev[i][1]);
+  R.still = (sp < 2.2*(dt*120) && F.pts[2][1] > -40) ? R.still + dt : 0;
+  if (F.state === 'rag' && R.t > 0.5 && (R.still > 0.18 || R.t > 2.6)){
+    F.state = 'getup'; F.getT = 0; F.ragFrom = F.pts.map(p => [p[0], p[1]]);
+    F.x = Math.max(-AR.W + 30, Math.min(AR.W - 30, F.pts[2][0])); F.y = 0; F.vx = 0; F.vy = 0; F.onG = true; F.jumps = 2;
+    F.pose = Object.assign({}, AR_POSE.guard); sfx('swish');
+  }
+}
+function arWallHit(F, side){
+  if (F.wallT && AR.t - F.wallT < 0.3) return; F.wallT = AR.t;
+  AR.shake = Math.max(AR.shake, 7); sfx('kick'); arSpark(side*AR.W, F.pts[2][1], '#FFE7A8', 1.3);
+  arText(F.pts[2][0] - side*40, F.pts[2][1] - 70, 'WALL!', '#FFB347');
+}
+/* ---------- hits ---------- */
+const arDistSeg = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l = dx*dx + dy*dy || 1, t = Math.max(0, Math.min(1, ((px - ax)*dx + (py - ay)*dy)/l));
+  return Math.hypot(px - (ax + dx*t), py - (ay + dy*t)); };
+function arTouches(tip, O){
+  const p = O.pts;
+  if (Math.hypot(tip[0] - p[0][0], tip[1] - p[0][1]) < ARB.headR + 7) return true;
+  if (arDistSeg(tip[0], tip[1], p[1][0], p[1][1], p[2][0], p[2][1]) < 13) return true;
+  if (arDistSeg(tip[0], tip[1], p[2][0], p[2][1], p[7][0], p[7][1]) < 11) return true;
+  if (arDistSeg(tip[0], tip[1], p[2][0], p[2][1], p[9][0], p[9][1]) < 11) return true;
+  return false;
+}
+function arHits(F, O){
+  const A = F.atk; if (!A || A.hit) return;
+  if (A.t < A.d.wind || A.t > A.d.wind + A.d.act) return;
+  if (O.state === 'ko' || O.state === 'getup' || O.inv > 0) return;
+  const tip = F.pts[A.d.tip]; if (!arTouches(tip, O)) return;
+  A.hit = true; const d = A.d, dir = F.face;
+  // blocked: standing guard, facing the attacker
+  if (O.state === 'ctrl' && O.blocking && arSign(F.x - O.x) === O.face){
+    O.vx = dir*260; F.vx = -dir*140; arSpark(tip[0], tip[1], '#9FD3FF', 1); sfx('parry'); arText(O.x, -130, 'BLOCK', '#9FD3FF');
+    if (O.ai) O.ai.cd = Math.min(O.ai.cd, 0.05);   // they hit back at once
+    return;
+  }
+  const juggle = O.state === 'rag';
+  O.hp = Math.max(0, O.hp - d.dmg*(juggle ? 0.8 : 1));
+  F.comboN = F.comboT > 0 ? F.comboN + 1 : 1; F.comboT = 1.0;
+  arSpark(tip[0], tip[1], d.tip === 8 ? '#FFFFFF' : '#FFF1C2', d.rag ? 1.4 : 0.9);
+  sfx(d.tip === 8 ? 'kick' : 'punch'); if (d.rag) AR.shake = Math.max(AR.shake, 5);
+  if (O.hp <= 0){   // knock-out: a big send-off and slow motion
+    arToRag(O, dir*(Math.abs(d.kb[0]) + 300), Math.min(d.kb[1], -620), dir*260); AR.slow = 1.1; sfx('boom'); return;
+  }
+  if (juggle){   // a body in the air: push every point, so the combo carries it
+    const s = Math.max(0.55, 1 - 0.07*(F.comboN - 1)), dt = AR.STEP;
+    for (let i=0;i<11;i++){ O.prev[i][0] -= dir*d.kb[0]*0.55*s*dt; O.prev[i][1] -= Math.min(d.kb[1], -380)*0.7*s*dt*(d.kb[1] > 0 ? -1.4 : 1); }
+    O.rag.t = Math.min(O.rag.t, 0.3); O.rag.still = 0;
+    return;
+  }
+  if (d.rag || !O.onG){ arToRag(O, dir*d.kb[0], d.kb[1], dir*(d.tip === 8 ? 240 : 140)); return; }
+  O.hurtT = 0.28; O.atk = null; O.vx = dir*d.kb[0]; O.blocking = false;
+}
+/* ---------- effects ---------- */
+function arSpark(x, y, col, s){ AR.fx.push({ k:'spark', x, y, col, s, t:0, d:0.18, a:Math.random()*3 }); }
+function arDust(x, y, n){ for (let i=0;i<n;i++) AR.fx.push({ k:'dust', x:x + (Math.random()-0.5)*30, y:y - 3, vx:(Math.random()-0.5)*160, vy:-Math.random()*90, t:0, d:0.45, r:5 + Math.random()*6 }); }
+function arText(x, y, txt, col){ AR.fx.push({ k:'txt', x, y, txt, col, t:0, d:0.8 }); }
+/* ---------- AI ---------- */
+function arAI(F, O, dt){
+  const A = F.ai, I = { h:{}, p:{} }, sk = AR.skill;
+  if (F.state !== 'ctrl' || AR.phase !== 'fight') return I;
+  A.cd -= dt; A.blockT -= dt; A.jumpT -= dt;
+  const ox = arRootX(O), dx = ox - F.x, dist = Math.abs(dx), toward = dx > 0 ? 'right' : 'left', away = dx > 0 ? 'left' : 'right';
+  if (O.state === 'rag'){   // chase the body and keep the juggle going
+    const py = O.pts[2][1];
+    if (dist > 70) I.h[toward] = true;
+    if (py < -70 && dist < 160 && F.onG && A.jumpT <= 0 && Math.random() < 0.08*sk){ I.p.jump = true; A.jumpT = 0.6; }
+    if (!F.onG && dist < 95 && Math.abs(py - F.pts[2][1]) < 110 && A.cd <= 0){ I.p.kick = true; A.cd = 0.22; }
+    else if (F.onG && dist < 80 && py > -150 && py < -30 && A.cd <= 0){ I.p[Math.random() < 0.5 ? 'launch' : 'attack'] = true; A.cd = 0.35; }
+    return I;
+  }
+  if (O.state !== 'ctrl'){ if (dist < 160) I.h[away] = true; return I; }
+  // defend: see the strike coming and raise the guard
+  if (O.atk && O.atk !== A.seen && O.atk.t < O.atk.d.wind && dist < 150){ A.seen = O.atk; if (Math.random() < 0.42*sk) A.blockT = 0.35; }   // one decision per incoming strike
+  if (A.blockT > 0){ I.h.block = true; return I; }
+  if (A.q.length){ if (!F.atk || F.atk.t > F.atk.d.wind + F.atk.d.act + 0.04){ I.p[A.q.shift()] = true; } return I; }
+  if (dist > 150){
+    I.h[toward] = true;
+    if (dist > 320 && Math.random() < 0.012*sk && F.dashCd <= 0) I.p.dash = true;
+    if (dist < 330 && dist > 200 && F.onG && Math.random() < 0.01*sk){ I.p.jump = true; A.q = ['kick']; }
+  } else if (dist < 55){ I.h[away] = true; }
+  else if (A.cd <= 0){
+    const plans = [['attack','attack','attack'], ['attack','attack','kick'], ['kick'], ['launch'], ['attack','launch'], ['attack','attack']];
+    A.q = plans[(Math.random()*plans.length)|0].slice(); A.cd = (0.55 + Math.random()*0.7)/sk;
+  } else if (Math.random() < 0.02) I.h[Math.random() < 0.5 ? toward : away] = true;   // footsies
+  return I;
+}
+/* ---------- flow: rounds, camera, HUD ---------- */
+function startArena(){
+  G.mode = 'arena'; G.level = 0; G.nightmare = false; G.dojo = false; G.worldW = AR.W*2;
+  resetCommon(); G.E = [];
+  document.body.classList.add('arena', 'fistmode');
+  AR.wins = [0, 0]; AR.round = 0; AR.skill = 0.75;
+  arNewRound();
+  setScreen(null); G.running = true;
+}
+function arNewRound(){
+  AR.round++; AR.t = 0; AR.phase = 'intro'; AR.phaseT = 0; AR.fx = []; AR.shake = 0; AR.slow = 0; AR.ts = 1;
+  AR.p1 = arFighter(-200, 1, '#4FA8FF', 'You', false);
+  AR.p2 = arFighter(200, -1, '#FF7A1A', 'Rival', true);
+  AR.cam = { x:0, y:-150, z:1 };
+  AR.skill = 0.7 + 0.12*(AR.round - 1) + 0.1*AR.wins[0];
+  callout(`ROUND ${AR.round}`, '#FBEFE0', 0.9, `Round ${AR.round}`, 'Duelist Arena');
+  arHud();
+}
+function arStep(dt){
+  AR.phaseT += dt;
+  if (AR.slow > 0){ AR.slow -= dt; AR.ts = 0.3; } else AR.ts = 1;
+  const d = dt*AR.ts; AR.t += d;
+  const P1 = AR.p1, P2 = AR.p2;
+  if (AR.phase === 'intro' && AR.phaseT > 1.2){ AR.phase = 'fight'; callout('FIGHT!', '#FFB347', 0.8, 'Fight!'); }
+  const I1 = AR.phase === 'fight' ? { h:held, p:pressed } : { h:{}, p:{} };
+  const I2 = arAI(P2, P1, d);
+  arControl(P1, P2, I1, d); arControl(P2, P1, I2, d);
+  arPhysics(P1, d); arPhysics(P2, d);
+  // bodies don't pass through each other
+  if (P1.state === 'ctrl' && P2.state === 'ctrl' && Math.abs(P1.x - P2.x) < 34 && Math.abs(P1.y - P2.y) < 70){
+    const m = (P1.x + P2.x)/2, s = arSign(P1.x - P2.x); P1.x = m + s*17; P2.x = m - s*17; }
+  if (AR.phase === 'fight'){ arHits(P1, P2); arHits(P2, P1); }
+  for (const F of [P1, P2]){ if (F.comboT > 0) F.comboT -= d; for (const q of F.trail) q[2] -= d; F.trail = F.trail.filter(q => q[2] > 0); }
+  for (const e of AR.fx){ e.t += d; if (e.k === 'dust'){ e.x += e.vx*d; e.y += e.vy*d; e.vy += 200*d; } }
+  AR.fx = AR.fx.filter(e => e.t < e.d);
+  if (AR.shake > 0) AR.shake = Math.max(0, AR.shake - dt*30);
+  // the round ends with a knockout
+  if (AR.phase === 'fight' && (P1.state === 'ko' || P2.state === 'ko')){
+    AR.phase = 'ko'; AR.phaseT = 0; const won = P2.state === 'ko' ? 0 : 1; AR.wins[won]++;
+    const w = won === 0 ? P1 : P2; w.atk = null; w.blocking = false;
+    callout('K.O.', '#FFE14D', 1.2, 'K.O.!', won === 0 ? 'YOU WIN THE ROUND' : 'RIVAL WINS THE ROUND');
+  }
+  if (AR.phase === 'ko'){
+    const w = AR.p1.state === 'ko' ? AR.p2 : AR.p1;
+    if (w.state === 'ctrl' && w.onG && AR.phaseT > 0.8) w.state = 'won';
+    if (AR.phaseT > 3.2){ if (AR.wins[0] >= 2 || AR.wins[1] >= 2) arEnd(); else arNewRound(); }
+  }
+  arCamera(dt); arHud();
+}
+function arCamera(dt){
+  const a = AR.p1.pts[2], b = AR.p2.pts[2], C = AR.cam;
+  const cx = (a[0] + b[0])/2, cy = Math.min(-150, (a[1] + b[1])/2 - 40);
+  const span = Math.abs(a[0] - b[0]) + 320, hspan = Math.abs(a[1] - b[1]) + 380;
+  const z = Math.max(0.55, Math.min(1.3, Math.min(VW*0.95/span, VH*0.95/hspan)));
+  const k = Math.min(1, dt*4); C.x += (cx - C.x)*k; C.y += (cy - C.y)*k; C.z += (z - C.z)*k;
+  const halfW = VW/2/C.z; C.x = Math.max(-AR.W - 60 + halfW, Math.min(AR.W + 60 - halfW, C.x));
+  if (halfW > AR.W + 60) C.x = 0;
+}
+function arHud(){
+  const el = $('arenaHud'); if (!el) return;
+  el.classList.toggle('on', G.mode === 'arena' && G.running);
+  const P1 = AR.p1, P2 = AR.p2; if (!P1) return;
+  $('arHp1').style.width = (P1.hp/P1.maxHp*100) + '%'; $('arHp2').style.width = (P2.hp/P2.maxHp*100) + '%';
+  $('arPips1').textContent = '●'.repeat(AR.wins[0]) + '○'.repeat(2 - AR.wins[0]);
+  $('arPips2').textContent = '○'.repeat(2 - AR.wins[1]) + '●'.repeat(AR.wins[1]);
+  $('arRound').textContent = `ROUND ${AR.round}`;
+  const c1 = P1.comboT > 0 && P1.comboN > 1 ? `${P1.comboN} HITS` : '', c2 = P2.comboT > 0 && P2.comboN > 1 ? `${P2.comboN} HITS` : '';
+  $('arCombo1').textContent = c1; $('arCombo2').textContent = c2;
+}
+function arEnd(){
+  const win = AR.wins[0] > AR.wins[1];
+  G.running = false; $('arenaHud').classList.remove('on');
+  if (win){ addCoins(200); SV.arena = SV.arena || { wins:0 }; SV.arena.wins++; save(); }
+  $('resTitle').textContent = win ? 'You win the duel' : 'The rival wins';
+  $('resText').textContent = `Rounds ${AR.wins[0]} : ${AR.wins[1]}. ` + (win ? 'Clean work. Try again: the rival fights harder every round.' : 'Block when they wind up, then punish. Kick them into the cage and keep the juggle going.');
+  $('coinBreak').innerHTML = win ? `Duel won <b>+200</b> coins` : '';
+  $('resNext').style.display = 'none';
+  setScreen('result');
+}
+/* ---------- drawing ---------- */
+let AR_MESH = null;
+function arMesh(){
+  if (AR_MESH) return AR_MESH;
+  const c = document.createElement('canvas'); c.width = 22; c.height = 22; const x = c.getContext('2d');
+  x.strokeStyle = 'rgba(30,32,40,0.55)'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(0,0); x.lineTo(22,22); x.moveTo(22,0); x.lineTo(0,22); x.stroke();
+  AR_MESH = ctx.createPattern(c, 'repeat'); return AR_MESH;
+}
+function arRender(){
+  const C = AR.cam, z = C.z, sh = AR.shake, sx = sh ? (Math.random()-0.5)*sh : 0, sy = sh ? (Math.random()-0.5)*sh : 0;
+  // sky and the city behind, in screen space with a little parallax
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, '#5B6278'); g.addColorStop(0.6, '#8A8FA0'); g.addColorStop(1, '#3A3C46');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  const T = (wx, wy) => [VW/2 + (wx - C.x)*z + sx, VH*0.6 + (wy - C.y)*z + sy];
+  ctx.fillStyle = 'rgba(70,74,90,0.75)';
+  for (let i=-8;i<=8;i++){ const bx = VW/2 + (i*170 - C.x*0.25)*z*0.7, bh = 90 + ((i*53) % 70 + 70) % 70 + (i % 3 === 0 ? 120 : 0);
+    const by = T(0, 0)[1] - 210*z; ctx.fillRect(bx, by - bh*z*0.7, 120*z*0.7, bh*z*0.7 + 400); if (i % 4 === 0) ctx.fillRect(bx + 30*z, by - (bh + 160)*z*0.7, 16*z, 160*z*0.7); }
+  // world
+  ctx.setTransform(S*z, 0, 0, S*z, S*(VW/2 - C.x*z + sx), S*(VH*0.6 - C.y*z + sy));
+  const W = AR.W;
+  ctx.fillStyle = arMesh(); ctx.fillRect(-W - 200, -330, 2*W + 400, 330);                      // the chain-link fence behind
+  ctx.strokeStyle = '#2A2C34'; ctx.lineWidth = 7;
+  for (let x = -W; x <= W; x += 160){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, -340); ctx.stroke(); }
+  ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-W - 200, -330); ctx.lineTo(W + 200, -330); ctx.stroke();
+  ctx.fillStyle = '#2B2D35'; ctx.fillRect(-W - 400, 0, 2*W + 800, 400);                       // floor
+  ctx.fillStyle = '#3B3E48'; ctx.fillRect(-W - 400, 0, 2*W + 800, 6);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
+  for (let x = -W - 400; x < W + 400; x += 90){ ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x - 40, 120); ctx.stroke(); }
+  // the cage walls at both ends
+  for (const s of [-1, 1]){ const x = s*W;
+    ctx.fillStyle = 'rgba(25,26,32,0.85)'; ctx.fillRect(x + (s > 0 ? 0 : -26), AR.CEIL, 26, -AR.CEIL);
+    ctx.fillStyle = arMesh(); ctx.fillRect(x + (s > 0 ? 26 : -200), AR.CEIL, 174, -AR.CEIL); }
+  // shadows
+  for (const F of [AR.p1, AR.p2]){ const px = F.pts[2][0], h = Math.max(0, -F.pts[2][1] - 40), k = Math.max(0.25, 1 - h/400);
+    ctx.globalAlpha = 0.35*k; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(px, 3, 34*k + 8, 6, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
+  // strike trails
+  for (const F of [AR.p1, AR.p2]){ if (F.trail.length < 2) continue;
+    ctx.lineCap = 'round'; for (let i=1;i<F.trail.length;i++){ const a = F.trail[i-1], b = F.trail[i];
+      ctx.globalAlpha = Math.max(0, b[2]/0.16)*0.55; ctx.strokeStyle = arShade(F.col, 1.5); ctx.lineWidth = 9*(i/F.trail.length);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); } ctx.globalAlpha = 1; }
+  // fighters: the far limbs a shade darker, then the body, then the near limbs
+  const order = AR.p1.atk && !AR.p2.atk ? [AR.p2, AR.p1] : [AR.p1, AR.p2];
+  for (const F of order) arDrawFighter(F);
+  // effects
+  for (const e of AR.fx){ const q = e.t/e.d;
+    if (e.k === 'spark'){ ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.a); ctx.globalAlpha = 1 - q; ctx.strokeStyle = e.col; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      const r = (10 + 26*q)*e.s; for (let i=0;i<6;i++){ const an = i*Math.PI/3; ctx.beginPath(); ctx.moveTo(Math.cos(an)*r*0.35, Math.sin(an)*r*0.35); ctx.lineTo(Math.cos(an)*r, Math.sin(an)*r); ctx.stroke(); }
+      ctx.restore(); }
+    else if (e.k === 'dust'){ ctx.globalAlpha = 0.35*(1 - q); ctx.fillStyle = '#B9B6B0'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r*(1 + q), 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
+    else if (e.k === 'txt'){ ctx.globalAlpha = 1 - q; ctx.font = '600 30px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(e.txt, e.x + 2, e.y - q*30 + 2); ctx.fillStyle = e.col; ctx.fillText(e.txt, e.x, e.y - q*30); ctx.globalAlpha = 1; }
+  }
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  if (AR.ts < 1){ ctx.fillStyle = 'rgba(10,14,30,0.18)'; ctx.fillRect(0, 0, VW, VH); }
+}
+function arDrawFighter(F){
+  const p = F.pts, col = F.col, dark = arShade(col, 0.72), W = 13;
+  const flash = F.state === 'ctrl' && F.hurtT > 0.2;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const limb = (a, b, c, w, cl) => { ctx.strokeStyle = cl; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(p[a][0], p[a][1]); ctx.lineTo(p[b][0], p[b][1]); ctx.lineTo(p[c][0], p[c][1]); ctx.stroke(); };
+  limb(1, 5, 6, W, dark); limb(2, 9, 10, W + 0.5, dark);                 // far arm, far leg
+  const body = flash ? '#FFFFFF' : col;
+  ctx.strokeStyle = body; ctx.lineWidth = W + 2.5; ctx.beginPath(); ctx.moveTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]); ctx.stroke();
+  ctx.fillStyle = body; ctx.beginPath(); ctx.arc(p[0][0], p[0][1], ARB.headR, 0, 6.283); ctx.fill();
+  limb(2, 7, 8, W + 0.5, body); limb(1, 3, 4, W, body);                  // near leg, near arm
+  if (F.state === 'ctrl' && F.blocking){ const a0 = F.face > 0 ? 0 : Math.PI; ctx.strokeStyle = 'rgba(160,215,255,0.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p[1][0] + F.face*14, p[1][1] - 4, 26, a0 - 1.2, a0 + 1.2); ctx.stroke(); }
+}
+
 requestAnimationFrame(frame);
 })();
 </script>
