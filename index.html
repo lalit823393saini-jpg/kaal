@@ -225,6 +225,7 @@ body.touch #freeScrim.on{display:block}
 .tb.sm{width:50px;height:50px;font-size:17px;border-color:var(--sc,var(--frost));color:var(--sc,var(--frost))}
 .tb.atk{grid-column:2 / span 2;grid-row:2;justify-self:end}
 .tb.kk{grid-column:2;grid-row:2;border-color:#FFD9B0;color:#FFD9B0;display:none}
+.tb.lk{display:none} body.fistmode .tb.lk{display:block}
 .tb.dn{display:none}
 body.fistmode .tb.kk{display:block}
 body.fistmode .tb.dn{display:block}
@@ -1188,6 +1189,23 @@ const TYPES = {
 const BOSS_BY_LEVEL = { 5:'ronin', 10:'kage', 15:'ogre', 20:'asura' };
 const BOSS_LIST = ['ronin','kage','ogre','asura'];
 const isBoss = e => !!e.T.boss;
+/* hand to hand: when the player puts the sword away (H), ordinary enemies put theirs away too */
+const EFIST = { fist:true, len:0, w:2.6, edge:'#B8323C' };
+const brawlOn = () => !!(G.ST && G.ST.sword && G.ST.sword.fist) && G.mode !== 'duel';
+const brawler = e => !!e && !e.isPlayer && !e.remote && !e.puppet && !e.isClone && !e.T.boss && brawlOn();
+function brawlPick(e){
+  const r = Math.random();
+  if (r < 0.5){ e.bmove = 'punch'; e.bkAng = 0; }
+  else if (r < 0.78){ e.bmove = 'kick'; e.bkAng = 1.7; }   // body kick
+  else { e.bmove = 'hkick'; e.bkAng = 2.3; }                 // kick to the head
+}
+function brawlBlockP(e, o){
+  if (e.T.zombie) return 0;                                   // the dead never block
+  let p = e.T.block ? 0.45 : e.T.ninja ? 0.35 : e.T.armor ? 0.15 : 0.25;
+  if (e.state === 'block') p += 0.1;                          // already guarding
+  if (o.heavy) p *= 0.5;
+  return p;
+}
 const SCORE_BASE = { grunt:10, fencer:15, archer:15, assassin:20, shield:20, ninja:20, brute:30, demon:40, gunner:22, zombie:8, runner:12, bloater:25 };
 
 /* places: each chapter has its own sky, horizon and foreground */
@@ -1574,6 +1592,10 @@ const FIST_MOVES = {
   upper:   F({ nm:'Uppercut',        wind:0.095, act:0.135, total:0.51, dmg:40, kb:45, range:82, from:[0.9,0], to:[-1.45,0], ext:1.75, heavy:true, launch:430, upper:true }),
   // --- kick string: Kick, Kick, Kick ---
   round:   F({ nm:'Roundhouse',      wind:0.07,  act:0.11,  total:0.34, dmg:22, kb:200, range:97, kick:true, kickAng:1.5 }),
+  face:    F({ nm:'Face Kick',       wind:0.07,  act:0.11,  total:0.36, dmg:24, kb:230, range:98, kick:true, kickAng:2.35, faceKick:true }),
+  air1:    F({ nm:'Air Kick',        wind:0.04,  act:0.08,  total:0.17, dmg:18, kb:120, range:92, kick:true, kickAng:1.65, airHang:true, airFirst:true, launch:160 }),
+  air2:    F({ nm:'Air Kick',        wind:0.03,  act:0.09,  total:0.26, dmg:22, kb:300, range:94, kick:true, kickAng:2.2,  airHang:true }),
+  sky:     F({ nm:'Sky Kick',        wind:0.11,  act:0.13,  total:0.50, dmg:30, kb:30,  range:92, kick:true, kickAng:2.75, heavy:true, launch:900, cleave:2, guardBreak:true }),
   spin:    F({ nm:'Spin Kick',       wind:0.08,  act:0.12,  total:0.38, dmg:27, kb:330, range:100, kick:true, kickAng:1.5, cleave:2 }),
   rising:  F({ nm:'Rising Kick',     wind:0.10,  act:0.13,  total:0.46, dmg:34, kb:40, range:88, kick:true, kickAng:2.4, heavy:true, launch:470 }),
   // --- directional ---
@@ -1591,11 +1613,12 @@ const FIST_MOVES = {
   quake:   F({ nm:'Earthshaker',     wind:0.14,  act:0.14,  total:0.55, dmg:36, kb:320, range:120, kick:true, kickAng:2.2, crouchPose:8, heavy:true, quake:130, stun:1.2, cleave:5 }),
   grab:    F({ nm:'Grab and Slam',   wind:0.10,  act:0.12,  total:0.58, dmg:46, kb:120, range:58, from:[-0.3,0], to:[0.5,0], ext:2.0, heavy:true, grab:true, unblockable:true })
 };
-const PUNCH_CHAIN = ['jab','cross','hook','upper'], KICK_CHAIN = ['round','spin','rising'];
+const PUNCH_CHAIN = ['jab','cross','hook','upper'], KICK_CHAIN = ['face','spin','rising'];
 /* shown on the Moves screen, in order */
 const MOVE_LIST = [
   ['chain','Punch, Punch, Punch, Punch','Jab, Cross, Hook, Uppercut','The last hit launches the enemy into the air. Keep hitting them while they fall for a juggle.'],
-  ['chain','Kick, Kick, Kick','Roundhouse, Spin Kick, Rising Kick','The Spin Kick sweeps two enemies at once. The Rising Kick launches.'],
+  ['chain','Kick, Kick, Kick','Face Kick, Spin Kick, Rising Kick','The first kick goes to the face. The Spin Kick sweeps two enemies at once. The Rising Kick launches.'],
+  ['sp','Launch','Sky Kick','Kicks straight up and throws the enemy high into the air. Breaks a guard. Chase them up for a juggle.'],
   ['dir','Forward + Punch','Straight','Steps in with long reach and pushes the enemy back.'],
   ['dir','Back + Punch','Spinning Backfist','Slow but heavy, and it hits two enemies.'],
   ['dir','Down + Punch','Body Blow','A fast low hit. Low attacks go under a fencer\'s guard and a shield.'],
@@ -1603,7 +1626,8 @@ const MOVE_LIST = [
   ['dir','Back + Kick','Axe Kick','Slams down from overhead and stuns for 1 second.'],
   ['dir','Down + Kick','Sweep','Knocks the enemy flat on the ground. Goes under guards.'],
   ['air','In the air: Punch','Falling Fist','Drops you down onto them.'],
-  ['air','In the air: Kick','Dive Kick','Flies forward and down. Good for closing distance.'],
+  ['air','Jump + Kick','Double Air Kick','Two quick kicks in the air, you hang for a moment while you kick.'],
+  ['air','In the air: Down + Kick','Dive Kick','Flies forward and down. Good for closing distance.'],
   ['sp','Forward, Forward + Punch','Dragon Rush','Charges through enemies, breaks armour.'],
   ['sp','Down, Down + Kick','Earthshaker','Smashes the ground and stuns everyone around you.'],
   ['sp','Hold Block + Punch','Grab and Slam','Up close only. Cannot be blocked. Slams them behind you.'],
@@ -1623,7 +1647,7 @@ function comboFor(sw){
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'pause',
-  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', g:'fire', v:'ride', f:'astra', o:'interact', m:'map' };
+  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', g:'fire', v:'ride', f:'astra', o:'interact', m:'map' };
 const held = {}, pressed = {};
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -2424,6 +2448,14 @@ function damageEnemy(e, dmg, o){
   }
   if (e.T.demon && o.src === 'form') dmg *= 1.25;     // breathing techniques were made for demons
   e.lastHitT = 0;
+  // hand to hand: enemies with their fists up guard against punches and kicks
+  if (o.fist && guarded && !o.guardBreak && brawler(e) && facingP && e.onG && ['chase','idle','approach','recover','block'].includes(e.state) && Math.random() < brawlBlockP(e, o)){
+    e.state='block'; e.timer=0.4; e.vx = -e.face*110; P.vx = -P.face*120;
+    impactFx(e.x + e.face*14, e.y-46*e.size, '#FFD9B0', 0.7); sfx('punch'); G.hitstop = Math.max(G.hitstop, 0.035); G.shake = Math.max(G.shake, 3);
+    if (!o.quiet) pop(e.x, e.y-90*e.size, 'Blocked', '#FFD9B0');
+    if (!e.alert) alertEnemy(e);
+    return false;
+  }
   // Fencers block slashes and projectiles from the front (breathing forms go through)
   if (o.src !== 'form' && guarded && e.blockP && facingP && ['chase','idle','block','approach'].includes(e.state) && Math.random() < e.blockP){
     e.state='block'; e.timer=0.35; e.vx = -e.face*120;
@@ -2748,9 +2780,9 @@ function updatePlayer(dt){
       if (!P.onG) P.airDashUsed = true;
       P.dashT = 0.17; P.dashCd = 0.5; P.inv = 0.24; if (mv) P.face = mv; P.atk = null; P.blockT=-1; sfx('dash'); P.dashHits = new Set();
     }
-    if ((pressed.attack || pressed.kick) && !P.vthrow && !P.gsum){   // no attacks while the vajra is being drawn
-      const w = pressed.kick ? 'kick' : 'punch';
-      if (w === 'kick' && !ST.sword.fist){ if (G.time - (P.nkT||-9) > 1){ P.nkT = G.time; pop(P.x, P.y-90, 'Kicks need your fists — press H', '#FFD9B0'); } }
+    if ((pressed.attack || pressed.kick || pressed.launch) && !P.vthrow && !P.gsum){   // no attacks while the vajra is being drawn
+      const w = pressed.launch ? 'launch' : pressed.kick ? 'kick' : 'punch';
+      if ((w === 'kick' || w === 'launch') && !ST.sword.fist){ if (G.time - (P.nkT||-9) > 1){ P.nkT = G.time; pop(P.x, P.y-90, 'Kicks need your fists — press H', '#FFD9B0'); } }
       else if (!P.atk){ if (!(w === 'punch' && P.dashWin > 0 && tryDashSlash())) startAttack(w); }
       else if (P.atk.t > P.atk.d.wind){ P.queued = true; P.queuedWhich = w; }
     }
@@ -2762,6 +2794,7 @@ function updatePlayer(dt){
       const acting = A.t >= d.wind && A.t <= d.wind + d.act;
       if (d.rush && acting){ P.vx = P.face*d.rush; P.inv = Math.max(P.inv, 0.06); if (Math.random() < 0.7) G.echoes.push({ snap:{ isPlayer:true, x:P.x, y:P.y, vx:0, face:P.face, size:1, onG:P.onG, walk:P.walk, sword:P.sword, form:null, atk:null, blockT:-1, dashT:1, hurtT:0 }, life:0.14, max:0.3, col:ST.trail }); }
       if (d.dive && A.t >= d.wind){ P.vx = P.face*560; P.vy = 340; }
+      if (d.airHang && !P.onG){ P.vy = Math.min(P.vy, 40); P.vx *= 0.9; }
       if (d.airSlam && A.t >= d.wind) P.vy = Math.max(P.vy, 380);
       if (d.slamDown && acting && !P.onG) P.vy = Math.max(P.vy, 300);
     }
@@ -2888,7 +2921,7 @@ function switchWeapon(){
   G.ST = computeStats(); P.sword = G.ST.sword; P.atk = null; P.queued = false; P.combo = 0; P.comboGap = 9; P.chainT = null; P.chainN = 0; P.sheath = null;
   document.body.classList.toggle('fistmode', G.fistsOut);
   sfx('swap'); vib(10);
-  toast(G.fistsOut ? 'Fists' : SWORDS[SV.eq.sword].name, 0.7);
+  toast(G.fistsOut ? 'Fists — they put their blades away' : SWORDS[SV.eq.sword].name, 0.9);
   burst(P.x, P.y-44, 8, '#FFFFFF', 200, 2.5, true);
   for (const s of slotEls) if (s.kind === 'switch') setBtn(s.btn, G.fistsOut ? 'Sword' : 'Fist');
 }
@@ -2909,7 +2942,9 @@ function pickFistMove(P, which){
   const M = FIST_MOVES, mv = (held.right?1:0) - (held.left?1:0);
   const fwd = mv === P.face, back = mv === -P.face;
   const fdir = P.face > 0 ? 'right' : 'left';
-  if (!P.onG) return which === 'kick' ? M.dive : M.airP;
+  if (which === 'air2') return M.air2;
+  if (which === 'launch') return P.onG ? M.sky : M.air1;
+  if (!P.onG){ if (which !== 'kick') return M.airP; return held.down ? M.dive : M.air1; }
   if (which === 'kick'){
     if (dbl('down')) { dblT.down = -9; return M.quake; }
     if (held.down) return M.sweep;
@@ -2941,6 +2976,7 @@ function startAttack(which){
   }
   P.atk = { i:idx, d, t:0, hit:new Set(), slashed:false };
   P.atkKey = (P.atkKey || 0) + 1;
+  if (d.airFirst){ P.queued = true; P.queuedWhich = 'air2'; }   // Space + U: the second kick follows on its own
   G.ribbonSeq++; sfx(d.fist ? 'whoosh' : d.heavy ? 'heavy' : 'swish');
   if (d.heavy) vox('heavy'); else if (Math.random() < 0.3) vox('hah');
   if (d.fist){
@@ -2959,6 +2995,7 @@ function startAttack(which){
     if (d.quake || d.rush || d.grab || d.backfist) sfx('whoosh');
     // the bigger moves announce themselves, like a fighting game
     if (d.rush || d.quake || d.grab) showBanner('Hand to hand', d.nm, '', '#FFD9B0');
+    else if (d === FIST_MOVES.sky) pop(P.x, P.y-96, 'Sky Kick', '#FFD9B0');
     else if (d.heavy && d.nm !== 'Uppercut') pop(P.x, P.y-96, d.nm, '#FFD9B0');
   } else if (P.onG){
     if (d.heavy) P.vx = P.face*260;
@@ -3012,6 +3049,7 @@ function slashHits(who, A, mult){
         burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
         launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0), breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0), poison: poisonHit });
+      if (ok && !who.isClone && d.faceKick && !e.dead && !isBoss(e)){ if (e.state !== 'block'){ e.state = 'hurt'; e.timer = Math.max(e.timer, 0.4); } impactFx(e.x, e.y - 58*e.size, '#FFD9B0', 1.1); }
       if (ok && !who.isClone){
         if (tag) pop(e.x, e.y-95*e.size, tag, tag === 'Reap' ? '#B9FFD9' : '#FFE7A8');
         if (sw.chain && Math.random() < sw.chain){   // Storm Fang: the hit arcs to the nearest other enemy
@@ -3530,6 +3568,11 @@ function startMo(kind, dur, depth){
 function attackersNow(){ let n=0; for (const e of G.E) if (!e.dead && !e.T.ranged && (e.state==='windup'||e.state==='swing'||e.state==='special')) n++; return n; }
 function updateEnemy(e, dt){
   const P = G.P;
+  if (!e.isPlayer && !e.remote && !e.puppet){   // swap blade <-> fists with the player
+    const B = brawler(e);
+    if (B && e.sword !== EFIST){ e.sword = EFIST; if (e.state === 'windup') brawlPick(e); }
+    else if (!B && e.sword === EFIST){ e.sword = undefined; e.bmove = null; }
+  }
   e.timer -= dt; e.cd -= dt; e.flash -= dt; e.alertFlash -= dt; e.hurtBar -= dt; e.armorBrokenT -= dt; e.special -= dt; e.lastHitT += dt;
   // demons slowly heal while nobody is hitting them
   if (e.T.regen && e.lastHitT > 2 && e.hp < e.maxHp){ e.hp = Math.min(e.maxHp, e.hp + e.T.regen*dt*(e.coinMult||1)); if (Math.random()<0.2) emit(e.x, e.y-40*e.size, {n:1, col:'#FF3B5C', spd:30, size:3, life:0.5, kind:'ember', g:-0.4, real:false}); }
@@ -3592,13 +3635,15 @@ function updateEnemy(e, dt){
       }
       break; }
     case 'windup':
+      if (e.sword === EFIST && !e.bmove) brawlPick(e);
       if (e.timer > e.wind*0.4) e.face = sign(dx);
       e.vx = lerp(e.vx, 0, Math.min(1,dt*10));
       if (e.timer <= 0){
         e.state='swing'; e.timer=e.swingT; e.hitDone=false;
-        if ((G.onN || 0) < 40 && FXL() > 0 && e.x > G.camX - 60 && e.x < G.camX + VW + 60 && !e.T.ranged) G.slashes.push({ x:e.x, y:e.y-46*e.size, face:e.face, d:{ from:[0,-1.7], to:[0,0.75], range:(e.range||60)*0.95, heavy:isUnblockable(e) }, t:0, life:0.16, col:ENEMY_AURA });
+        if ((G.onN || 0) < 40 && FXL() > 0 && e.x > G.camX - 60 && e.x < G.camX + VW + 60 && !e.T.ranged && e.sword !== EFIST) G.slashes.push({ x:e.x, y:e.y-46*e.size, face:e.face, d:{ from:[0,-1.7], to:[0,0.75], range:(e.range||60)*0.95, heavy:isUnblockable(e) }, t:0, life:0.16, col:ENEMY_AURA });
         e.vx = e.T.lunge ? e.face * (dist+40)/e.swingT : e.face*120;
-        if (e.T.gun){ e.vx = -e.face*140; aimShot(e, 'ball', 1150, { g:0, dmg:e.dmg, r:6, life:1.4 }); e.hitDone = true; sfx('gun');
+        if (e.sword === EFIST){ e.throwStar = false; if (!e.T.lunge) e.vx = e.face*(e.bmove === 'punch' ? 150 : 90); sfx('whoosh'); }
+        else if (e.T.gun){ e.vx = -e.face*140; aimShot(e, 'ball', 1150, { g:0, dmg:e.dmg, r:6, life:1.4 }); e.hitDone = true; sfx('gun');
           const mx = e.x + e.face*30*e.size, my = e.y - 44*e.size; impactFx(mx, my, '#FFE7A8', 1.1); emit(mx, my, {n:8, col:['#FFE7A8','#FF9A3C','#555'], spd:220, size:3, life:0.35, kind:'spark', g:-0.2, dir:e.face>0?0:Math.PI, spread:0.5, real:false}); smoke(mx, my, 4); }
         else if (e.T.ranged){ e.vx = 0; aimShot(e, 'arrow', 640, { g:220, dmg:e.dmg }); e.hitDone = true; sfx('swish'); }
         else if (e.throwStar){ e.throwStar = false; e.vx = 0; aimShot(e, 'star', 560, { dmg:e.dmg*0.7 }); e.hitDone = true; sfx('swish'); }
@@ -3608,11 +3653,11 @@ function updateEnemy(e, dt){
       if (!e.T.lunge) e.vx = lerp(e.vx, 0, Math.min(1,dt*6));
       if (!e.hitDone) tryHitPlayer(e);
       if (e.timer <= 0){
-        if (e.comboLeft > 0){ e.comboLeft--; e.state='windup'; e.timer=e.wind*0.45; }
+        if (e.comboLeft > 0){ e.comboLeft--; e.state='windup'; e.timer=e.wind*0.45; e.bmove = null; }
         else { e.state='recover'; e.timer=e.rec; if (e.T.lunge) e.vx*=0.2; }
       }
       break;
-    case 'recover': e.vx = lerp(e.vx,0,Math.min(1,dt*10)); if (e.timer<=0){ e.state='chase'; e.cd = e.cdBase*rnd(0.6,1.4); } break;
+    case 'recover': e.bmove = null; e.vx = lerp(e.vx,0,Math.min(1,dt*10)); if (e.timer<=0){ e.state='chase'; e.cd = e.cdBase*rnd(0.6,1.4); } break;
     case 'hurt': if (e.onG) e.vx = lerp(e.vx,0,Math.min(1,dt*5)); if (e.timer<=0 && e.onG){ e.state='chase'; e.cd = Math.max(e.cd, 0.25); } break;
     case 'stun': e.vx = lerp(e.vx,0,Math.min(1,dt*6)); if (e.timer<=0){ e.state='chase'; e.cd=0.4; } break;
     case 'down':
@@ -3675,8 +3720,8 @@ function aimShot(e, kind, speed, o){
   eproj(e, kind, sx, sy, vx, vy, o);
 }
 function enemyBrain(e, dt, dx, dist){
-  const P = G.P, T = e.T;
-  if (T.ranged){
+  const P = G.P, T = e.T, B = brawler(e);
+  if (T.ranged && !B){
     e.face = sign(dx);
     let want = 0;
     if (dist < T.keep[0] && e.x > 90 && e.x < G.worldW-90) want = -e.face*e.spd*0.8;
@@ -3690,9 +3735,9 @@ function enemyBrain(e, dt, dx, dist){
       e.state='leap'; e.timer=0.9; e.vy=-760; e.onG=false; e.face = sign(dx);
       e.vx = e.face*(dist+100)/0.68; smoke(e.x, e.y-10, 6); e.cd = e.cdBase*1.2; return true;
     }
-    if (dist >= 250 && dist < 430){ e.state='windup'; e.timer=e.wind*1.2; e.throwStar=true; e.comboLeft=0; e.face=sign(dx); return true; }
+    if (!B && dist >= 250 && dist < 430){ e.state='windup'; e.timer=e.wind*1.2; e.throwStar=true; e.comboLeft=0; e.face=sign(dx); return true; }
   }
-  if (T.demon && !T.boss && e.special <= 0 && dist > 150 && dist < 380 && e.onG){
+  if (T.demon && !T.boss && !B && e.special <= 0 && dist > 150 && dist < 380 && e.onG){
     e.special = rnd(3.5, 5.5); startMove(e, 'blood'); return true;
   }
   if (T.boss && e.special <= 0 && e.onG) return bossPick(e);
@@ -3906,9 +3951,14 @@ function tryHitPlayer(e){
       return;
     }
     if (!isUnblockable(e) || (P.form && FORMS[P.form.id] && FORMS[P.form.id].counter)){
-      hurtPlayer(e.dmg*0.2*((G.ST.passive === 'stone' || G.ST.passive === 'kaal') ? 0.85 : 1), 0, e); P.vx = -P.face*240; sparks(P.x + P.face*20, P.y-44); G.hitstop=0.04; G.shake=4; sfx('clang'); vib(15);
+      hurtPlayer(e.dmg*0.2*((G.ST.passive === 'stone' || G.ST.passive === 'kaal') ? 0.85 : 1), 0, e); P.vx = -P.face*240; sparks(P.x + P.face*20, P.y-44); G.hitstop=0.04; G.shake=4; sfx(e.sword === EFIST ? 'punch' : 'clang'); vib(15);
       return;
     }
+  }
+  if (e.sword === EFIST){   // a punch or a kick, not a cut
+    const k = e.bmove && e.bmove !== 'punch';
+    hurtPlayer(e.dmg*(k ? 0.95 : 0.75), k ? 380 : 230, e, true); sfx(k ? 'kick' : 'punch');
+    impactFx(P.x - e.face*4, P.y - (e.bmove === 'hkick' ? 58 : 42), '#FFD9B0', 1); return;
   }
   hurtPlayer(e.dmg, isArmored(e) ? 520 : 300, e, true);
 }
@@ -4664,6 +4714,20 @@ function getPose(e){
     else if (st==='roar'){ a=-2.5 + Math.sin(G.time*30)*0.15; b=-2.9; lean=-0.35; a2=-2.2; b2=-2.6; red=true; }
     else if (st==='leap'){ a=-1.0; b=-1.8; crouch=6; }
     if (e.T && e.T.ranged){ a = (st==='windup' || st==='swing') ? 0 : 0.85; red = false; }
+    if (e.sword && e.sword.fist){   // hand to hand: guard up, then a punch or a kick
+      const tm = G.time + (e.walk || 0)*0.07, mv = e.bmove, kk = mv && mv !== 'punch';
+      const guard = () => { a = -0.2 + Math.sin(tm*5)*0.06; a2 = 0.45 + Math.sin(tm*5 + 1)*0.05; ext = 1.05; ext2 = 0.85; };
+      if (st==='windup'){ const p = ease(clamp(1 - e.timer/e.wind, 0, 1));
+        if (kk){ a = -0.5; a2 = 0.85; ext = 0.9; ext2 = 0.9; kick = 0.25*p; kickAng = e.bkAng || 1.7; crouch = 5*p; lean = -0.22*p; }
+        else { a = lerp(-0.2, 0.6, p); ext = lerp(1.05, 0.62, p); a2 = 0.45; ext2 = 0.85; crouch = 3*p; lean = 0.1*p; }
+      } else if (st==='swing'){ const p = Math.min(1, ease(clamp(1 - e.timer/e.swingT, 0, 1))*1.6);
+        if (kk){ a = -0.5; a2 = 0.85; ext = 0.9; ext2 = 0.9; kick = lerp(0.25, 1, p); kickAng = e.bkAng || 1.7; lean = -0.35; crouch = 3; }
+        else { a = lerp(0.6, -0.05, p); ext = lerp(0.62, 2.0, p); a2 = 0.5; ext2 = 0.85; lean = 0.45; crouch = 4; }
+      } else if (st==='recover'){ const p = clamp(1 - e.timer/e.rec, 0, 1); guard(); a = lerp(-0.05, a, p); ext = lerp(1.5, ext, p); lean = 0.3*(1 - p); }
+      else if (st==='block'){ a = -0.8; a2 = -0.55; ext = 0.85; ext2 = 0.75; crouch = 4; lean = -0.08; }
+      else if (st==='chase' || st==='idle' || st==='approach'){ guard(); crouch = Math.max(crouch, 2); }
+      else if (st==='leap'){ a = -0.6; a2 = -0.3; ext = 0.9; ext2 = 0.8; }
+    }
   }
   if (e.isPlayer && (e.flyPose||0) > 0.01 && !e.atk && !e.form){ const q = e.flyPose; a = lerp(a, 2.3, q); b = lerp(b, 2.62, q); a2 = lerp(a2, 2.5, q); b2 = lerp(b2, 2.75, q); lean = lerp(lean, -0.14, q); }   // flight: blades swept back along the body
   if (e.isPlayer && !e.atk && !e.form && !e.fly && (e.fallK != null ? e.fallK > 0.001 : (e.onG === false && (e.vy||0) > 250))){ const q = e.fallK != null ? e.fallK : clamp(((e.vy||0) - 250)/500, 0, 1); a = lerp(a, -0.6, q*0.6); a2 = lerp(a2, -1.0, q*0.5); lean = lerp(lean, -0.12, q); }   // falling: arms lift, body leans back
@@ -10959,6 +11023,8 @@ function buildLoadoutUI(){
     const b = document.createElement('button'); b.className='tb sm'; b.dataset.k='switch'; b.style.setProperty('--sc','#FFD9B0'); b.textContent = G.fistsOut ? 'Sword' : 'Fist';
     b.setAttribute('aria-label','Switch between sword and fists'); extraEl.appendChild(b); bindTouch(b);
     slotEls.push({ kind:'switch', el:d, btn:b });
+    const lb = document.createElement('button'); lb.className='tb sm lk'; lb.dataset.k='launch'; lb.style.setProperty('--sc','#FFD9B0'); lb.textContent='Up';
+    lb.setAttribute('aria-label','Sky Kick: launches the enemy into the air'); extraEl.appendChild(lb); bindTouch(lb);
   }
   const ST = G.ST, sid = ST.style;
   if (sid){
@@ -12117,8 +12183,8 @@ function renderMoves(){
   for (const [grp, input, name, desc] of MOVE_LIST){
     if (grp !== last){ last = grp; html += `<div class="hd">${heads[grp]} &nbsp;<span style="opacity:.6;font-size:15px;font-family:'Barlow Semi Condensed',sans-serif;letter-spacing:0">${key[grp]}</span></div>`; }
     let ip = input;
-    if (touch) ip = ip.replace(/Punch/g,'Punch').replace(/Forward/g,'▶ forward').replace(/Back/g,'◀ back').replace(/Down/g,'▼');
-    else ip = ip.replace(/Punch/g,'J').replace(/Kick/g,'U').replace(/Forward/g,'D (forward)').replace(/Back/g,'A (back)').replace(/Down/g,'S').replace(/Block/g,'K');
+    if (touch) ip = ip.replace(/Launch/g,'Up button').replace(/Punch/g,'Punch').replace(/Forward/g,'▶ forward').replace(/Back/g,'◀ back').replace(/Down/g,'▼');
+    else ip = ip.replace(/Punch/g,'J').replace(/Kick/g,'U').replace(/Launch/g,'N').replace(/Jump/g,'Space').replace(/Forward/g,'D (forward)').replace(/Back/g,'A (back)').replace(/Down/g,'S').replace(/Block/g,'K');
     html += `<div class="ip">${ip}</div><div class="mn">${name}</div><div class="md">${desc}</div>`;
   }
   $('mvList').innerHTML = html;
