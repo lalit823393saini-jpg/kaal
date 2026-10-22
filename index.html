@@ -11591,7 +11591,8 @@ function launchAstra(P, id, hx, hy){
     dmg: C.dmg * (1 + 0.12*astraTier(id)) * (1 + 0.08*SV.body.dmg), queue:null, qi:0, done:false };
   if (C.kind === 'sweep'){ G.astra.target = f > 0 ? G.worldW - 40 : 40; }
   showBanner('Divya Astra', sw.name, C.how, A.glow);
-  startMo('astra', 2.4, 0.3);
+  if (id === 'gada') startMo('astra', 0.4, 0.55);   // only a short beat at the throw: the fight keeps moving
+  else startMo('astra', 2.4, 0.3);
   flash(A.glow, 0.25); zoomPunch(1.06); G.shake = Math.max(G.shake, 8); cameraKick(f*8, -3); vib(60);
   sfx(id === 'vajra' ? 'storm' : id === 'brahmastra' ? 'sun' : 'whoosh');
   ringFx(hx, hy, 90, A.glow);
@@ -11630,7 +11631,8 @@ function astraStrike(e, A, dir){
       if (e.hp <= 1) return;
       A.hitN = (A.hitN || 0) + 1;
       const share = (isBoss(e) ? 0.05 : 0.45) * tier;
-      damageEnemy(e, e.maxHp * share, { src:'astra', heavy:true, unblockable:true, noKill:true, kb:260, dir, launch:0, quiet: A.hitN > 8 });
+      damageEnemy(e, e.maxHp * share, { src:'astra', heavy:true, unblockable:true, noKill:true, kb:200, dir, launch:0, stun:1.0, quiet: A.hitN > 8 });
+      if (!e.dead){ e.alert = true; e.cd = Math.min(e.cd || 0, 0.4); }   // after the 1 s stun it goes straight back to attacking
       return;
     }
     // coming back: everything it meets is crushed (bosses take a heavy blow instead)
