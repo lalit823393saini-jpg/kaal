@@ -319,6 +319,18 @@ body.touch #arSuperBtn small{display:none}
 #arSuperBtn{position:fixed;right:calc(env(safe-area-inset-right,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 210px);pointer-events:auto;display:none;
   font:600 20px/1 Teko,sans-serif;color:#9FE8FF;background:rgba(10,20,40,.6);border:2px solid rgba(159,232,255,.4);border-radius:12px;padding:8px 12px 5px;opacity:.55}
 #arSuperBtn small{display:block;font-size:12px;opacity:.7}
+#arWeapBtn{position:fixed;right:calc(env(safe-area-inset-right,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 270px);pointer-events:auto;
+  font:600 18px/1 Teko,sans-serif;color:#FFD23F;background:rgba(30,20,0,.55);border:2px solid rgba(255,210,63,.6);border-radius:12px;padding:8px 10px 5px}
+body:not(.touch) #arWeapBtn{bottom:calc(env(safe-area-inset-bottom,0px) + 84px)}
+#arenaHud .arName em{font-style:normal;font-size:15px;color:#FBEFE0;opacity:.8;letter-spacing:.06em}
+#arenaHud .arFuel{height:4px;background:rgba(0,0,0,.45);margin-top:2px;display:flex}
+#arenaHud .arFuel.r{justify-content:flex-end}
+#arenaHud .arFuel i{display:block;height:100%;background:#FF9A2A}
+.tb.thr{display:none;border-color:#FFB347;color:#FFB347}
+body.arena .tb.thr{display:block}
+body.arena .tb.slow{display:none}
+body.arena .right .tb:not(.atk){width:68px;height:68px}
+body.arena .tb.atk{width:80px;height:80px}
 #arSuperBtn.ready{opacity:1;border-color:#9FE8FF;box-shadow:0 0 14px #9FE8FF}
 body.touch #arSuperBtn, body.arena #arSuperBtn{display:block}
 body:not(.touch) #arSuperBtn{bottom:calc(env(safe-area-inset-bottom,0px) + 24px)}
@@ -662,10 +674,10 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 </div>
 <div id="slowBadge">time slowed</div>
 <div id="trainBox"></div>
-<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arSp"><i id="arSp1"></i></div><div class="arCombo" id="arCombo1"></div></div>
+<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <em id="arW1"></em> <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arSp"><i id="arSp1"></i></div><div class="arFuel"><i id="arFu1"></i></div><div class="arCombo" id="arCombo1"></div></div>
   <div class="arMid" id="arRound">ROUND 1</div>
-  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> Rival</div><div class="arBar r"><i id="arHp2"></i></div><div class="arSp r"><i id="arSp2"></i></div><div class="arCombo" id="arCombo2"></div></div>
-  <div id="arHint"></div><button id="arSuperBtn" aria-label="Lightning Fury">SUPER<small>F</small></button></div>
+  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> <em id="arW2"></em> Rival</div><div class="arBar r"><i id="arHp2"></i></div><div class="arSp r"><i id="arSp2"></i></div><div class="arFuel r"><i id="arFu2"></i></div><div class="arCombo" id="arCombo2"></div></div>
+  <div id="arHint"></div><button id="arSuperBtn" aria-label="Lightning Fury">SUPER<small>F</small></button><button id="arWeapBtn" aria-label="Weapon special"></button></div>
 <div id="bossBar"><div class="bn"><span id="bossName"></span><span id="bossPh"></span></div><div class="bb"><i id="bossFill"></i></div></div>
 <div id="toast"></div>
 <div id="formName"></div>
@@ -732,6 +744,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <div id="extraBtns"></div>
     <div class="right">
       <button class="tb slow" data-k="slow" style="grid-column:1;grid-row:1">Slow</button>
+      <button class="tb thr" data-k="grab" style="grid-column:1;grid-row:1">Throw</button>
       <button class="tb" data-k="block" style="grid-column:2;grid-row:1">Block</button>
       <button class="tb" data-k="jump" style="grid-column:3;grid-row:1">Jump</button>
       <button class="tb" data-k="dash" style="grid-column:1;grid-row:2">Dash</button>
@@ -754,6 +767,17 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <button class="big" id="goControls">Controls</button>
     <button class="big rotOnly" id="rotBtn">Landscape: off</button>
   </div>
+</section>
+
+<section class="screen" id="arenaPick">
+  <h2>Duelist Arena</h2>
+  <p class="lead">Choose how you fight. The rival takes one of the others.</p>
+  <div class="modeGrid">
+    <button class="mode" data-aw="none" style="--mc:#4FA8FF"><span class="mn">Brawler</span><span class="md">Fists and feet only. Every move in the list, nothing else to think about.</span></button>
+    <button class="mode" data-aw="boots" style="--mc:#9FE8FF"><span class="mn">Rocket Boots</span><span class="md">Hold Jump in the air to fly. Rocket dash, a Rocket Kick (G), and every kick hits 25% harder.</span></button>
+    <button class="mode" data-aw="blades" style="--mc:#FFD23F"><span class="mn">Orbiting Blades</span><span class="md">Two blades spin round you and cut on contact. Throw them (G): they hit going out and coming back.</span></button>
+  </div>
+  <div class="btnrow"><button class="big" id="arPickBack">Back</button></div>
 </section>
 
 <section class="screen" id="modes">
@@ -1879,7 +1903,7 @@ function comboFor(sw){
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'pause',
-  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', g:'fire', v:'ride', f:'astra', o:'interact', m:'map' };
+  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map' };
 const held = {}, pressed = {};
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -11611,13 +11635,14 @@ function demoTick(dt){
 /* =========================================================
    SCREENS
    ========================================================= */
-const screens = ['menu','controls','levels','pause','result','dojo','story','missions','board','duel','duelEnd','moves','modes','zomb','worldMap'].reduce((o,id)=>(o[id]=$(id),o),{});
+const screens = ['menu','controls','levels','pause','result','dojo','story','missions','board','duel','duelEnd','moves','modes','zomb','worldMap','arenaPick'].reduce((o,id)=>(o[id]=$(id),o),{});
 const hud = $('hud'), freeEl = $('free'), freeToggle = $('freeToggle');
 const fd = $('fd'), god = $('god'), waves = $('waves');
 let freeHidden = isTouch, freePause = false;
 let curScreen = 'menu';
 function setScreen(id){
-  if (id && id !== 'pause' && id !== 'result'){ document.body.classList.remove('arena'); const ah = document.getElementById('arenaHud'); if (ah) ah.classList.remove('on'); }
+  if (id && id !== 'pause' && id !== 'result'){ document.body.classList.remove('arena'); const ah = document.getElementById('arenaHud'); if (ah) ah.classList.remove('on');
+    const atkB = document.querySelector('#touch .tb.atk'); if (atkB && atkB.textContent === 'Punch') atkB.textContent = 'Slash'; }
   if (id && id !== 'pause' && typeof G !== 'undefined' && G.mode === 'train' && id !== 'result'){ const tb = document.getElementById('trainBox'); if (tb) tb.classList.remove('on'); }
   if (id && id !== 'pause' && id !== 'result' && typeof G !== 'undefined') G.dojo = false;   // borrowed dojo fists go back when you leave
   curScreen = id;
@@ -12610,7 +12635,9 @@ function renderPreview(dt){
    ========================================================= */
 $('goLevels').onclick = () => { buildGrid(); setScreen('levels'); };
 $('goTrain').onclick = () => startTraining();
-$('goArena').onclick = () => startArena();
+$('goArena').onclick = () => setScreen('arenaPick');
+document.querySelectorAll('#arenaPick [data-aw]').forEach(b => b.onclick = () => startArena(b.dataset.aw));
+$('arPickBack').onclick = () => setScreen('modes');
 $('goModes').onclick = () => setScreen('modes');
 $('modesBack').onclick = () => setScreen('menu');
 $('goSurv').onclick = startSurvival;
@@ -13789,7 +13816,7 @@ $('zoomOut').onclick = () => setZoom(VIEW.zoom - 0.1);
 $('viewReset').onclick = () => { VIEW.mode = 'default'; VIEW.size = 'full'; VIEW.zoom = 1; combatTX = null; saveView(); syncView(); };
 loadView(); syncView();
 $('restart').style.display = '';
-const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } if (G.mode === 'arena'){ startArena(); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
+const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } if (G.mode === 'arena'){ startArena(AR.pickW); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
 $('restart').onclick = restartMode;
 $('resRetry').onclick = restartMode;
 $('resNext').onclick = () => { if (G.mode === 'zomb') startZomb(G.level+1); else startLevel(G.level+1); };
@@ -14043,6 +14070,11 @@ const AR_MOVES = {
   // in the air, down + punch: fall like a rock and crack the floor
   slam:  { wind:0.10, act:2.0, total:2.0, tip:4, dmg:8, kb:[200,-720], rag:true, air:true, vel:[0,1500], grav:0, untilLand:true, noStep:true, ghost:true, onLand:'quake', nm:'GROUND SLAM',
            wp:{ lean:-0.2, fU:2.9, fL:3.1, bU:2.8, bL:3.0, fT:1.2, fS:0.2, bT:1.0, bS:0.0 }, ap:{ lean:0.3, fU:0.6, fL:0.4, bU:0.5, bL:0.3, fT:0.9, fS:-0.2, bT:0.5, bS:-0.6 } },
+  // Rocket Boots (G): the jets fire and you fly feet first
+  rocket:{ wind:0.08, act:0.34, total:0.5, tip:8, dmg:13, kb:[720,-640], rag:true, vel:[1150,-40], grav:0.05, noStep:true, ghost:true, jet:true, slow:0.2, nm:'ROCKET KICK',
+           wp:{ lean:-0.3, fT:1.9, fS:0.3, bT:0.3, bS:-0.5 }, ap:{ lean:-1.0, head:0.5, fT:1.57, fS:1.57, bT:1.2, bS:0.6, fU:-1.2, fL:-0.8, bU:-1.5, bL:-1.0 } },
+  // Orbiting Blades (G): the throwing motion (the blades themselves do the hitting)
+  bthrow:{ wind:0.06, act:0.10, total:0.3, tip:4, dmg:0, nohit:true, wp:{ fU:-0.6, fL:0.3, lean:-0.1 }, ap:{ lean:0.3, fU:1.6, fL:1.6, bU:1.4, bL:1.5 } },
   // block + punch up close: grab, roll back and throw them over your head
   grab:  { wind:0.08, act:0.10, total:0.6, tip:4, dmg:13, kb:[0,0], grab:true, unblock:true, nm:'SUPLEX',
            wp:{ lean:0.3, fU:1.3, fL:1.4, bU:1.2, bL:1.3 }, ap:{ lean:0.35, fU:1.5, fL:1.6, bU:1.45, bL:1.5 } }
@@ -14052,28 +14084,34 @@ const AR_LIST = [
   ['J J J', 'Jab, cross, uppercut (launches)'], ['U', 'Head kick'], ['Forward + U', 'Flying knee'], ['Back + U', 'Flip kick (launches)'],
   ['Down + U  /  N', 'Launcher kick'], ['Forward + J', 'Superman punch'], ['Back + J', 'Spin fist'], ['Down + J', 'Slide under their legs'],
   ['Air: U / J', 'Air kick / downward punch'], ['Air: Down + U', 'Lightning dive kick'], ['Air: Down + J', 'Ground slam'],
-  ['Jump at the cage', 'Wall jump'], ['K + J (close)', 'Suplex throw'], ['F (meter full)', 'LIGHTNING FURY finisher'] ];
+  ['Jump at the cage', 'Wall jump'], ['K + J  or  T (close)', 'Suplex throw'], ['F (meter full)', 'LIGHTNING FURY finisher'] ];
+const AR_WLIST = { boots:[['Hold Jump in the air', 'Fly on the rocket boots'], ['G', 'Rocket kick'], ['L', 'Rocket dash (in the air too)']],
+  blades:[['(always on)', 'The blades spin round you and cut on contact'], ['G', 'Throw the blades: they hit going out and coming back']] };
+const AR_WLIST_T = { boots:[['Hold Jump (air)', 'Fly on the boots'], ['ROCKET', 'Rocket kick'], ['Dash (air)', 'Rocket dash']],
+  blades:[['(always on)', 'Spinning blades cut on contact'], ['BLADES', 'Throw them, they come back']] };
 /* the same list for phones, in the names of the on-screen buttons: ➡ = the arrow toward the rival, ⬅ = the arrow away */
 const AR_LIST_TOUCH = [
-  ['Slash ×3', 'Jab, cross, uppercut'], ['Kick', 'Head kick'], ['➡ + Kick', 'Flying knee'], ['⬅ + Kick', 'Flip kick (launches)'],
-  ['▼ + Kick', 'Launcher kick'], ['➡ + Slash', 'Superman punch'], ['⬅ + Slash', 'Spin fist'], ['▼ + Slash', 'Slide under their legs'],
-  ['Air: Kick / Slash', 'Air kick / downward punch'], ['Air: ▼ + Kick', 'Lightning dive kick'], ['Air: ▼ + Slash', 'Ground slam'],
-  ['Jump at the cage', 'Wall jump'], ['Block + Slash (close)', 'Suplex throw'], ['SUPER (when it glows)', 'LIGHTNING FURY finisher'] ];
+  ['Punch ×3', 'Jab, cross, uppercut'], ['Kick', 'Head kick'], ['➡ + Kick', 'Flying knee'], ['⬅ + Kick', 'Flip kick (launches)'],
+  ['▼ + Kick', 'Launcher kick'], ['➡ + Punch', 'Superman punch'], ['⬅ + Punch', 'Spin fist'], ['▼ + Punch', 'Slide under their legs'],
+  ['Air: Kick / Punch', 'Air kick / downward punch'], ['Air: ▼ + Kick', 'Lightning dive kick'], ['Air: ▼ + Punch', 'Ground slam'],
+  ['Jump at the cage', 'Wall jump'], ['Throw (close)', 'Suplex throw'], ['SUPER (when it glows)', 'LIGHTNING FURY finisher'] ];
 function arHintHtml(){
   const touch = isTouch || document.body.classList.contains('touch');
-  if (!touch) return '<b>MOVES</b>' + AR_LIST.map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('');
-  return '<b>MOVES</b><div class="arNote">Hold the arrow with your left thumb, then tap Kick or Slash.<br>➡ = arrow toward the rival &nbsp; ⬅ = arrow away from the rival</div>'
-    + '<div class="arList">' + AR_LIST_TOUCH.map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('') + '</div>';
+  const w = AR.p1 && AR.p1.wpn !== 'none' ? AR.p1.wpn : null;
+  if (!touch) return '<b>MOVES</b>' + AR_LIST.concat(w ? AR_WLIST[w] : []).map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('');
+  return '<b>MOVES</b><div class="arNote">Hold the arrow with your left thumb, then tap Kick or Punch.<br>➡ = arrow toward the rival &nbsp; ⬅ = arrow away from the rival</div>'
+    + '<div class="arList">' + AR_LIST_TOUCH.concat(w ? AR_WLIST_T[w] : []).map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('') + '</div>';
 }
 const arSign = v => v < 0 ? -1 : 1;
 const arShade = (hex, k) => { const n = parseInt(hex.slice(1), 16), f = v => Math.round(Math.max(0, Math.min(255, v*k)));
   return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`; };
 const arEase = q => q*q*(3 - 2*q);
 
-function arFighter(x, face, col, name, isAI){
+function arFighter(x, face, col, name, isAI, wpn){
   const F = { x, y:0, vx:0, vy:0, face, col, name, ai:isAI ? { cd:0.8, q:[], blockT:0, jumpT:0, seen:null } : null,
     hp:100, maxHp:100, sp:0, onG:true, jumps:2, state:'ctrl', atk:null, chainN:0, chainT:9, blocking:false, hurtT:0, dashT:0, dashCd:0,
-    inv:0, rot:0, pose:Object.assign({}, AR_POSE.guard), walk:0, pts:[], prev:[], rag:null, comboN:0, comboT:0, airK:0, trail:[], ghosts:[], ghostT:0, hold:false };
+    inv:0, rot:0, pose:Object.assign({}, AR_POSE.guard), walk:0, pts:[], prev:[], rag:null, comboN:0, comboT:0, airK:0, trail:[], ghosts:[], ghostT:0, hold:false,
+    wpn:wpn || 'none', fuel:100, jet:0, specCd:0, blades:wpn === 'blades' ? [arBlade(0), arBlade(Math.PI)] : null };
   for (let i=0;i<11;i++){ F.pts.push([x, -50]); F.prev.push([x, -50]); }
   arFK(F); return F;
 }
@@ -14127,9 +14165,12 @@ function arStartMove(F, key, O){
 }
 /* input: I = { h:{held}, p:{pressed} } — the same for the player and the AI */
 function arControl(F, O, I, dt){
+  F.jet = 0;
+  if (F.specCd > 0) F.specCd -= dt;
+  if (F.wpn === 'boots') F.fuel = Math.min(100, F.fuel + dt*(F.onG ? 55 : 8));
   if (F.state !== 'ctrl' || F.sup) return;
   if (F.hurtT > 0){ F.hurtT -= dt; return; }
-  const h = I.h, p = I.p, mv = (h.right ? 1 : 0) - (h.left ? 1 : 0);
+  const h = I.h, p = I.p, mv = (h.right ? 1 : 0) - (h.left ? 1 : 0), boots = F.wpn === 'boots';
   if (F.dashCd > 0) F.dashCd -= dt;
   if (F.chainT < 9) F.chainT += dt;
   if (F.flipT > 0) F.flipT -= dt;
@@ -14148,14 +14189,24 @@ function arControl(F, O, I, dt){
       sfx('swish'); arText(F.x - wall*30, F.y - 120, 'WALL JUMP', '#9FE8FF'); arDust(wall*AR.W, F.y - 60, 4); }
     else if (F.jumps > 0){ const first = F.onG; F.vy = first ? -980 : -880; F.jumps--; F.onG = false; F.airK = 0; if (!first) F.flipT = 0.32; sfx('swish'); if (first) arDust(F.x, 0, 4); }
   }
-  if (p.dash && F.dashCd <= 0 && !F.atk){ F.dashT = 0.18; F.dashCd = 0.55; const dir = mv || F.face; F.face = dir; F.vx = dir*980; if (!F.onG) F.vy = Math.min(F.vy, -80); sfx('dash'); }
-  const wantAtk = p.attack || p.kick || p.launch;
+  // rocket boots: hold jump in the air to fly
+  if (boots && !F.onG && h.jump && !p.jump && !F.atk && F.dashT <= 0 && F.fuel > 0){ F.vy = Math.max(F.vy - 4300*dt, -560); F.fuel -= 42*dt; F.jet = 1; }
+  if (p.dash && F.dashCd <= 0 && !F.atk && (!boots || F.onG || F.fuel >= 15)){
+    F.dashT = boots ? 0.22 : 0.18; F.dashCd = 0.55; const dir = mv || F.face; F.face = dir; F.vx = dir*(boots ? 1150 : 980);
+    if (!F.onG){ F.vy = Math.min(F.vy, -80); if (boots) F.fuel -= 15; } sfx('dash'); }
+  // the weapon special (G, or the weapon button)
+  if (p.fire && !F.atk && F.specCd <= 0 && !F.blocking){
+    F.face = arSign(arRootX(O) - F.x) || F.face;
+    if (boots && F.fuel >= 30){ F.fuel -= 30; F.specCd = 0.6; arStartMove(F, 'rocket', O); return; }
+    if (F.wpn === 'blades' && arBladeThrow(F)){ F.specCd = 0.5; arStartMove(F, 'bthrow', O); return; }
+  }
+  const wantAtk = p.attack || p.kick || p.launch || p.grab;
   if (wantAtk && (!F.atk || (F.atk.t > F.atk.d.wind + F.atk.d.act + 0.03 && !F.atk.d.untilLand)) && (!F.blocking || p.attack)){
     let key = null;
     if (!F.onG){
       if (h.down && p.kick) key = 'dive'; else if (h.down && p.attack) key = 'slam';
       else if (F.airK < 3){ key = p.attack ? 'apunch' : 'akick'; F.airK++; }
-    } else if (p.attack && h.block) key = 'grab';
+    } else if ((p.attack && h.block) || p.grab) key = 'grab';
     else if (p.launch || (p.kick && h.down)) key = 'launch';
     else if (p.kick) key = fwd ? 'fknee' : back ? 'flip' : 'hkick';
     else if (h.down) key = 'slide';
@@ -14176,6 +14227,7 @@ function arPhysics(F, O, dt){
   if (A && !A.launched && A.t >= d.wind){ A.launched = true;   // the body takes off with the strike
     if (d.vel){ F.vx = F.face*d.vel[0]; if (d.vel[1]) { F.vy = d.vel[1]; if (d.vel[1] < 0) F.onG = false; } }
     if (d.bolt) F.boltFrom = [F.pts[8][0], F.pts[8][1]]; }
+  if ((A && d.jet && striking) || (F.wpn === 'boots' && F.dashT > 0)) F.jet = 1;
   const g = (A && d.grav !== undefined && striking) ? d.grav : (A && d.air && striking) ? 0.35 : 1;
   F.vy += AR.GRAV*g*dt; F.x += F.vx*dt; F.y += F.vy*dt;
   if (A && A.key === 'slide' && striking) F.vx *= Math.pow(0.12, dt);   // a slide slows down along the floor
@@ -14201,6 +14253,56 @@ function arPhysics(F, O, dt){
   } else arFK(F);
   if (F.atk && F.atk.t >= F.atk.d.wind - 0.02 && F.atk.t <= F.atk.d.wind + Math.min(F.atk.d.act, 0.45) + 0.04){ const tp = F.pts[F.atk.d.tip]; F.trail.push([tp[0], tp[1], 0.16]); }
   arGhost(F, dt, (F.atk && F.atk.d.ghost && F.atk.t >= F.atk.d.wind) || F.dashT > 0 || F.flipT > 0);
+  if (F.jet && F.wpn === 'boots') arFlames(F);
+}
+/* blue jet flames out of both boots, along the shins */
+function arFlames(F){
+  for (const [k, f] of [[7, 8], [9, 10]]){ const a = F.pts[k], b = F.pts[f], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    AR.fx.push({ k:'flame', x:b[0] + dx/L*8, y:b[1] + dy/L*8, vx:dx/L*420 + (Math.random()-0.5)*60, vy:dy/L*420 + (Math.random()-0.5)*60, t:0, d:0.16 + Math.random()*0.08, r:5 + Math.random()*4 }); }
+}
+/* ---------- Orbiting Blades ---------- */
+function arBlade(a){ return { a, st:'orbit', x:0, y:-90, vx:0, vy:0, t:0, cd:0, spin:Math.random()*6, ret:0, hitOut:false, hitBack:false }; }
+function arBladeThrow(F){
+  if (!F.blades || F.blades.some(b => b.st !== 'orbit')) return false;
+  F.blades.forEach((b, i) => { b.st = 'out'; b.t = 0; b.hitOut = false; b.vx = F.face*980; b.vy = (i ? -1 : 1)*90 - 40; });
+  sfx('whoosh'); arText(F.x, F.y - 150, 'BLADES!', '#FFD23F'); return true;
+}
+function arBladesStep(F, O, dt){
+  if (!F.blades) return;
+  const c = F.pts[1], fight = AR.phase === 'fight';
+  for (const b of F.blades){
+    b.cd -= dt; b.spin += dt*(b.st === 'orbit' ? 14 : 28);
+    if (b.st === 'orbit'){
+      b.a += dt*6.5; const tx = c[0] + Math.cos(b.a)*54, ty = c[1] + 8 + Math.sin(b.a)*30;
+      if (b.ret > 0){ b.ret -= dt; b.x += (tx - b.x)*Math.min(1, dt*18); b.y += (ty - b.y)*Math.min(1, dt*18); } else { b.x = tx; b.y = ty; }
+      if (fight && b.cd <= 0 && F.state !== 'ko' && arBladeHit(F, O, b, 3, 120, -60)) b.cd = 0.45;   // contact cuts
+    } else if (b.st === 'out'){
+      b.t += dt; b.x += b.vx*dt; b.y += b.vy*dt;
+      if (Math.abs(b.x) > AR.W - 14){ b.x = arSign(b.x)*(AR.W - 14); b.vx = -b.vx*0.6; arSpark(b.x, b.y, '#FFE7A8', 0.8); sfx('clang'); }   // off the cage
+      if (b.y > -14){ b.y = -14; b.vy = -Math.abs(b.vy)*0.5; }
+      if (fight && !b.hitOut && arBladeHit(F, O, b, 7, 360, -280)) b.hitOut = true;
+      if (b.t > 0.42){ b.st = 'back'; b.hitBack = false; }
+    } else {   // coming home
+      const dx = c[0] - b.x, dy = c[1] - b.y, L = Math.hypot(dx, dy) || 1, k = Math.min(1, dt*8);
+      b.vx += (dx/L*1150 - b.vx)*k; b.vy += (dy/L*1150 - b.vy)*k; b.x += b.vx*dt; b.y += b.vy*dt;
+      if (fight && !b.hitBack && arBladeHit(F, O, b, 6, 300, -220)) b.hitBack = true;
+      if (L < 40){ b.st = 'orbit'; b.ret = 0.25; b.a = Math.atan2((b.y - c[1] - 8)/30, (b.x - c[0])/54); }
+    }
+  }
+}
+function arBladeHit(F, O, b, dmg, kbx, kby){
+  if (O.state === 'ko' || O.state === 'getup' || O.inv > 0 || O.sup || F.sup) return false;
+  if (!arTouches([b.x, b.y], O, 4)) return false;
+  const dir = arSign(arRootX(O) - b.x);
+  if (O.state === 'ctrl' && O.blocking && arSign(b.x - O.x) === O.face){ arSpark(b.x, b.y, '#9FD3FF', 0.8); sfx('clang'); O.vx = dir*120; return true; }
+  O.hp = Math.max(0, O.hp - dmg); F.sp = Math.min(100, F.sp + (dmg > 4 ? 6 : 2));
+  F.comboN = F.comboT > 0 ? F.comboN + 1 : 1; F.comboT = 1.0;
+  arSpark(b.x, b.y, '#FFD23F', dmg > 4 ? 1.2 : 0.7); sfx(dmg > 4 ? 'clang' : 'punch');
+  if (O.hp <= 0){ arToRag(O, dir*420, -560, dir*220); AR.slow = 1.1; sfx('boom'); return true; }
+  if (O.state === 'rag'){ for (let i=0;i<11;i++){ O.prev[i][0] -= dir*kbx*0.4*AR.STEP; O.prev[i][1] += Math.abs(kby)*0.4*AR.STEP; } O.rag.t = Math.min(O.rag.t, 0.3); return true; }
+  if (!O.onG && dmg > 4){ arToRag(O, dir*kbx, kby, dir*160); return true; }
+  O.hurtT = dmg > 4 ? 0.3 : 0.12; if (dmg > 4) O.atk = null; O.vx = dir*kbx; O.blocking = false;
+  return true;
 }
 function arGhost(F, dt, on){
   F.ghostT -= dt;
@@ -14275,7 +14377,7 @@ function arTouches(tip, O, pad){
   return false;
 }
 function arHits(F, O){
-  const A = F.atk; if (!A || A.hit || F.sup) return;
+  const A = F.atk; if (!A || A.hit || F.sup || A.d.nohit) return;
   if (A.t < A.d.wind || A.t > A.d.wind + A.d.act) return;
   if (O.state === 'ko' || O.state === 'getup' || O.inv > 0 || O.sup) return;
   const d = A.d, tip = F.pts[d.tip];
@@ -14291,7 +14393,9 @@ function arHits(F, O){
   }
   if (d.grab){ arSuplex(F, O); return; }
   const juggle = O.state === 'rag';
-  O.hp = Math.max(0, O.hp - d.dmg*(juggle ? 0.8 : 1));
+  const bootK = F.wpn === 'boots' && d.tip >= 7;   // rocket boots hit harder with every kick
+  O.hp = Math.max(0, O.hp - d.dmg*(juggle ? 0.8 : 1)*(bootK ? 1.25 : 1));
+  if (bootK) arBolt(tip[0] - F.face*40, tip[1] - 20, tip[0], tip[1], '#9FE8FF');
   F.sp = Math.min(100, F.sp + 7); O.sp = Math.min(100, O.sp + 4);
   F.comboN = F.comboT > 0 ? F.comboN + 1 : 1; F.comboT = 1.0;
   arSpark(tip[0], tip[1], d.tip >= 7 ? '#FFFFFF' : '#FFF1C2', d.rag ? 1.4 : 0.9);
@@ -14386,9 +14490,12 @@ function arAI(F, O, dt){
     if (a === 'fwd') I.h[toward] = true; if (a === 'back') I.h[away] = true; if (a === 'down') I.h.down = true;
     if (b === 'grab'){ I.h.block = true; I.p.attack = true; } else if (b === 'super') I.p.astra = true; else I.p[b] = true; };
   if (F.sp >= 100 && dist < 300 && O.state !== 'ko' && Math.random() < 0.05*sk){ press('super'); return I; }
+  if (F.wpn === 'boots' && F.specCd <= 0 && F.fuel > 45 && dist > 160 && dist < 430 && O.state === 'ctrl' && Math.random() < 0.02*sk){ I.p.fire = true; return I; }
+  if (F.wpn === 'blades' && F.specCd <= 0 && dist > 140 && dist < 470 && F.blades.every(b => b.st === 'orbit') && Math.random() < 0.018*sk){ I.p.fire = true; return I; }
   if (O.state === 'rag'){   // chase the body and keep the juggle going
     const py = O.pts[2][1];
     if (dist > 70) I.h[toward] = true;
+    if (F.wpn === 'boots' && !F.onG && py < F.pts[2][1] - 30) I.h.jump = true;   // fly up after them
     if (py < -70 && dist < 160 && F.onG && A.jumpT <= 0 && Math.random() < 0.08*sk){ I.p.jump = true; A.jumpT = 0.6; }
     if (!F.onG && dist < 95 && Math.abs(py - F.pts[2][1]) < 110 && A.cd <= 0){ I.p.kick = true; A.cd = 0.22; }
     else if (!F.onG && F.pts[2][1] < py - 80 && dist < 160 && A.cd <= 0){ press('down+kick'); A.cd = 0.5; }
@@ -14416,20 +14523,25 @@ function arAI(F, O, dt){
   return I;
 }
 /* ---------- flow: rounds, camera, HUD ---------- */
-function startArena(){
+function startArena(w){
+  if (w) AR.pickW = w; AR.pickW = AR.pickW || 'none';
+  const pool = ['none','boots','blades'].filter(x => x !== AR.pickW); AR.rivalW = pool[(Math.random()*pool.length)|0];
   G.mode = 'arena'; G.level = 0; G.nightmare = false; G.dojo = false; G.worldW = AR.W*2;
   resetCommon(); G.E = [];
   document.body.classList.add('arena', 'fistmode');
   AR.wins = [0, 0]; AR.round = 0; AR.skill = 0.75;
   const sb = $('arSuperBtn'); if (sb && !sb.bound){ sb.bound = true; sb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.astra = true; }); }
   arNewRound();
+  const atkB = document.querySelector('#touch .tb.atk'); if (atkB) atkB.textContent = 'Punch';
+  const wb = $('arWeapBtn'); if (wb){ wb.textContent = AR.pickW === 'boots' ? 'ROCKET' : AR.pickW === 'blades' ? 'BLADES' : ''; wb.style.display = AR.pickW === 'none' ? 'none' : '';
+    if (!wb.bound){ wb.bound = true; wb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.fire = true; }); } }
   setScreen(null); G.running = true;
 }
 function arNewRound(){
   AR.round++; AR.t = 0; AR.phase = 'intro'; AR.phaseT = 0; AR.fx = []; AR.shake = 0; AR.slow = 0; AR.ts = 1;
   const keep1 = AR.p1 ? AR.p1.sp : 0, keep2 = AR.p2 ? AR.p2.sp : 0;
-  AR.p1 = arFighter(-200, 1, '#4FA8FF', 'You', false);
-  AR.p2 = arFighter(200, -1, '#FF7A1A', 'Rival', true);
+  AR.p1 = arFighter(-200, 1, '#4FA8FF', 'You', false, AR.pickW);
+  AR.p2 = arFighter(200, -1, '#FF7A1A', 'Rival', true, AR.rivalW);
   if (AR.round > 1){ AR.p1.sp = keep1; AR.p2.sp = keep2; }   // the meter carries over between rounds
   AR.cam = { x:0, y:-150, z:1 };
   AR.skill = 0.7 + 0.12*(AR.round - 1) + 0.1*AR.wins[0];
@@ -14448,11 +14560,12 @@ function arStep(dt){
   const I2 = arAI(P2, P1, d);
   arControl(P1, P2, I1, d); arControl(P2, P1, I2, d);
   arPhysics(P1, P2, d); arPhysics(P2, P1, d);
+  arBladesStep(P1, P2, d); arBladesStep(P2, P1, d);
   if (P1.state === 'ctrl' && P2.state === 'ctrl' && !P1.sup && !P2.sup && Math.abs(P1.x - P2.x) < 34 && Math.abs(P1.y - P2.y) < 70){   // bodies don't pass through
     const m = (P1.x + P2.x)/2, s = arSign(P1.x - P2.x); P1.x = m + s*17; P2.x = m - s*17; }
   if (AR.phase === 'fight'){ arHits(P1, P2); arHits(P2, P1); }
   for (const F of [P1, P2]){ if (F.comboT > 0) F.comboT -= d; for (const q of F.trail) q[2] -= d; F.trail = F.trail.filter(q => q[2] > 0); }
-  for (const e of AR.fx){ e.t += d; if (e.k === 'dust'){ e.x += e.vx*d; e.y += e.vy*d; e.vy += 200*d; } }
+  for (const e of AR.fx){ e.t += d; if (e.k === 'dust' || e.k === 'flame'){ e.x += e.vx*d; e.y += e.vy*d; if (e.k === 'dust') e.vy += 200*d; } }
   AR.fx = AR.fx.filter(e => e.t < e.d);
   if (AR.shake > 0) AR.shake = Math.max(0, AR.shake - dt*30);
   if (AR.phase === 'fight' && (P1.state === 'ko' || P2.state === 'ko')){
@@ -14482,6 +14595,10 @@ function arHud(){
   const P1 = AR.p1, P2 = AR.p2; if (!P1) return;
   $('arHp1').style.width = (P1.hp/P1.maxHp*100) + '%'; $('arHp2').style.width = (P2.hp/P2.maxHp*100) + '%';
   $('arSp1').style.width = P1.sp + '%'; $('arSp2').style.width = P2.sp + '%';
+  const wn = w => w === 'boots' ? '· BOOTS' : w === 'blades' ? '· BLADES' : '';
+  $('arW1').textContent = wn(P1.wpn); $('arW2').textContent = wn(P2.wpn);
+  $('arFu1').parentNode.style.display = P1.wpn === 'boots' ? '' : 'none'; $('arFu1').style.width = P1.fuel + '%';
+  $('arFu2').parentNode.style.display = P2.wpn === 'boots' ? '' : 'none'; $('arFu2').style.width = P2.fuel + '%';
   $('arSp1').parentNode.classList.toggle('full', P1.sp >= 100); $('arSp2').parentNode.classList.toggle('full', P2.sp >= 100);
   $('arPips1').textContent = '●'.repeat(AR.wins[0]) + '○'.repeat(2 - AR.wins[0]);
   $('arPips2').textContent = '○'.repeat(2 - AR.wins[1]) + '●'.repeat(AR.wins[1]);
@@ -14541,6 +14658,7 @@ function arRender(){
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); } ctx.globalAlpha = 1; }
   const order = AR.p1.atk && !AR.p2.atk ? [AR.p2, AR.p1] : [AR.p1, AR.p2];
   for (const F of order) arDrawFighter(F, F.pts, 1, null);
+  for (const F of [AR.p1, AR.p2]) if (F.blades) for (const b of F.blades) arDrawBlade(b);
   for (const F of [AR.p1, AR.p2]){   // a crackle of electricity round a fighter with a full meter
     if (F.sp >= 100 && F.state === 'ctrl' && Math.random() < 0.5){ const p = F.pts[1]; arJag(p[0] + (Math.random()-0.5)*50, p[1] - 30, p[0] + (Math.random()-0.5)*50, p[1] + 50, '#9FE8FF', 0.7); } }
   for (const e of AR.fx){ const q = e.t/e.d;
@@ -14550,10 +14668,30 @@ function arRender(){
     else if (e.k === 'dust'){ ctx.globalAlpha = 0.35*(1 - q); ctx.fillStyle = '#B9B6B0'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r*(1 + q), 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
     else if (e.k === 'ring'){ ctx.globalAlpha = 0.8*(1 - q); ctx.strokeStyle = e.col; ctx.lineWidth = 6*(1 - q) + 1; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r*arEase(q) + 10, (e.r*arEase(q) + 10)*0.18, 0, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
     else if (e.k === 'bolt'){ arJag(e.x1, e.y1, e.x2, e.y2, e.col, 1 - q); }
+    else if (e.k === 'flame'){ ctx.globalAlpha = 0.85*(1 - q); ctx.fillStyle = q < 0.35 ? '#FFFFFF' : q < 0.6 ? '#9FE8FF' : '#3A7BFF'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r*(1 - q*0.5), 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
     else if (e.k === 'txt'){ ctx.globalAlpha = 1 - q*q; ctx.font = '600 30px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(e.txt, e.x + 2, e.y - q*30 + 2); ctx.fillStyle = e.col; ctx.fillText(e.txt, e.x, e.y - q*30); ctx.globalAlpha = 1; }
   }
   ctx.setTransform(S, 0, 0, S, 0, 0);
   if (AR.ts < 1){ ctx.fillStyle = 'rgba(10,14,30,0.18)'; ctx.fillRect(0, 0, VW, VH); }
+}
+/* a rocket boot along the shin, with two red lights */
+function arBoot(knee, foot, far){
+  const a = Math.atan2(foot[1] - knee[1], foot[0] - knee[0]);
+  ctx.save(); ctx.translate(foot[0], foot[1]); ctx.rotate(a);
+  ctx.fillStyle = far ? '#16283F' : '#1E3A5F'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-14, -9, 22, 18, 5) : ctx.rect(-14, -9, 22, 18); ctx.fill();
+  ctx.fillStyle = '#FF3B3B'; ctx.beginPath(); ctx.arc(-6, -3, 2.4, 0, 6.283); ctx.arc(-6, 4, 2.4, 0, 6.283); ctx.fill();
+  ctx.fillStyle = 'rgba(159,232,255,0.8)'; ctx.fillRect(6, -6, 3, 12);
+  ctx.restore();
+}
+/* a spinning disc blade: gold ring, black hub, spokes */
+function arDrawBlade(b){
+  ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.spin);
+  if (b.st !== 'orbit'){ ctx.globalAlpha = 0.35; ctx.fillStyle = '#FFD23F'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
+  ctx.lineWidth = 4.5; ctx.strokeStyle = '#FFD23F'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 6.283); ctx.stroke();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#151515'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, 6.283); ctx.stroke();
+  ctx.strokeStyle = '#FFD23F'; ctx.lineWidth = 2;
+  for (let i=0;i<3;i++){ const an = i*2.094; ctx.beginPath(); ctx.moveTo(Math.cos(an)*3, Math.sin(an)*3); ctx.lineTo(Math.cos(an + 0.6)*13, Math.sin(an + 0.6)*13); ctx.stroke(); }
+  ctx.restore();
 }
 /* a jagged lightning line with a soft glow */
 function arJag(x1, y1, x2, y2, col, a){
@@ -14575,6 +14713,7 @@ function arDrawFighter(F, p, alpha, tint){
   ctx.strokeStyle = body; ctx.lineWidth = W + 2.5; ctx.beginPath(); ctx.moveTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]); ctx.stroke();
   ctx.fillStyle = body; ctx.beginPath(); ctx.arc(p[0][0], p[0][1], ARB.headR, 0, 6.283); ctx.fill();
   limb(2, 7, 8, W + 0.5, body); limb(1, 3, 4, W, body);
+  if (F.wpn === 'boots' && !tint){ arBoot(p[9], p[10], true); arBoot(p[7], p[8], false); }
   if (!tint && F.state === 'ctrl' && F.blocking){ const a0 = F.face > 0 ? 0 : Math.PI; ctx.strokeStyle = 'rgba(160,215,255,0.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p[1][0] + F.face*14, p[1][1] - 4, 26, a0 - 1.2, a0 + 1.2); ctx.stroke(); }
   ctx.globalAlpha = 1;
 }
