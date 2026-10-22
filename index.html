@@ -1199,6 +1199,44 @@ function brawlPick(e){
   else if (r < 0.78){ e.bmove = 'kick'; e.bkAng = 1.7; }   // body kick
   else { e.bmove = 'hkick'; e.bkAng = 2.3; }                 // kick to the head
 }
+/* hit reactions by body part, exaggerated so they read at speed:
+   head = snaps back and stumbles, body = folds over the blow, legs = the leg buckles, flip = legs swept, body turns flat in the air */
+function hitReact(e, d){
+  if (!e || e.dead || e.remote) return;
+  const k = d.legSweep ? 'flip' : d.kick ? (d.aim === 'head' ? 'head' : d.aim === 'legs' ? 'legs' : 'body')
+          : (d.low || d.nm === 'Body Blow') ? 'body' : 'head';
+  const big = !!(d.heavy || d.kick);
+  let dur = k === 'flip' ? 9 : k === 'head' ? (big ? 0.5 : 0.3) : k === 'body' ? 0.5 : 0.55;
+  if (isBoss(e)) dur *= 0.5;
+  e.react = { k, t:0, d:dur, big };
+  if (k !== 'flip' && e.state === 'hurt') e.timer = Math.max(e.timer, dur*0.85);   // hold the reaction long enough to read
+  if (k === 'legs' && e.onG && !isBoss(e)) e.vx *= 0.35;                           // a leg kick drops them where they stand
+}
+function hitReactPose(e, P){
+  const R = e.react, st = e.state;
+  if (!(st === 'hurt' || st === 'stun' || st === 'down' || R.k === 'flip')) return;
+  if (st === 'down' && R.k !== 'flip') return;
+  const q = clamp(R.t/R.d, 0, 1), h = R.k === 'flip' ? 1 : (1 - ease(q))*(st === 'stun' ? 0.6 : 1), big = R.big ? 1 : 0.6;
+  if (R.k === 'head'){            // head snaps back, chest opens, arms fly up, back foot steps to catch the fall
+    P.lean = lerp(P.lean, -0.95*big, h); P.roll = -0.32*big*h; P.crouch = lerp(P.crouch, 2, h);
+    P.a = lerp(P.a, -2.3, h); P.a2 = lerp(P.a2, -1.7, h); P.b = lerp(P.b, -2.6, h); P.b2 = lerp(P.b2, -2.0, h);
+    P.ext = lerp(P.ext, 1, h); P.ext2 = lerp(P.ext2, 1, h);
+    P.legs = [0.35, 0.15, -0.55, 0.45]; P.legW = h;
+  } else if (R.k === 'body'){     // folds over the blow: hips back, chest down, both hands to the stomach
+    P.lean = lerp(P.lean, 0.75*big, h); P.roll = 0.18*big*h; P.crouch = lerp(P.crouch, 11, h);
+    P.a = lerp(P.a, 1.25, h); P.a2 = lerp(P.a2, 1.05, h); P.b = lerp(P.b, 1.6, h);
+    P.ext = lerp(P.ext, 0.65, h); P.ext2 = lerp(P.ext2, 0.6, h);
+    P.legs = [-0.15, 0.7, -0.45, 0.8]; P.legW = h;
+  } else if (R.k === 'legs'){     // the kicked leg buckles toward one knee, arms thrown out for balance
+    P.crouch = lerp(P.crouch, 17, h); P.lean = lerp(P.lean, 0.3, h); P.roll = 0.12*h;
+    P.a = lerp(P.a, -1.0, h); P.a2 = lerp(P.a2, 0.2, h); P.ext = lerp(P.ext, 1, h);
+    P.legs = [0.9, 2.1, -0.35, 0.5]; P.legW = h;
+  } else {                        // legs swept out: the body turns back toward flat while it flies, feet where the head was
+    const sp = Math.min(1, R.t/0.35);
+    P.roll = -1.35*ease(sp); P.lean = -0.2; P.crouch = 0;
+    P.a = -2.4; P.a2 = -1.9; P.b = -2.8; P.ext = 1; P.ext2 = 1;
+  }
+}
 function brawlContact(e){
   const P = G.P, sg = stickSegments(e);
   let tip = null;
@@ -2820,7 +2858,7 @@ function updatePlayer(dt){
         if (clipWeapon(P) && clipOf(P)) sl.path = clipTipPath(P);   // the arc is drawn where the blade actually travels
         G.slashes.push(sl); } }
     if (A.t >= d.wind && A.t <= d.wind + d.act) slashHits(P, A, 1);
-    if (d.fist){ if (A.t >= d.wind*0.5 && A.t <= d.wind + d.act + 0.03){ const tip = fistTip(P, d); if (tip) G.trail.push({ x:tip[0], y:tip[1], life:0.3, col:ST.trail, w:d.kick ? 6 : 4.5 }); } }
+    if (d.fist){ if (A.t >= d.wind*0.5 && A.t <= d.wind + d.act + 0.03){ const tip = fistTip(P, d); if (tip) G.trail.push({ x:tip[0], y:tip[1], life:d.kick ? 0.13 : 0.16, col:ST.trail, w:d.kick ? 3 : 2.6 }); } }
     else if (A.t >= d.wind*0.6 && A.t <= d.wind + d.act + 0.04) recordRibbon(P, auraCol(), shadeHex(auraCol(), 0.6), 'slash', 0.14, d.heavy ? 3.5 : 2.5);
     if (A.t >= d.total){
       if (clipWeapon(P) && clipOf(P)){ const lp = getPose(P); P.clipOut = { t:0, dur:0.22, p:lp }; }   // remember the follow-through pose
@@ -3027,7 +3065,6 @@ function startAttack(which){
     if (d.quake || d.rush || d.grab || d.backfist) sfx('whoosh');
     // the bigger moves announce themselves, like a fighting game
     if (d.rush || d.quake || d.grab) showBanner('Hand to hand', d.nm, '', '#FFD9B0');
-    else if (d === FIST_MOVES.sky) pop(P.x, P.y-96, 'Leg Kick', '#FFD9B0');
     else if (d.heavy && d.nm !== 'Uppercut') pop(P.x, P.y-96, d.nm, '#FFD9B0');
   } else if (P.onG){
     if (d.heavy) P.vx = P.face*260;
@@ -3082,8 +3119,18 @@ function slashHits(who, A, mult){
         burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
         launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0), breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0), poison: poisonHit });
+      if (ok && sw.fist){
+        const tip = fistTip(who, d), big = !!(d.heavy || d.kick);
+        if (tip){ impactFx(tip[0], tip[1], '#FFE7C2', big ? 1.5 : 1); ringFx(tip[0], tip[1], big ? 34 : 20, '#FFF4E0'); }
+        if (!who.isClone){
+          G.hitstop = Math.max(G.hitstop, d.kick ? (d.aim === 'head' || d.heavy ? 0.09 : 0.065) : (d.heavy ? 0.075 : 0.05));   // hold the impact frame
+          if (d.aim === 'head') zoomPunch(1.025);
+          cameraKick(who.face*(d.kick ? 5 : 3), d.aim === 'legs' ? 2 : -1);
+        }
+        hitReact(e, d);
+      }
       if (ok && !who.isClone && d.legSweep && !e.dead){ impactFx(e.x, e.y - 14*e.size, '#FFD9B0', 1.2); burst(e.x, e.y - 6, 6, '#2a1418', 160, 3); }
-      if (ok && !who.isClone && d.faceKick && !e.dead && !isBoss(e)){ if (e.state !== 'block'){ e.state = 'hurt'; e.timer = Math.max(e.timer, 0.4); } impactFx(e.x - who.face*4*e.size, e.y - 57*e.size, '#FFD9B0', 1.2); }
+      if (ok && !who.isClone && d.faceKick && !e.dead && !isBoss(e)){ if (e.state !== 'block'){ e.state = 'hurt'; e.timer = Math.max(e.timer, 0.45); } }
       if (ok && !who.isClone){
         if (tag) pop(e.x, e.y-95*e.size, tag, tag === 'Reap' ? '#B9FFD9' : '#FFE7A8');
         if (sw.chain && Math.random() < sw.chain){   // Storm Fang: the hit arcs to the nearest other enemy
@@ -3602,6 +3649,7 @@ function startMo(kind, dur, depth){
 function attackersNow(){ let n=0; for (const e of G.E) if (!e.dead && !e.T.ranged && (e.state==='windup'||e.state==='swing'||e.state==='special')) n++; return n; }
 function updateEnemy(e, dt){
   const P = G.P;
+  if (e.react){ e.react.t += dt; if (e.react.k === 'flip' ? (e.onG && e.react.t > 0.15) : e.react.t >= e.react.d) e.react = null; }
   if (!e.isPlayer && !e.remote && !e.puppet){   // swap blade <-> fists with the player
     const B = brawler(e);
     if (B && e.sword !== EFIST){ e.sword = EFIST; if (e.state === 'windup') brawlPick(e); }
@@ -4705,7 +4753,8 @@ function getPose(e){
         crouch=cr; lean=ln; kickAng = d.kickAng || 1.5;
         if (d.spin && ph >= 1) lean = -0.5 + p*0.9;                      // the backfist turns the body through the swing
         if (d.kick && d.aim){   // aimed kick: guard up, knee chambers, foot snaps into the target
-          a=-0.6; a2=-0.3; ext=0.85; ext2=0.8; kick=0;
+          a=-0.95; ext=0.7; kick=0;   // lead hand stays up at the chin
+          a2 = ph === 0 ? lerp(-0.3, 0.5, p) : ph === 1 ? lerp(0.5, 2.35, p) : lerp(2.35, -0.3, p); ext2 = 1.0;   // rear arm swings back as the hip turns
           const tp = kickPoint(e, d.aim, A.tgt), ik = kickIK(e, tp[0], tp[1], cr);
           kL = kickLeg(ik, d.aim, ph, p);
           const lb = d.aim === 'head' ? -0.5 : d.aim === 'legs' ? -0.18 : -0.32;   // lean away from the target, more for a high kick
@@ -4802,6 +4851,8 @@ function getPose(e){
   }
   if (e.isPlayer && e.landT > 0 && !e.form){ const q = landWeight(e); crouch = Math.max(crouch, 16*q); lean = Math.max(lean, 0.6*q); a = lerp(a, 1.3, q*0.7); a2 = lerp(a2, 1.5, q*0.7); }   // superhero landing crouch
   const P_ = {a,b,crouch,lean,red,a2,b2,ext,ext2,kick,kickAng,kL,exs:1,exs2:1};
+  if (!e.isPlayer && e.react) hitReactPose(e, P_);
+  if (e.isPlayer && e.atk && e.atk.d.kick && e.atk.d.aim && e.onG !== false){ P_.legs = [0, 0, -0.24, 0.42]; P_.legW = 1; }   // supporting knee soft under the kick
   if (e.isPlayer && e.form && formClipWeapon(e) && FORM_MAP[e.form.id]) formClipPose(e, P_);   // Stage 2: breathing forms
   else if (e.isPlayer && e.atk && !e.form && clipWeapon(e)) attackClipPose(e, P_);
   else if (e.isPlayer && (e.formOut || e.clipOut) && !e.atk && !e.form && !e.sheath){   // just after a clip attack or form: ease from its last pose into this one
