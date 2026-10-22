@@ -1037,7 +1037,7 @@ const SWORDS = {
   thunder:  { name:'Storm Fang',     price:2600, unlock:18, desc:'A blade that hums with lightning. Fast swings, and 35% of your hits throw a bolt to the nearest other enemy for half damage.', dmg:1.2, spd:1.18, reach:1.0, len:40, chain:0.35, blade:'#2a2a10', edge:'#FFF6B0', glow:'#FFE14D' },
   fists:    { name:'Iron Fists',     price:350,  fist:true, desc:'Hand-to-hand, with its own move list. Press H (or the Fist button) to switch any time. Punch and kick are separate buttons, and the direction you hold picks the move: straights, backfists, low body blows, push kicks, axe kicks, sweeps, dive kicks, plus Dragon Rush and Earthshaker. Launch an enemy and juggle them in the air. See Controls > Fist moves.', dmg:0.80, spd:1.35, reach:0.70, len:0, edge:'#FFD9B0' },
   vajra:      { name:'Vajra',           astra:'vajra',      price:550000,  desc:'Throw it and it bursts into a storm of lightning: up to 250 enemies of strength 5 or less die on the spot. Then it vanishes and takes 30 s to return.', lore:'Forged from the bones of a sage who gave them freely, it is said to be harder than diamond.', dmg:2.2, spd:1.2, reach:1.05, len:44, w:3, edge:'#FFF3B0', glow:'#7FCBFF' },
-  gada:       { name:'Gada',            astra:'gada',       price:600000,  desc:'Throw it and it spins across the field and comes back to you, crushing everything on the way out and on the way back. Kills up to 300 enemies of strength 5 or less.', lore:'The weapon of the strongest of the strong. Only a steady heart can lift it.', dmg:2.6, spd:0.82, reach:1.2, len:52, w:3.4, cleave:3, kb:2.2, edge:'#FFE9A8', glow:'#FF9A2A' },
+  gada:       { name:'Gada',            astra:'gada',       price:600000,  desc:'Raise your hand and it falls from the sky into it. Thrown, it wounds every enemy on the way out, then crushes them all on the way back. Kills up to 300 enemies.', lore:'The weapon of the strongest of the strong. Only a steady heart can lift it.', dmg:2.6, spd:0.82, reach:1.2, len:52, w:3.4, cleave:3, kb:2.2, edge:'#FFE9A8', glow:'#FF9A2A' },
   chakra:     { name:'Sudarshan Chakra',astra:'chakra',     price:700000,  desc:'Throw it and it sweeps the whole field, end to end, taking the heads of up to 300 enemies of strength 5 or less, then returns to spin on your finger.', lore:'It never stops turning, and it always returns to the hand that sent it.', dmg:2.1, spd:1.45, reach:1.0, len:40, w:3, edge:'#FFF4C2', glow:'#FF6A1A' },
   trishul:    { name:'Trishul',         astra:'trishul',    price:800000,  desc:'Throw it and it flies in a straight line, piercing through up to 150 enemies of strength 5 or less, then returns to your hand.', lore:'Its three points are said to cut through past, present and future.', dmg:2.4, spd:1.0, reach:1.6, len:66, w:3, cleave:3, edge:'#FFFFFF', glow:'#8FE3FF' },
   brahmastra: { name:'Brahmastra',      astra:'brahmastra', price:1200000, desc:'The ultimate astra. Loosed into the sky, it rains light over the whole field and kills up to 500 enemies of strength 5 or less. Vanishes for 60 s.', lore:'Called only when nothing else is left. Its light is seen across three worlds.', dmg:3.2, spd:1.05, reach:1.3, len:58, w:3, cleave:5, kb:1.6, edge:'#FFFBE6', glow:'#FFD36A' }
@@ -2457,6 +2457,7 @@ function damageEnemy(e, dmg, o){
   if (!e.onG && e.y < GROUND - 24 && !isBoss(e) && o.src !== 'proj'){
     e.juggle = (e.juggle || 0) + 1; dmg *= Math.pow(0.68, e.juggle - 1); juggled = true;
   }
+  if (o.noKill) dmg = Math.min(dmg, Math.max(0, e.hp - 1));   // gada going out: it hurts, it does not kill
   e.hp -= dmg; e.flash = 0.1; e.hurtBar = 2;
   {
     const ey = e.y - 34*e.size;
@@ -2555,7 +2556,7 @@ function killEnemy(e){
   burst(e.x, e.y-36*s, (G.aliveN || 0) > 150 ? 8 : 26, '#C8102E', 480, 4);
   const shotKill = G.killBy === 'proj' && !isBoss(e);
   G.hitstop = Math.max(G.hitstop, shotKill ? 0 : 0.09); G.shake = Math.max(G.shake, shotKill ? 4 : 10);
-  if ((G.aliveN || 0) < 150 || !far) G.cuts.push({ x:e.x, y:e.y-32*s, s, life:0.3, col:e.astraBehead ? '#FFF1B8' : auraCol() });
+  if (!e.astraBlunt && ((G.aliveN || 0) < 150 || !far)) G.cuts.push({ x:e.x, y:e.y-32*s, s, life:0.3, col:e.astraBehead ? '#FFF1B8' : auraCol() });
   G.splats.push({ x:e.x, w:rnd(28,56)*s, life:8 }); if (G.splats.length > 40) G.splats.shift();
   sfx('kill'); vib(25); thump(0.8, false);
   if (!G.massKill && Math.random() < 0.45) vox('edie', 0, isBoss(e) ? 0.7 : 0.85 + Math.random()*0.3);
@@ -2633,7 +2634,7 @@ function updatePlayer(dt){
     P.fireCd -= dt; P.gunT -= dt; P.trigT = (P.trigT || 0) - dt; P.gunRecoil *= Math.exp(-dt*12);
     if (hasGun()){ const gun = GUNS[SV.eq.gun];
       if (P.reloadT > 0){ P.reloadT -= dt; if (P.reloadT <= 0){ P.ammo = gun.clip; sfx('reload'); } }
-      if ((pressed.fire || (gun.auto && held.fire)) && P.fireCd <= 0 && P.reloadT <= 0 && !P.vthrow){ if (P.ammo <= 0){ P.reloadT = gunReloadTime(); sfx('reload'); } else fireGun(P, gun); } }
+      if ((pressed.fire || (gun.auto && held.fire)) && P.fireCd <= 0 && P.reloadT <= 0 && !P.vthrow && !P.gsum){ if (P.ammo <= 0){ P.reloadT = gunReloadTime(); sfx('reload'); } else fireGun(P, gun); } }
     if (P.ride.kind === 'bike' && (pressed.attack || pressed.kick) && !P.atk) startAttack('punch');
     if (P.ride.kind === 'car' && pressed.attack && G.time - (P.nkT||-9) > 1){ P.nkT = G.time; pop(P.x, P.y-100, 'No sword while driving: ram them', '#8FE38A'); }
     updateRide(dt);
@@ -2680,7 +2681,7 @@ function updatePlayer(dt){
     const gun = GUNS[SV.eq.gun];
     if (P.reloadT > 0){ P.reloadT -= dt; if (P.reloadT <= 0){ P.ammo = gun.clip; pop(P.x, P.y-96, 'Reloaded', '#FFE7A8'); sfx('reload'); } }
     const wantFire = (pressed.fire || (gun.auto && held.fire)) && !shBusy;
-    if (wantFire && !P.form && P.dashT <= 0 && P.fireCd <= 0 && P.hurtT <= 0 && !P.vthrow){   // the off-hand is busy during a vajra throw
+    if (wantFire && !P.form && P.dashT <= 0 && P.fireCd <= 0 && P.hurtT <= 0 && !P.vthrow && !P.gsum){   // the off-hand is busy during a vajra throw
       if (P.reloadT > 0){ /* still reloading */ }
       else if (P.ammo <= 0){ P.reloadT = gunReloadTime(); sfx('reload'); }
       else fireGun(P, gun);
@@ -2690,6 +2691,7 @@ function updatePlayer(dt){
   P.astraCd -= dt; P.astraT -= dt;
   if (pressed.astra) tryAstra(P);
   if (P.vthrow) updateVajraThrow(P, dt);
+  if (P.gsum) updateGadaSummon(P, dt);
   if (pressed.switch && hasFists() && !P.form && P.dashT <= 0) switchWeapon();
   if (pressed.clone && hasAbil('clone') && P.cloneCd <= 0){
     P.cloneCd = 25; G.clone = { isPlayer:true, isClone:true, x:P.x-P.face*45, y:P.y, vx:0, face:P.face, size:1, onG:true, walk:0, sword:P.sword, atk:null, blockT:-1, dashT:0, hurtT:0, t:6 };
@@ -2746,7 +2748,7 @@ function updatePlayer(dt){
       if (!P.onG) P.airDashUsed = true;
       P.dashT = 0.17; P.dashCd = 0.5; P.inv = 0.24; if (mv) P.face = mv; P.atk = null; P.blockT=-1; sfx('dash'); P.dashHits = new Set();
     }
-    if ((pressed.attack || pressed.kick) && !P.vthrow){   // no attacks while the vajra is being drawn
+    if ((pressed.attack || pressed.kick) && !P.vthrow && !P.gsum){   // no attacks while the vajra is being drawn
       const w = pressed.kick ? 'kick' : 'punch';
       if (w === 'kick' && !ST.sword.fist){ if (G.time - (P.nkT||-9) > 1){ P.nkT = G.time; pop(P.x, P.y-90, 'Kicks need your fists — press H', '#FFD9B0'); } }
       else if (!P.atk){ if (!(w === 'punch' && P.dashWin > 0 && tryDashSlash())) startAttack(w); }
@@ -4044,7 +4046,7 @@ function attackClipPose(e, p){
   p.crouch = Math.max(lerp(k0.cr, k1.cr, q), landCr);
   p.elbowW = we;
   // the free hand: two-handed grip just behind the sword hand on the hilt, or a counter-balance; never over the gun
-  if (!gunAim(e) && !e.vthrow){
+  if (!gunAim(e) && !e.vthrow && !e.gsum){
     const kk = k0.base ? k1 : k1.base ? k0 : (q < 0.5 ? k0 : k1);
     const two = (k0.two || k0.base) && (k1.two || k1.base) && (k0.two || k1.two);
     if (two) p.offT = [h[0] - Math.cos(b)*4*fs, h[1] - Math.sin(b)*4*fs];
@@ -4550,7 +4552,7 @@ function applyFormKeys(e, p, ks, base, bh, T0, T){
     const hx0 = (lean + lv)*22 + 2, hy0 = -33 + 0.2*cr, tipD = (a) => Math.hypot(o[0] + Math.cos(a)*14 - hx0, o[1] + Math.sin(a)*14 - hy0);
     let bb2 = b2 + 0.22*Math.tanh((tipD(b2 + 0.22) - tipD(b2 - 0.22))*0.5), ob = base.b2;   // continuous, never flips in one frame while (bb2 - ob > Math.PI) bb2 -= Math.PI*2; while (ob - bb2 > Math.PI) bb2 += Math.PI*2;
     p.offT = lerp2(bo, o, we); p.b2 = lerp(ob, bb2, we); p.exs2 = 1;
-  } else if (!gunAim(e) && !e.vthrow){
+  } else if (!gunAim(e) && !e.vthrow && !e.gsum){
     const two = (k0.two || k0.base) && (k1.two || k1.base) && (k0.two || k1.two);
     if (two) p.offT = [h[0] - Math.cos(b)*4*fs, h[1] - Math.sin(b)*4*fs];
     else { const o0 = k0.base ? k1.off : k0.off, o1 = k1.off; p.offT = lerp2(o0, o1, k0.base ? 1 : q); }
@@ -4678,6 +4680,15 @@ function getPose(e){
       a2 = lerp(lerp(aW, 0.35, ease(q)), base, ease(r)); lean = lerp(lerp(-0.18, 0.3, q), lean, r); }                              // throw through, then settle
     ext2 = 1;
   }
+  if (e.isPlayer && e.gsum && !e.form){   // gada summon on the back (left) arm
+    const t = e.gsum.t, up = -1.68, wind = -2.55, base = a2;
+    if (t < GS.raise){ a2 = lerp(base, up, ease(t/GS.raise)); lean = lerp(lean, -0.06, t/GS.raise); }                 // raise the hand to the sky
+    else if (t < GS.hold){ a2 = up + Math.sin(t*40)*0.02*(t > GS.land ? 1 : 0); lean = -0.06; }                       // hold it there while the light comes
+    else if (t < GS.release){ const q = (t - GS.hold)/(GS.release - GS.hold); a2 = lerp(up, wind, ease(q)); lean = lerp(-0.06, -0.2, q); }   // cock it back
+    else { const q = clamp((t - GS.release)/0.1, 0, 1), r = clamp((t - GS.release - 0.1)/(GS.end - GS.release - 0.1), 0, 1);
+      a2 = lerp(lerp(wind, 0.35, ease(q)), base, ease(r)); lean = lerp(lerp(-0.2, 0.3, q), lean, r); }                // throw through, then settle
+    ext2 = 1;
+  }
   if (e.isPlayer && e.landT > 0 && !e.form){ const q = landWeight(e); crouch = Math.max(crouch, 16*q); lean = Math.max(lean, 0.6*q); a = lerp(a, 1.3, q*0.7); a2 = lerp(a2, 1.5, q*0.7); }   // superhero landing crouch
   const P_ = {a,b,crouch,lean,red,a2,b2,ext,ext2,kick,kickAng,exs:1,exs2:1};
   if (e.isPlayer && e.form && formClipWeapon(e) && FORM_MAP[e.form.id]) formClipPose(e, P_);   // Stage 2: breathing forms
@@ -4692,7 +4703,7 @@ function getPose(e){
     P_.mainT = lerp2(O.p.mainT, cur, k); P_.b = lerp(O.p.b, b1, k); P_.fs = lerp(O.p.fs || 1, 1, k); P_.exs = 1;
     P_.lean = lerp(O.p.lean, P_.lean, k); P_.crouch = lerp(O.p.crouch, P_.crouch, k); P_.protr = lerp(O.p.protr || 0, P_.protr || 0, k);
     P_.elbowW = (O.p.elbowW || 0)*(1 - k);
-    if (O.p.offT && !gunAim(e) && !e.vthrow && !(e.sword && e.sword.dual)){ P_.offT = O.p.offT; P_.offW = (O.p.offW || 0)*(1 - k); P_.offHand = O.p.offHand; P_.offCurl = O.p.offCurl; }
+    if (O.p.offT && !gunAim(e) && !e.vthrow && !e.gsum && !(e.sword && e.sword.dual)){ P_.offT = O.p.offT; P_.offW = (O.p.offW || 0)*(1 - k); P_.offHand = O.p.offHand; P_.offCurl = O.p.offCurl; }
     if (O.p.legs && e.onG !== false){ P_.legs = O.p.legs; P_.legW = (O.p.legW || 0)*(1 - k); }
   }
   if (e.clashV) applyClashPose(e, P_);   // a duel clash: the blade kicks back (visual only)
@@ -4768,8 +4779,8 @@ function stickSegmentsRaw(e){
     if (fpA > 0.001) restA = lerp(restA, 2.5, fpA);            // same flight angle getPose() gives the arms
     // after a shot the empty arm eases back from the aim line instead of snapping (the raise itself stays instant)
     if (e.isPlayer && (e.aimFade || 0) > 0 && !gunAim(e)) restA = lerp(restA, -(e.flyLean || 0) - 0.06, ease(e.aimFade));
-    const ba = (e.vthrow || gunAim(e)) ? pose.a2 : restA;
-    if (pose.offT && !e.vthrow && !gunAim(e)){   // left hand on the scabbard mouth, on the hilt, or balancing a cut
+    const ba = (e.vthrow || e.gsum || gunAim(e)) ? pose.a2 : restA;
+    if (pose.offT && !e.vthrow && !e.gsum && !gunAim(e)){   // left hand on the scabbard mouth, on the hilt, or balancing a cut
       const h = tgt(pose.offT), ow = pose.offW == null ? 1 : pose.offW;
       const rx = shX+Math.cos(ba)*16*s*f, ry = shY+Math.sin(ba)*16*s;
       segs.push([shX,shY, lerp(rx, h[0], ow), lerp(ry, h[1], ow), lw]); }
@@ -5797,7 +5808,9 @@ function emptyHandPose(e, pose, which){
   else {
     const V = e.vthrow;
     if (V && !V.released && V.t < VJ.reach){ const q = V.t/VJ.reach; spread = lerp(0.16, 0.32, q); curl = lerp(0.3, 0.05, q); }   // reaching for the vajra
-    else if (V && V.released && V.t < VJ.release + 0.16){ spread = 0.36; curl = 0.0; }                                            // just thrown
+    else if (V && V.released && V.t < VJ.release + 0.16){ spread = 0.36; curl = 0.0; }
+    else if (e.gsum && e.gsum.t < GS.land){ spread = 0.34; curl = 0.02; }                                                   // open palm to the sky
+    else if (e.gsum && !e.gsum.released){ spread = 0.06; curl = 0.95; }                                                      // closed round the gada                                            // just thrown
     else if (pose && pose.offHand === 'koi'){ spread = 0.1; curl = pose.offCurl != null ? pose.offCurl : 0.75; }
     else if (pose && pose.offHand === 'grip'){ spread = 0.06; curl = 0.95*(pose.offW == null ? 1 : pose.offW) + 0.3*(1 - (pose.offW == null ? 1 : pose.offW)); }   // closed round the hilt
     else if (pose && pose.offHand === 'free'){ spread = 0.22; curl = 0.35; }                                                                                      // open, balancing the cut                    // steadying the scabbard mouth
@@ -5850,7 +5863,7 @@ function armFrame(x, y, ax, ay, f, s){ ctx.save(); ctx.translate(x, y); ctx.scal
 /* a handle frame: the same frame drawBlade draws the sword in */
 function handleFrame(x, y, ang, f, s){ ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(1, f); ctx.scale(s, s); }
 /* ---------- the gun ---------- */
-function gunAim(e){ return !!(e.isPlayer && !e.remote && !e.isClone && (e.gunT || 0) > 0 && !e.vthrow && hasGun()); }
+function gunAim(e){ return !!(e.isPlayer && !e.remote && !e.isClone && (e.gunT || 0) > 0 && !e.vthrow && !e.gsum && hasGun()); }
 /* shape of each gun, in units along the barrel from the grip (x = 0 at the hand) */
 const GUN_SHAPE = {
   flint:   { L:16, bh:1.8 },
@@ -7024,7 +7037,7 @@ function renderScene(){
       drawStick(P, blink?0.45:1);
       if ((P.flyPose || 0) > 0.05) drawBoosterHousings(P);   // the boosters sit on the boots, in front
       if (P.ride) ctx.restore();
-      if (!P.ride) drawAstraHeld(P);
+      if (!P.ride){ drawAstraHeld(P); if (P.gsum) drawGadaSummon(P); }
       if (P.blockT >= 0 && P.blockT < G.ST.parry){ ctx.strokeStyle='rgba(255,231,168,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(P.x+P.face*18,P.y-46,16,0,Math.PI*2); ctx.stroke(); }
     }
     if (G.mode === 'world' && G.world) drawWorldFront();
@@ -11491,7 +11504,7 @@ function drawAstra(sg, e, tint){
 const ASTRA_STR = 5;
 const ASTRA_POWER = {
   vajra:      { kind:'strike', kills:250, cd:30, dmg:320, how:'Thrown forward, bursts into lightning' },
-  gada:       { kind:'return', kills:300, cd:2.5, dmg:280, speed:1250, range:1600, rx:80, ry:120, spin:14, size:78, how:'Spins out and comes back, hitting both ways' },
+  gada:       { kind:'return', kills:300, cd:2.5, dmg:280, speed:1250, range:1600, rx:44, ry:70, spin:14, size:78, how:'Wounds on the way out, crushes on the way back' },
   chakra:     { kind:'sweep',  kills:300, cd:2.5, dmg:260, speed:1750, rx:72, ry:120, behead:true, size:30, how:'Sweeps the whole field end to end, takes heads, returns to your finger' },
   trishul:    { kind:'return', kills:150, cd:5, dmg:300, speed:2000, range:1500, rx:60, ry:90, spin:0, size:74, how:'Flies straight, pierces, returns' },
   brahmastra: { kind:'rain',   kills:500, cd:60, dmg:600, how:'Loosed into the sky, rains light over the whole field' }
@@ -11507,13 +11520,68 @@ function tryAstra(P){
   if (G.astra){ pop(P.x, P.y-100, sw.name + ' is still out', '#FFE7A8'); return; }
   if (P.astraCd > 0){ pop(P.x, P.y-100, `${sw.name}: ${Math.ceil(P.astraCd)} s`, '#FFE7A8'); return; }
   if (P.form || P.dashT > 0) return;
-  if (P.vthrow) return;                                    // already drawing: one vajra per throw
+  if (P.vthrow || P.gsum) return;                          // already drawing / summoning
   if (id === 'vajra' && !P.ride){                          // the vajra is drawn from the case on his back first
     P.atk = null; P.blockT = -1; P.queued = false;
     P.vthrow = { t:0, released:false, cleared:false }; sfx('whoosh');
     return;
   }
+  if (id === 'gada' && !P.ride){                           // the gada comes down from the sky into the raised left hand
+    P.atk = null; P.blockT = -1; P.queued = false;
+    P.gsum = { t:0, lit:false, got:false, released:false }; sfx('swish');
+    return;
+  }
   launchAstra(P, id, P.x + P.face*20, P.y - 54);
+}
+/* ---------- gada summon: raise the left hand, light falls from the sky, the gada forms in the hand, throw ---------- */
+const GS = { raise:0.16, beam:0.14, land:0.40, hold:0.60, release:0.76, end:0.96 };
+function gadaHand(P){ const sg = stickSegments(P), arm = vajraArmSeg(P, sg); return arm ? [arm[2], arm[3], arm[0], arm[1]] : [P.x, P.y - 96, P.x, P.y - 70]; }
+function updateGadaSummon(P, dt){
+  const V = P.gsum;
+  if (P.dead || (P.stunT||0) > 0 || P.form || P.dashT > 0 || P.ride || (!V.released && (G.astra || P.astraCd > 0 || !hasAstra() || SV.eq.astra !== 'gada'))){ P.gsum = null; return; }
+  V.t += dt;
+  const glow = ASTRA_ART.gada.glow;
+  if (!V.lit && V.t >= GS.beam){ V.lit = true; sfx('zap'); }
+  if (!V.got && V.t >= GS.land){   // the light reaches the hand: the gada is there
+    V.got = true; const h = gadaHand(P);
+    flash(glow, 0.2); G.shake = Math.max(G.shake, 6); vib(40); sfx('clang');
+    ringFx(h[0], h[1], 70, glow); ringFx(h[0], h[1], 36, '#FFF4D0');
+    if (FXL() > 0) emit(h[0], h[1], { n:18, col:['#FFE7A0','#FF9A2A','#FFFFFF'], spd:280, size:2.4, life:0.45, kind:'spark', g:0.2 });
+  }
+  if (!V.released && V.t >= GS.release){
+    V.released = true; const h = gadaHand(P);
+    launchAstra(P, 'gada', h[0], h[1]);
+  }
+  if (V.t >= GS.end) P.gsum = null;
+}
+/* the column of light and the gada in the hand (drawn in world space, over the hero) */
+function drawGadaSummon(P){
+  const V = P.gsum; if (!V || V.released) return;
+  const h = gadaHand(P), hx = h[0], hy = h[1], t = V.t, art = ASTRA_ART.gada, ga = ctx.globalAlpha;
+  // the beam: falls from far above, hits the hand, then fades as the gada takes shape
+  if (t >= GS.beam){
+    const top = hy - 1400, fall = ease(clamp((t - GS.beam)/(GS.land - GS.beam), 0, 1));
+    const bot = lerp(top, hy, fall), fade = 1 - clamp((t - GS.land)/(GS.hold - GS.land + 0.08), 0, 1);
+    if (fade > 0){
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      const pulse = 0.85 + 0.15*Math.sin(t*60);
+      for (const [w, a, c] of [[46, 0.16, art.aura], [22, 0.35, art.glow], [8, 0.9, '#FFF4D0']]){
+        const gr = ctx.createLinearGradient(hx, top, hx, bot);
+        gr.addColorStop(0, hexA(c) + '0)'); gr.addColorStop(0.7, hexA(c) + (a*0.7) + ')'); gr.addColorStop(1, hexA(c) + a + ')');
+        ctx.globalAlpha = ga * fade * pulse; ctx.strokeStyle = gr; ctx.lineWidth = w * (0.6 + 0.4*fade);
+        ctx.beginPath(); ctx.moveTo(hx, top); ctx.lineTo(hx, bot); ctx.stroke();
+      }
+      glowDot(ctx, hx, bot, 34*(0.6 + 0.6*fade), art.glow, 0.7*fade);
+      ctx.restore(); ctx.globalAlpha = ga;
+    }
+  }
+  // the gada in the hand, head out along the arm
+  if (t >= GS.land - 0.04){
+    const k = clamp((t - GS.land + 0.04)/0.12, 0, 1), ang = Math.atan2(hy - h[3], hx - h[2]), L = 56;
+    ctx.save(); ctx.globalAlpha = ga * k; ctx.translate(hx, hy); ctx.rotate(ang); ctx.translate(-L*0.12, 0);
+    drawAstraShape(ctx, 'gada', L, 0.72 * (0.7 + 0.3*k), astraNow(), false);
+    ctx.restore(); ctx.globalAlpha = ga;
+  }
 }
 /* the throw itself: unchanged from before, but it can now start from the hand that holds it */
 function launchAstra(P, id, hx, hy){
@@ -11556,6 +11624,25 @@ function vajraArmSeg(e, sg){
 /* one enemy meets the astra */
 function astraStrike(e, A, dir){
   if (e.dead || e.remote || e.vanish) return;
+  if (A.id === 'gada'){
+    const tier = 1 + 0.1*astraTier(A.id);
+    if (A.leg === 0){   // going out: every enemy it touches is wounded and knocked back, nobody dies yet
+      if (e.hp <= 1) return;
+      A.hitN = (A.hitN || 0) + 1;
+      const share = (isBoss(e) ? 0.05 : 0.45) * tier;
+      damageEnemy(e, e.maxHp * share, { src:'astra', heavy:true, unblockable:true, noKill:true, kb:260, dir, launch:0, quiet: A.hitN > 8 });
+      return;
+    }
+    // coming back: everything it meets is crushed (bosses take a heavy blow instead)
+    if (!isBoss(e)){
+      if (A.killed >= A.cap) return;
+      A.killed++; e.astraBlunt = true; e.astraDir = dir; e.vx = dir*260;
+      G.massKill = true; killEnemy(e); G.massKill = false;
+      return;
+    }
+    damageEnemy(e, Math.min(e.hp - 1, e.maxHp * 0.1 * tier), { src:'astra', heavy:true, unblockable:true, kb:420, dir, launch:0, quiet: A.killed > 12 });
+    return;
+  }
   const weak = !isBoss(e) && (e.str || 1) <= ASTRA_STR;
   if (weak && A.killed < A.cap){
     A.killed++; e.astraBehead = !!A.C.behead; e.astraDir = dir; e.vx = dir*260;
@@ -11685,7 +11772,7 @@ function drawAstraFlight(){
   }
   ctx.restore();
 }
-/* while it is home, the astra rides with you: chakra on the finger, gada on the shoulder, the rest at your back */
+/* while it is home, the astra rides with you: chakra on the finger, the gada is called from the sky, the rest at your back */
 function drawAstraHeld(P){
   if (!hasAstra() || G.astra || P.dead) return;
   const id = SV.eq.astra, f = P.face, t = astraNow();
@@ -11698,7 +11785,7 @@ function drawAstraHeld(P){
     ctx.translate(h[0], h[1] - 17); ctx.scale(1, 0.5); ctx.translate(-L*0.66, 0);
     drawAstraShape(ctx, id, L, 0.7, t*2.2, false, true);
   } else if (id === 'gada'){
-    ctx.translate(P.x - f*4, P.y - 30); ctx.rotate(f > 0 ? -2.1 : -1.04); drawAstraShape(ctx, id, 50, 0.6, t, false);
+    // nothing on the back: the gada comes from the sky when called (drawGadaSummon)
   } else {
     const L = id === 'trishul' ? 58 : 40, bob = Math.sin(t*2.5)*3;
     ctx.translate(P.x - f*16, P.y - 16 + bob); ctx.rotate(f > 0 ? -1.9 : -1.24); ctx.globalAlpha = ga*0.92;
