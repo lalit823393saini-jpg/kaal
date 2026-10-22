@@ -677,7 +677,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 </div>
 <div id="slowBadge">time slowed</div>
 <div id="trainBox"></div>
-<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <em id="arW1"></em> <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arSp"><i id="arSp1"></i></div><div class="arFuel"><i id="arFu1"></i></div><div class="arCombo" id="arCombo1"></div></div>
+<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF"><b id="arN1" style="font-weight:inherit">You</b> <em id="arW1"></em> <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arSp"><i id="arSp1"></i></div><div class="arFuel"><i id="arFu1"></i></div><div class="arCombo" id="arCombo1"></div></div>
   <div class="arMid" id="arRound">ROUND 1</div>
   <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> <em id="arW2"></em> <b id="arN2" style="font-weight:inherit">Rival</b></div><div class="arBar r"><i id="arHp2"></i></div><div class="arSp r"><i id="arSp2"></i></div><div class="arFuel r"><i id="arFu2"></i></div><div class="arCombo" id="arCombo2"></div></div>
   <div id="arHint"></div><button id="arSuperBtn" aria-label="Lightning Fury">SUPER<small>F</small></button><button id="arWeapBtn" aria-label="Weapon special"></button></div>
@@ -944,7 +944,8 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <p class="lead" id="dLead">Fight a friend in real time, best of 3 rounds. Your Dojo sword, breathing style and abilities come with you. In a duel, slowing time uses the yellow focus bar, and it slows your rival's game while you stay at full speed.</p>
   <div id="dCtl">
     <div class="row"><input class="tin" id="dName" maxlength="16" placeholder="Your name" aria-label="Your name"></div>
-    <div class="row dmode" role="group" aria-label="What to play"><button class="sb on" id="dModeDuel" type="button" aria-pressed="true">Duel: fight each other</button><button class="sb" id="dModeCoop" type="button" aria-pressed="false">Co-op: fight together</button></div>
+    <div class="row dmode" role="group" aria-label="What to play"><button class="sb on" id="dModeDuel" type="button" aria-pressed="true">Duel: fight each other</button><button class="sb" id="dModeCoop" type="button" aria-pressed="false">Co-op: fight together</button><button class="sb" id="dModeArena" type="button" aria-pressed="false">Duelist Arena</button></div>
+    <div class="row" id="dArRow"><label style="font-size:15px">Your arena fighter <select id="dArW"><option value="none">Brawler</option><option value="boots">Rocket Boots</option><option value="blades">Orbiting Blades</option><option value="web">Web Slinger</option></select></label></div>
     <div id="dCoopCfg" style="display:none">
       <div class="cwgrid">
         <label>Waves<select id="cwWaves"><option>3</option><option selected>5</option><option>10</option><option>20</option></select></label>
@@ -1721,6 +1722,7 @@ const SFX = {
   rushGo(t){ [330,440,660].forEach((f,i)=>tn(t+i*0.07,0.3,'triangle',f,f,0.12)); nz(t,0.3,'lowpass',900,100,0.3); }
 };
 function sfx(name, delay){
+  if (G_ref && G_ref.mode === 'arena') arNetSfx(name);   // the arena host passes its sounds to the guest
   if (!SV.set.sound || !AU.c || AU.c.state !== 'running') return;
   const now = AU.c.currentTime;
   if (AU.last[name] && now - AU.last[name] < 0.035) return;   // don't stack the same sound
@@ -2440,6 +2442,7 @@ let toastT=0; const toastEl=$('toast');
 /* fighting-game callouts: ROUND 1 / FIGHT! / K.O. / PERFECT */
 let calT1 = 0, calT2 = 0;
 function callout(main, col, dur, say, sub){
+  if (G_ref && G_ref.mode === 'arena') arNetCall([main, col, dur, say, sub]);
   const el = $('callout'); if (!el) return;
   clearTimeout(calT1); clearTimeout(calT2);
   el.querySelector('.cm').textContent = main; el.querySelector('.cs').textContent = sub || '';
@@ -11719,7 +11722,7 @@ function buildGrid(){
   }
 }
 function togglePause(){
-  if (G.mode === 'duel'){   // a duel never pauses: the menu opens over the live fight
+  if (G.mode === 'duel' || (G.mode === 'arena' && AR.net)){   // a duel never pauses: the menu opens over the live fight
     const open = !screens.pause.classList.contains('on'); $('restart').style.display = 'none'; setScreen(open ? 'pause' : null); return;
   }
   $('restart').style.display = '';
@@ -12664,8 +12667,12 @@ $('nmBtn').onclick = () => { nightmareOn = !nightmareOn; $('nmBtn').classList.to
 $('goDuel').onclick = openDuelScreen;
 $('dBack').onclick = () => { cancelHosting(); setScreen('modes'); };
 $('dCreate').onclick = createDuel;
-$('dModeDuel').onclick = () => coopSetMode(false);
-$('dModeCoop').onclick = () => coopSetMode(true);
+$('dModeDuel').onclick = () => { NET.arena = false; $('dModeArena').classList.remove('on'); coopSetMode(false); };
+$('dModeCoop').onclick = () => { NET.arena = false; $('dModeArena').classList.remove('on'); coopSetMode(true); };
+$('dModeArena').onclick = () => { coopSetMode(false); NET.arena = true; $('dModeDuel').classList.remove('on'); $('dModeArena').classList.add('on');
+  $('dCreate').textContent = 'Create arena duel';
+  $('dLead').textContent = 'Duelist Arena with a friend: thick stickmen, ragdolls and weapons, best of 3. Pick your fighter below; your friend picks theirs before joining.'; };
+$('dArW').onchange = () => { AR.pickW = $('dArW').value; (SV.arenaCfg || (SV.arenaCfg = { mode:'duel', diff:'normal' })).netW = AR.pickW; saveSoon(); };
 $('dJoin').onclick = () => joinDuel(($('dCode').value || '').replace(/\s+/g, '').toLowerCase(), 'guest');
 $('dCancel').onclick = cancelHosting;
 $('deRematch').onclick = () => { NET.rm = true; $('deText').textContent = 'Waiting for your rival to accept the rematch…'; $('deRematch').disabled = true; };
@@ -12779,6 +12786,7 @@ const okName = n => (typeof n === 'string' && n.trim()) ? n.trim().slice(0,16) :
 function dStatus(t){ $('dStatus').textContent = t; }
 
 async function openDuelScreen(){
+  { const nw = (SV.arenaCfg && SV.arenaCfg.netW) || AR.pickW || 'none'; if ($('dArW')) $('dArW').value = nw; }
   $('dName').value = SV.name || ''; $('dWait').style.display = 'none'; $('dCtl').style.display = ''; $('dLead').style.display = ''; dStatus('Connecting…'); $('dOpen').innerHTML = '';
   setScreen('duel');
   await roomReady;
@@ -12805,7 +12813,7 @@ function renderOpenDuels(){
   const open = peers.filter(p => !p.sameTab && p.presence && typeof p.presence.open === 'string' && /^[a-z0-9]{4}$/.test(p.presence.open));
   for (const p of open){
     const b = document.createElement('button'); b.className = 'sb';
-    b.textContent = `Join ${okName(p.presence.nm)}'s ${p.presence.md === 'coop' ? 'co-op' : 'duel'} (${p.presence.open})`;
+    b.textContent = `Join ${okName(p.presence.nm)}'s ${p.presence.md === 'coop' ? 'co-op' : p.presence.md === 'arena' ? 'arena duel' : 'duel'} (${p.presence.open})`;
     b.onclick = () => joinDuel(p.presence.open, 'guest');
     box.appendChild(b);
   }
@@ -12817,7 +12825,7 @@ async function createDuel(){
   if (NET.coop) coopReadUI();
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'; let code = ''; for (let i=0;i<4;i++) code += abc[(Math.random()*abc.length)|0];
   const ok = await joinDuel(code, 'host');
-  if (ok){ $('dWait').style.display = 'block'; $('dCtl').style.display = 'none'; $('dLead').style.display = 'none'; $('dCodeShow').textContent = code; try { ROOM.presence({ open:code, nm:myName(), md:NET.coop ? 'coop' : 'duel' }); } catch(e){} }
+  if (ok){ $('dWait').style.display = 'block'; $('dCtl').style.display = 'none'; $('dLead').style.display = 'none'; $('dCodeShow').textContent = code; try { ROOM.presence({ open:code, nm:myName(), md:NET.arena ? 'arena' : NET.coop ? 'coop' : 'duel' }); } catch(e){} }
 }
 function cancelHosting(){
   if (NET.room && !NET.started){ try { NET.room.leave(); } catch(e){} NET.room = null; }
@@ -12827,7 +12835,7 @@ function cancelHosting(){
 async function joinDuel(code, role){
   await roomReady; if (!ROOM) return false;
   if (!/^[a-z0-9]{4}$/.test(code)){ dStatus('Enter the 4-character code your friend sees.'); return false; }
-  if (role === 'guest') NET.coop = false;
+  if (role === 'guest'){ NET.coop = false; NET.arena = false; }
   if (NET.room){ try { NET.room.leave(); } catch(e){} NET.room = null; }
   dStatus(role === 'host' ? 'Opening your duel…' : 'Joining…');
   let room;
@@ -12835,7 +12843,7 @@ async function joinDuel(code, role){
   catch(e){ if (ROOM.p2p){ dStatus(e && e.code === 'taken' ? 'That code is busy. Create the duel again for a new code.' : 'Could not reach the duel server. Check your internet and try again.'); return false; }
     dStatus(e && e.code === 'not_permitted' ? "Your access to this game doesn't allow duels. Ask the owner to invite you as a contributor." : 'Could not open the duel right now. Try again.'); return false; }
   Object.assign(NET, { room, code, role, oppPeer:null, opp:null, events:[], evSeq:0, lastOppSeq:0, phase:'lobby', round:0, wins:[0,0], rm:false, started:false, rewarded:false, waitT:0, lastPhaseShown:null, myPeer:null });
-  try { room.presence(Object.assign({ r:role, nm:myName(), hb:0 }, role === 'host' && NET.coop ? { md:'coop', cfg:NET.coopCfg } : {})); } catch(e){}
+  try { room.presence(Object.assign({ r:role, nm:myName(), hb:0 }, role === 'host' && NET.arena ? { md:'arena' } : role === 'host' && NET.coop ? { md:'coop', cfg:NET.coopCfg } : {})); } catch(e){}
   for (const u of NET.unsub) try { u(); } catch(e){}
   NET.unsub = [ room.onPeers(onDuelPeers, () => {}) ];
   if (room.p2p && role === 'guest') room.dial();
@@ -12873,7 +12881,8 @@ function makeRemote(){
     burn:null, bleed:null, armorBrokenT:0, hurtBar:0, alert:true, alertFlash:0, scarfCol:'#E0283E', trailCol:'#FF8A7A' };
 }
 function startDuel(){
-  if (NET.role === 'guest'){ const o = findOpp(), pr = (o && o.presence) || {}; NET.coop = pr.md === 'coop'; if (NET.coop) NET.coopCfg = coopSanitize(pr.cfg); }
+  if (NET.role === 'guest'){ const o = findOpp(), pr = (o && o.presence) || {}; NET.coop = pr.md === 'coop'; NET.arena = pr.md === 'arena'; if (NET.coop) NET.coopCfg = coopSanitize(pr.cfg); }
+  if (NET.arena){ { const o = findOpp(); NET.oppName = okName(o && o.presence && o.presence.nm); } startArenaNet(); return; }
   if (NET.coop){ startCoop(); return; }
   $('deRematch').textContent = 'Rematch';
   NET.started = true;
@@ -13827,12 +13836,12 @@ $('zoomOut').onclick = () => setZoom(VIEW.zoom - 0.1);
 $('viewReset').onclick = () => { VIEW.mode = 'default'; VIEW.size = 'full'; VIEW.zoom = 1; combatTX = null; saveView(); syncView(); };
 loadView(); syncView();
 $('restart').style.display = '';
-const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } if (G.mode === 'arena'){ startArena(AR.pickW); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
+const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } if (G.mode === 'arena'){ if (AR.net){ arNetRematch(); return; } startArena(AR.pickW); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
 $('restart').onclick = restartMode;
 $('resRetry').onclick = restartMode;
 $('resNext').onclick = () => { if (G.mode === 'arena' && AR.tour){ arTourNext(); return; } if (G.mode === 'zomb') startZomb(G.level+1); else startLevel(G.level+1); };
 const toMenuBase = () => { document.body.classList.remove('hasBoss'); G.running=false; G.P=null; G.eproj=[]; G.warns=[]; G.E=[]; G.debris=[]; G.parts=[]; G.orbs=[]; G.slashes=[]; G.ghosts=[]; G.coins=[]; G.proj=[]; G.haz=[]; G.clone=null; slowBadge.classList.remove('on'); setScreen('menu'); };
-const toMenu = () => { if (G.mode === 'duel') leaveDuel(); toMenuBase(); };
+const toMenu = () => { if (G.mode === 'duel') leaveDuel(); if (G.mode === 'arena' && AR.net){ leaveDuel(); AR.net = null; } toMenuBase(); };
 $('toMenu1').onclick = toMenu;
 $('toMenu2').onclick = toMenu;
 {
@@ -14028,7 +14037,7 @@ zoomPunch = visOnly(zoomPunch);
    Moves can turn the whole body (flips), carry it (leaps, slides, dives),
    and a full meter unlocks a scripted finisher with lightning.
    ========================================================= */
-const AR = { W:620, CEIL:-1000, GRAV:2500, STEP:1/120, fx:[] };
+const AR = { W:620, CEIL:-1000, GRAV:2500, STEP:1/120, fx:[], SPEED:1.25, net:null };   // SPEED: the whole fight runs a quarter faster
 // skeleton: 0 head, 1 neck, 2 pelvis, 3 elbow F, 4 hand F, 5 elbow B, 6 hand B, 7 knee F, 8 foot F, 9 knee B, 10 foot B
 const ARB = { neckHead:18, torso:34, uArm:19, lArm:19, thigh:23, shin:23, headR:14 };
 const AR_BONES = [[0,1,ARB.neckHead],[1,2,ARB.torso],[1,3,ARB.uArm],[3,4,ARB.lArm],[1,5,ARB.uArm],[5,6,ARB.lArm],[2,7,ARB.thigh],[7,8,ARB.shin],[2,9,ARB.thigh],[9,10,ARB.shin],
@@ -14118,7 +14127,7 @@ const AR_LIST_TOUCH = [
   ['Jump at the cage', 'Wall jump'], ['Throw (close)', 'Suplex throw'], ['SUPER (when it glows)', 'LIGHTNING FURY finisher'] ];
 function arHintHtml(){
   const touch = isTouch || document.body.classList.contains('touch');
-  const w = AR.p1 && AR.p1.wpn !== 'none' ? AR.p1.wpn : null;
+  const me = AR.net && AR.net.role === 'guest' ? AR.p2 : AR.p1, w = me && me.wpn !== 'none' ? me.wpn : null;
   if (!touch) return '<b>MOVES</b>' + AR_LIST.concat(w ? AR_WLIST[w] : []).map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('');
   return '<b>MOVES</b><div class="arNote">Hold the arrow with your left thumb, then tap Kick or Punch.<br>➡ = arrow toward the rival &nbsp; ⬅ = arrow away from the rival</div>'
     + '<div class="arList">' + AR_LIST_TOUCH.concat(w ? AR_WLIST_T[w] : []).map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('') + '</div>';
@@ -14213,7 +14222,7 @@ function arControl(F, O, I, dt){
   if (!F.atk && F.onG && F.dashT <= 0) F.face = arSign(arRootX(O) - F.x);
   const fwd = mv !== 0 && mv === F.face, back = mv !== 0 && mv === -F.face;
   if (F.dashT > 0){ F.dashT -= dt; if (!F.onG) F.vy = Math.min(F.vy, 60); }
-  else if (!F.atk && !F.blocking){ const want = mv*370; F.vx += (want - F.vx)*Math.min(1, dt*(F.onG ? 14 : 4)); }
+  else if (!F.atk && !F.blocking){ const want = mv*430; F.vx += (want - F.vx)*Math.min(1, dt*(F.onG ? 14 : 4)); }
   else if (F.onG && !(F.atk && F.atk.t < F.atk.d.wind + F.atk.d.act)) F.vx += (0 - F.vx)*Math.min(1, dt*10);   // keep the step-in until the strike lands
   // the finisher
   if (p.astra && F.sp >= 100 && !F.atk && Math.abs(arRootX(O) - F.x) < 420 && O.state !== 'ko'){ arSuperStart(F, O); return; }
@@ -14553,11 +14562,12 @@ function arSuperStep(F, O, dt){
   arFK(F);
 }
 /* ---------- effects ---------- */
-function arSpark(x, y, col, s){ AR.fx.push({ k:'spark', x, y, col, s, t:0, d:0.18, a:Math.random()*3 }); }
-function arDust(x, y, n){ for (let i=0;i<n;i++) AR.fx.push({ k:'dust', x:x + (Math.random()-0.5)*30, y:y - 3, vx:(Math.random()-0.5)*160, vy:-Math.random()*90, t:0, d:0.45, r:5 + Math.random()*6 }); }
-function arText(x, y, txt, col){ AR.fx.push({ k:'txt', x, y, txt, col, t:0, d:0.9 }); }
-function arRing(x, y, r, col){ AR.fx.push({ k:'ring', x, y, r, col, t:0, d:0.35 }); }
-function arBolt(x1, y1, x2, y2, col){ AR.fx.push({ k:'bolt', x1, y1, x2, y2, col, t:0, d:0.32 }); }
+function arFx(e){ AR.fx.push(e); const N = AR.net; if (N && N.role === 'host'){ N.fxSeq++; N.fxOut.push([N.fxSeq, e]); if (N.fxOut.length > 60) N.fxOut.shift(); } }
+function arSpark(x, y, col, s){ arFx({ k:'spark', x, y, col, s, t:0, d:0.18, a:Math.random()*3 }); }
+function arDust(x, y, n){ for (let i=0;i<n;i++) arFx({ k:'dust', x:x + (Math.random()-0.5)*30, y:y - 3, vx:(Math.random()-0.5)*160, vy:-Math.random()*90, t:0, d:0.45, r:5 + Math.random()*6 }); }
+function arText(x, y, txt, col){ arFx({ k:'txt', x, y, txt, col, t:0, d:0.9 }); }
+function arRing(x, y, r, col){ arFx({ k:'ring', x, y, r, col, t:0, d:0.35 }); }
+function arBolt(x1, y1, x2, y2, col){ arFx({ k:'bolt', x1, y1, x2, y2, col, t:0, d:0.32 }); }
 /* ---------- AI ---------- */
 function arAI(F, O, dt){
   const A = F.ai, I = { h:{}, p:{} }, sk = AR.skill;
@@ -14598,12 +14608,13 @@ function arAI(F, O, dt){
     const plans = [['attack','attack','attack'], ['attack','attack','kick'], ['kick'], ['launch'], ['attack','launch'], ['back+kick'], ['down+attack'],
                    ['attack','back+attack'], ['fwd+kick'], ['attack','attack','back+kick']];
     if (O.blocking) plans.push(['grab'], ['down+attack']);
-    A.q = plans[(Math.random()*plans.length)|0].slice(); A.cd = (0.55 + Math.random()*0.7)/sk;
+    A.q = plans[(Math.random()*plans.length)|0].slice(); A.cd = (0.4 + Math.random()*0.5)/sk;
   } else if (Math.random() < 0.02) I.h[Math.random() < 0.5 ? toward : away] = true;   // footsies
   return I;
 }
 /* ---------- flow: rounds, camera, HUD ---------- */
 function startArena(w){
+  AR.net = null;
   if (w) AR.pickW = w; AR.pickW = AR.pickW || 'none';
   const cfg = SV.arenaCfg || (SV.arenaCfg = { mode:'duel', diff:'normal' });
   if (cfg.mode === 'tour'){ AR.tour = { i:0 }; arTourRival(); }
@@ -14634,6 +14645,7 @@ function arNewRound(){
   AR.round++; AR.t = 0; AR.phase = 'intro'; AR.phaseT = 0; AR.fx = []; AR.shake = 0; AR.slow = 0; AR.ts = 1;
   const keep1 = AR.p1 ? AR.p1.sp : 0, keep2 = AR.p2 ? AR.p2.sp : 0;
   AR.p1 = arFighter(-200, 1, '#4FA8FF', 'You', false, AR.pickW);
+  if (AR.net) AR.rivalName = NET.oppName || 'Friend';
   AR.p2 = arFighter(200, -1, AR.rivalCol || '#FF7A1A', AR.rivalName || 'Rival', true, AR.rivalW);
   AR.p2.hp = AR.p2.maxHp = AR.rivalHp || 100;
   if (AR.round > 1){ AR.p1.sp = keep1; AR.p2.sp = keep2; }   // the meter carries over between rounds
@@ -14642,23 +14654,26 @@ function arNewRound(){
   if (AR.tour && AR.round === 1) callout(`MATCH ${AR.tour.i + 1}`, '#FBEFE0', 1.0, `Match ${AR.tour.i + 1}`, `vs ${AR.rivalName} · ${AR_WNAME[AR.rivalW]}`);
   else callout(`ROUND ${AR.round}`, '#FBEFE0', 0.9, `Round ${AR.round}`, AR.tour ? `vs ${AR.rivalName}` : 'Duelist Arena');
   const n2 = $('arN2'); if (n2){ n2.textContent = AR.rivalName || 'Rival'; n2.parentNode.style.color = AR.rivalCol || '#FF7A1A'; }
+  const n1 = $('arN1'); if (n1) n1.textContent = 'You';
   const hint = $('arHint'); if (hint){ hint.innerHTML = arHintHtml(); hint.classList.toggle('on', AR.round === 1); AR.hintT = AR.round === 1 ? (isTouch ? 9 : 7) : 0; }
   arHud();
 }
 function arStep(dt){
+  if (AR.net && AR.net.role === 'guest'){ arGuestStep(dt); return; }   // the guest only shows what the host simulates
+  if (AR.phase === 'end'){ arHud(); if (AR.net) arNetSend(dt); return; }
   AR.phaseT += dt;
   if (AR.phase === 'replay'){   // the knockout again, slowly
     AR.rp.t += dt*0.5;
     if (AR.rp.t >= AR.rp.end || pressed.attack || pressed.jump || pressed.kick){ AR.phase = 'ko'; AR.phaseT = 99; arRoundOver(); }
-    arHud(); return; }
+    arHud(); if (AR.net) arNetSend(dt); return; }
   AR.clock += dt;
   if (AR.slow > 0){ AR.slow -= dt; AR.ts = 0.3; } else AR.ts = 1;
   if (AR.hintT > 0){ AR.hintT -= dt; if (AR.hintT <= 0){ const hint = $('arHint'); if (hint) hint.classList.remove('on'); } }
-  const d = dt*AR.ts; AR.t += d;
+  const d = dt*AR.ts*AR.SPEED; AR.t += d;
   const P1 = AR.p1, P2 = AR.p2;
   if (AR.phase === 'intro' && AR.phaseT > 1.2){ AR.phase = 'fight'; callout('FIGHT!', '#FFB347', 0.8, 'Fight!'); }
   const I1 = AR.phase === 'fight' ? { h:held, p:pressed } : { h:{}, p:{} };
-  const I2 = arAI(P2, P1, d);
+  const I2 = AR.net ? arNetInput(dt) : arAI(P2, P1, d);
   arControl(P1, P2, I1, d); arControl(P2, P1, I2, d);
   arPhysics(P1, P2, d); arPhysics(P2, P1, d);
   arBladesStep(P1, P2, d); arBladesStep(P2, P1, d);
@@ -14687,6 +14702,7 @@ function arStep(dt){
     else if (AR.phaseT > 3.4) arRoundOver();
   }
   arCamera(dt); arHud();
+  if (AR.net) arNetSend(dt);
 }
 function arRoundOver(){ if (AR.wins[0] >= AR.need || AR.wins[1] >= AR.need) arEnd(); else arNewRound(); }
 function arCamera(dt){
@@ -14718,6 +14734,7 @@ function arHud(){
   const sb = $('arSuperBtn'); if (sb) sb.classList.toggle('ready', P1.sp >= 100);
 }
 function arEnd(){
+  if (AR.net){ AR.phase = 'end'; arNetResult(AR.wins); return; }   // online: keep the link alive, show the result over it
   const win = AR.wins[0] > AR.wins[1];
   G.running = false; $('arenaHud').classList.remove('on');
   SV.arena = SV.arena || { wins:0, champ:0 };
@@ -14861,6 +14878,143 @@ function arDrawFighter(F, p, alpha, tint){
   ctx.globalAlpha = 1;
 }
 
+/* ---------- ONLINE ARENA: the host runs the fight, the guest sends its buttons and draws what comes back ---------- */
+const AR_PKEYS = ['attack','kick','launch','jump','dash','astra','fire','grab'];
+function arNetSfx(name){ const N = AR.net; if (!N || N.role !== 'host') return; N.sdSeq++; N.sdOut.push([N.sdSeq, name]); if (N.sdOut.length > 24) N.sdOut.shift(); }
+function arNetCall(a){ const N = AR.net; if (!N || N.role !== 'host') return; N.coSeq++; N.coOut.push([N.coSeq, a]); if (N.coOut.length > 6) N.coOut.shift(); }
+function arNetOpp(){ const o = findOpp(); return o || null; }
+function startArenaNet(){
+  NET.started = true; if (ROOM) try { ROOM.presence({ open:null }); } catch(e){}
+  const myW = ($('dArW') && $('dArW').value) || AR.pickW || 'none';
+  AR.net = { role:NET.role, lastPc:[], pc:[], fxSeq:0, fxOut:[], sdSeq:0, sdOut:[], coSeq:0, coOut:[], fxSeen:0, sdSeen:0, coSeen:0, sendAcc:1, mid:1, endShown:false, missT:0, hb:0 };
+  AR.myW = myW; AR.tour = null; AR.need = 2; AR.diffK = 'normal'; AR.rivalHp = 100; AR.rivalCol = '#FF7A1A';
+  G.mode = 'arena'; G.level = 0; G.nightmare = false; G.dojo = false; G.worldW = AR.W*2;
+  resetCommon(); G.E = [];
+  document.body.classList.add('arena', 'fistmode');
+  const atkB = document.querySelector('#touch .tb.atk'); if (atkB) atkB.textContent = 'Punch';
+  const wb = $('arWeapBtn'); if (wb){ wb.textContent = myW === 'boots' ? 'ROCKET' : myW === 'blades' ? 'BLADES' : myW === 'web' ? 'WEB' : ''; wb.style.display = myW === 'none' ? 'none' : '';
+    if (!wb.bound){ wb.bound = true; wb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.fire = true; }); } }
+  const sb = $('arSuperBtn'); if (sb && !sb.bound){ sb.bound = true; sb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.astra = true; }); }
+  AR.wins = [0, 0]; AR.round = 0; AR.rec = []; AR.clock = 0; AR.fx = []; AR.shake = 0; AR.slow = 0; AR.ts = 1;
+  if (NET.role === 'host'){
+    AR.pickW = myW; const o = arNetOpp(), a = o && o.presence && o.presence.ai; AR.rivalW = (a && AR_WNAME[a.aw]) ? a.aw : 'none';
+    AR.p1 = null; AR.p2 = null; arNewRound();
+  } else {
+    AR.p1 = arFighter(-200, 1, '#4FA8FF', 'Host', false, 'none'); AR.p2 = arFighter(200, -1, '#FF7A1A', 'You', false, myW);
+    AR.cam = { x:0, y:-150, z:1 }; AR.phase = 'intro'; AR.phaseT = 0; AR.round = 1;
+    const n1 = $('arN1'), n2 = $('arN2'); if (n1) n1.textContent = NET.oppName || 'Host'; if (n2){ n2.textContent = 'You'; n2.parentNode.style.color = '#FF7A1A'; }
+    const hint = $('arHint'); if (hint){ hint.innerHTML = arHintHtml(); hint.classList.add('on'); AR.hintT = isTouch ? 9 : 7; }
+    arNetSend(1);
+  }
+  setScreen(null); G.running = true; arHud();
+  toast('Arena duel', 1.2);
+}
+/* host: the guest's buttons, as held keys plus press counters (a press is never lost between two messages) */
+function arNetInput(dt){
+  const N = AR.net, I = { h:{}, p:{} }, o = arNetOpp();
+  if (!o || !o.presence){ N.missT += dt; if (N.missT > 7) arNetLost('Your friend left the arena.'); return I; }
+  if (o.updatedAt && Date.now() - o.updatedAt > 7000){ arNetLost('Connection to your friend was lost.'); return I; }
+  N.missT = 0;
+  const a = o.presence.ai; if (!a) return I;
+  const h = a.h | 0; I.h.left = !!(h & 1); I.h.right = !!(h & 2); I.h.down = !!(h & 4); I.h.block = !!(h & 8); I.h.jump = !!(h & 16);
+  AR_PKEYS.forEach((k, i) => { const c = (a.pc && a.pc[i]) | 0; if (c > (N.lastPc[i] | 0)) I.p[k] = true; N.lastPc[i] = c; });
+  if (AR.phase !== 'fight') I.p = {};
+  if (AR.phase === 'intro' && AR_WNAME[a.aw] && AR.p2 && AR.p2.wpn !== a.aw){   // the friend's fighter type arrived
+    AR.rivalW = a.aw; const sp = AR.p2.sp; AR.p2 = arFighter(200, -1, AR.rivalCol, AR.rivalName, true, a.aw); AR.p2.sp = sp; }
+  return I;
+}
+function arPack(F){
+  const A = F.atk, W2 = F.web;
+  return { p:F.pts.map(q => [Math.round(q[0]), Math.round(q[1])]).flat(), s:F.state, fa:F.face, hp:Math.round(F.hp), mh:F.maxHp, sp:Math.round(F.sp), fu:Math.round(F.fuel), w:F.wpn, c:F.col,
+    wt:F.webT > 0 ? 1 : 0, j:F.jet ? 1 : 0, b:F.blocking ? 1 : 0, hu:F.hurtT > 0.2 ? 1 : 0,
+    wb:W2 && W2.st === 'shot' ? [1, Math.round(W2.x), Math.round(W2.y)] : W2 && W2.st === 'swing' ? [2, Math.round(W2.ax), Math.round(W2.ay)] : W2 && W2.st === 'pull' ? [3] : 0,
+    bl:F.blades ? F.blades.map(b => [Math.round(b.x), Math.round(b.y), Math.round(b.spin*10)/10, b.st === 'orbit' ? 0 : 1]) : 0,
+    g:((A && A.d.ghost && A.t >= A.d.wind) || F.dashT > 0 || F.flipT > 0 || F.sup) ? 1 : 0,
+    tr:(A && A.t >= A.d.wind - 0.02 && A.t <= A.d.wind + Math.min(A.d.act, 0.45) + 0.04) ? A.d.tip : -1, cb:F.comboT > 0 ? F.comboN : 0 };
+}
+function arNetSend(dt){
+  const N = AR.net, room = NET.room; if (!N || !room) return;
+  N.sendAcc += dt; if (N.sendAcc < 1/30) return; N.sendAcc = 0; N.hb++;
+  let patch;
+  if (N.role === 'host'){
+    patch = { hb:N.hb, as:{ ph:AR.phase, rd:AR.round, wn:AR.wins, nd:AR.need, ts:AR.ts, ck:Math.round(AR.clock*1000)/1000, rp:AR.phase === 'replay' ? Math.round(AR.rp.t*1000)/1000 : 0, mid:N.mid,
+      f:[arPack(AR.p1), arPack(AR.p2)], fx:N.fxOut.slice(-30), sd:N.sdOut.slice(-12), co:N.coOut.slice(-4), nm:SV.name || 'Host', sh:Math.round(AR.shake) } };
+  } else {
+    const h = (held.left ? 1 : 0) | (held.right ? 2 : 0) | (held.down ? 4 : 0) | (held.block ? 8 : 0) | (held.jump ? 16 : 0);
+    patch = { hb:N.hb, ai:{ h, pc:N.pc.slice(), aw:AR.myW } };
+  }
+  try { const r = room.presence(patch); if (r && r.catch) r.catch(() => {}); } catch(e){}
+}
+/* guest: copy the host's world into the two figures and play its sounds, effects and callouts */
+function arUnpack(F, fs, dt, other){
+  const p = fs.p, k = Math.min(1, dt*28);
+  for (let i=0;i<11;i++){ const tx = p[2*i], ty = p[2*i + 1], q = F.pts[i];
+    if (Math.abs(tx - q[0]) > 160 || Math.abs(ty - q[1]) > 160){ q[0] = tx; q[1] = ty; } else { q[0] += (tx - q[0])*k; q[1] += (ty - q[1])*k; } }
+  F.state = fs.s; F.face = fs.fa; F.hp = fs.hp; F.maxHp = fs.mh; F.sp = fs.sp; F.fuel = fs.fu; F.col = fs.c || F.col;
+  if (F.wpn !== fs.w){ F.wpn = fs.w; F.blades = fs.w === 'blades' ? [arBlade(0), arBlade(Math.PI)] : null; }
+  F.webT = fs.wt ? 0.5 : 0; F.jet = fs.j; F.blocking = !!fs.b; F.hurtT = fs.hu ? 0.25 : 0; F.atk = null; F.sup = null;
+  F.web = fs.wb ? (fs.wb[0] === 1 ? { st:'shot', x:fs.wb[1], y:fs.wb[2] } : fs.wb[0] === 2 ? { st:'swing', ax:fs.wb[1], ay:fs.wb[2] } : { st:'pull', target:other }) : (F.wpn === 'web' ? { st:'idle' } : null);
+  if (F.blades && fs.bl) F.blades.forEach((b, i) => { const B = fs.bl[i]; if (!B) return; b.x = B[0]; b.y = B[1]; b.spin = B[2]; b.st = B[3] ? 'out' : 'orbit'; });
+  arGhost(F, dt, !!fs.g);
+  if (fs.tr >= 0 && F.pts[fs.tr]) F.trail.push([F.pts[fs.tr][0], F.pts[fs.tr][1], 0.16]);
+  if (fs.j && F.wpn === 'boots') arFlames(F);
+  F.comboN = fs.cb; F.comboT = fs.cb ? 0.5 : 0;
+}
+function arGuestStep(dt){
+  const N = AR.net; AR.clock += dt;
+  AR_PKEYS.forEach((k, i) => { if (pressed[k]) N.pc[i] = (N.pc[i] | 0) + 1; });
+  if (AR.hintT > 0){ AR.hintT -= dt; if (AR.hintT <= 0){ const hint = $('arHint'); if (hint) hint.classList.remove('on'); } }
+  const o = arNetOpp(), S = o && o.presence && o.presence.as;
+  if (!o){ N.missT += dt; if (N.missT > 7){ arNetLost('The host left the arena.'); return; } }
+  else { N.missT = 0; if (o.updatedAt && Date.now() - o.updatedAt > 7000){ arNetLost('Connection to the host was lost.'); return; } }
+  if (S && S.f && S.f.length === 2){
+    if (S.mid !== N.mid){ N.mid = S.mid; AR.rec = []; }
+    AR.round = S.rd; AR.wins = S.wn; AR.need = S.nd; AR.ts = S.ts; AR.shake = Math.max(AR.shake, S.sh || 0);
+    arUnpack(AR.p1, S.f[0], dt, AR.p2); arUnpack(AR.p2, S.f[1], dt, AR.p1);
+    const n1 = $('arN1'); if (n1 && S.nm && n1.textContent !== S.nm) n1.textContent = okName(S.nm);
+    for (const [id, e] of S.fx || []) if (id > N.fxSeen){ N.fxSeen = id; AR.fx.push(Object.assign({}, e, { t:0 })); }
+    for (const [id, nm] of S.sd || []) if (id > N.sdSeen){ N.sdSeen = id; sfx(nm); }
+    for (const [id, a] of S.co || []) if (id > N.coSeen){ N.coSeen = id; callout(a[0], a[1], a[2], a[3], a[4]); }
+    if (S.ph === 'replay'){ AR.phase = 'replay'; AR.rp = { t:S.rp, end:S.rp + 9 }; } else AR.phase = S.ph;
+    if (S.ph === 'fight' || S.ph === 'ko'){
+      const last = AR.rec[AR.rec.length - 1];
+      if (!last || S.ck > last.t){ const cp = F => F.pts.map(q => [q[0], q[1]]), cb = F => F.blades ? F.blades.map(b => [b.x, b.y, b.spin]) : null;
+        AR.rec.push({ t:S.ck, p1:cp(AR.p1), p2:cp(AR.p2), b1:cb(AR.p1), b2:cb(AR.p2), cam:{ x:AR.cam.x, y:AR.cam.y, z:AR.cam.z } });
+        while (AR.rec.length && AR.rec[0].t < S.ck - 4) AR.rec.shift(); } }
+    if (S.ph === 'end' && !N.endShown){ N.endShown = true; arNetResult(S.wn); }
+    if (S.ph !== 'end' && N.endShown){ N.endShown = false; setScreen(null); }
+  }
+  for (const e of AR.fx){ e.t += dt; if (e.k === 'dust' || e.k === 'flame'){ e.x += e.vx*dt; e.y += e.vy*dt; if (e.k === 'dust') e.vy += 200*dt; } }
+  AR.fx = AR.fx.filter(e => e.t < e.d);
+  for (const F of [AR.p1, AR.p2]){ for (const q of F.trail) q[2] -= dt; F.trail = F.trail.filter(q => q[2] > 0); }
+  if (AR.shake > 0) AR.shake = Math.max(0, AR.shake - dt*30);
+  if (AR.phase !== 'replay') arCamera(dt);
+  arHud(); arNetSend(dt);
+}
+/* the end of an online match: both sides see it from their own side */
+function arNetResult(wins){
+  const me = AR.net && AR.net.role === 'guest' ? 1 : 0, win = wins[me] > wins[1 - me];
+  if (win){ addCoins(150); SV.arena = SV.arena || { wins:0 }; SV.arena.wins++; save(); }
+  $('resTitle').textContent = win ? 'You win the arena duel' : `${NET.oppName || 'Your friend'} wins`;
+  $('resText').textContent = `Rounds ${wins[me]} : ${wins[1 - me]}. ` + (AR.net && AR.net.role === 'host' ? 'Retry starts a rematch for both of you.' : 'Wait here: the host can start a rematch.');
+  $('coinBreak').innerHTML = win ? 'Arena duel won <b>+150</b> coins' : '';
+  $('resNext').style.display = 'none';
+  setScreen('result');
+}
+function arNetRematch(){
+  const N = AR.net; if (!N) return;
+  if (N.role !== 'host'){ toast('The host starts the rematch', 1.5); return; }
+  N.mid++; AR.wins = [0, 0]; AR.round = 0; AR.rec = []; AR.p1 = null; AR.p2 = null;
+  document.body.classList.add('arena', 'fistmode');
+  arNewRound(); setScreen(null);
+}
+function arNetLost(msg){
+  if (!AR.net) return;
+  G.running = false; AR.net = null; leaveDuel();
+  $('arenaHud').classList.remove('on');
+  $('resTitle').textContent = 'Arena duel ended'; $('resText').textContent = msg; $('coinBreak').innerHTML = ''; $('resNext').style.display = 'none';
+  setScreen('result');
+}
 requestAnimationFrame(frame);
 })();
 </script>
