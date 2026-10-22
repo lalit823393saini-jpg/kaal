@@ -323,6 +323,9 @@ body.touch #arSuperBtn small{display:none}
   font:600 18px/1 Teko,sans-serif;color:#FFD23F;background:rgba(30,20,0,.55);border:2px solid rgba(255,210,63,.6);border-radius:12px;padding:8px 10px 5px}
 body:not(.touch) #arWeapBtn{bottom:calc(env(safe-area-inset-bottom,0px) + 84px)}
 #arenaHud .arName em{font-style:normal;font-size:15px;color:#FBEFE0;opacity:.8;letter-spacing:.06em}
+.arSeg{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}
+.arSeg button{font:600 18px/1 Teko,sans-serif;color:#FBEFE0;background:rgba(0,0,0,.35);border:1.5px solid rgba(251,239,224,.35);border-radius:8px;padding:7px 12px 4px;cursor:pointer}
+.arSeg button.on{border-color:#FFB347;color:#120806;background:#FFB347}
 #arenaHud .arFuel{height:4px;background:rgba(0,0,0,.45);margin-top:2px;display:flex}
 #arenaHud .arFuel.r{justify-content:flex-end}
 #arenaHud .arFuel i{display:block;height:100%;background:#FF9A2A}
@@ -676,7 +679,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 <div id="trainBox"></div>
 <div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <em id="arW1"></em> <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arSp"><i id="arSp1"></i></div><div class="arFuel"><i id="arFu1"></i></div><div class="arCombo" id="arCombo1"></div></div>
   <div class="arMid" id="arRound">ROUND 1</div>
-  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> <em id="arW2"></em> Rival</div><div class="arBar r"><i id="arHp2"></i></div><div class="arSp r"><i id="arSp2"></i></div><div class="arFuel r"><i id="arFu2"></i></div><div class="arCombo" id="arCombo2"></div></div>
+  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> <em id="arW2"></em> <b id="arN2" style="font-weight:inherit">Rival</b></div><div class="arBar r"><i id="arHp2"></i></div><div class="arSp r"><i id="arSp2"></i></div><div class="arFuel r"><i id="arFu2"></i></div><div class="arCombo" id="arCombo2"></div></div>
   <div id="arHint"></div><button id="arSuperBtn" aria-label="Lightning Fury">SUPER<small>F</small></button><button id="arWeapBtn" aria-label="Weapon special"></button></div>
 <div id="bossBar"><div class="bn"><span id="bossName"></span><span id="bossPh"></span></div><div class="bb"><i id="bossFill"></i></div></div>
 <div id="toast"></div>
@@ -771,11 +774,14 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 
 <section class="screen" id="arenaPick">
   <h2>Duelist Arena</h2>
-  <p class="lead">Choose how you fight. The rival takes one of the others.</p>
+  <p class="lead">Pick a mode and a difficulty, then your fighter.</p>
+  <div class="arSeg" id="arModeSeg"><button data-am="duel">Single duel</button><button data-am="tour">Tournament: 6 rivals</button></div>
+  <div class="arSeg" id="arDiffSeg"><button data-ad="easy">Easy</button><button data-ad="normal">Normal</button><button data-ad="hard">Hard</button><button data-ad="insane">Insane</button></div>
   <div class="modeGrid">
     <button class="mode" data-aw="none" style="--mc:#4FA8FF"><span class="mn">Brawler</span><span class="md">Fists and feet only. Every move in the list, nothing else to think about.</span></button>
     <button class="mode" data-aw="boots" style="--mc:#9FE8FF"><span class="mn">Rocket Boots</span><span class="md">Hold Jump in the air to fly. Rocket dash, a Rocket Kick (G), and every kick hits 25% harder.</span></button>
     <button class="mode" data-aw="blades" style="--mc:#FFD23F"><span class="mn">Orbiting Blades</span><span class="md">Two blades spin round you and cut on contact. Throw them (G): they hit going out and coming back.</span></button>
+    <button class="mode" data-aw="web" style="--mc:#FFFFFF"><span class="mn">Web Slinger</span><span class="md">Shoot webs (G) that cut, wrap the rival up and yank them to you. Hold Jump in the air to swing from a web line.</span></button>
   </div>
   <div class="btnrow"><button class="big" id="arPickBack">Back</button></div>
 </section>
@@ -11853,7 +11859,7 @@ function showResult(win){
     ? `Level ${G.level} done in ${G.time.toFixed(1)} s with ${Math.round(P.hp)} health left. ${G.level === 20 ? 'The Asura has fallen. The Void Edge is now for sale in the Dojo, and four new chapters are open. ' : ''}${G.level<LEVELS ? 'Next: ' + levelBlurb(G.level+1) : 'Yama has fallen. All 40 levels cleared.'}`
     : `Level ${G.level}. Kills: ${G.kills}. Tip: slow time, wait for the red glow, then block right before the swing to parry.`;
   $('coinBreak').innerHTML = starsHtml + breakdown;
-  $('resNext').style.display = (win && G.level < LEVELS) ? '' : 'none';
+  $('resNext').style.display = (win && G.level < LEVELS) ? '' : 'none'; $('resNext').textContent = 'Next level';
   setScreen('result');
   if (firstEnding) showStory('Epilogue', ENDING.name, ENDING.lines, 'temple', 'Continue', () => setScreen('result'));
 }
@@ -12635,8 +12641,13 @@ function renderPreview(dt){
    ========================================================= */
 $('goLevels').onclick = () => { buildGrid(); setScreen('levels'); };
 $('goTrain').onclick = () => startTraining();
-$('goArena').onclick = () => setScreen('arenaPick');
+$('goArena').onclick = () => { arPickSync(); setScreen('arenaPick'); };
 document.querySelectorAll('#arenaPick [data-aw]').forEach(b => b.onclick = () => startArena(b.dataset.aw));
+function arPickSync(){ const c = SV.arenaCfg || (SV.arenaCfg = { mode:'duel', diff:'normal' });
+  document.querySelectorAll('#arModeSeg button').forEach(b => b.classList.toggle('on', b.dataset.am === c.mode));
+  document.querySelectorAll('#arDiffSeg button').forEach(b => { b.classList.toggle('on', b.dataset.ad === c.diff); b.disabled = c.mode === 'tour'; b.style.opacity = c.mode === 'tour' ? 0.4 : 1; }); }
+document.querySelectorAll('#arModeSeg button').forEach(b => b.onclick = () => { (SV.arenaCfg || (SV.arenaCfg = { mode:'duel', diff:'normal' })).mode = b.dataset.am; saveSoon(); arPickSync(); });
+document.querySelectorAll('#arDiffSeg button').forEach(b => b.onclick = () => { (SV.arenaCfg || (SV.arenaCfg = { mode:'duel', diff:'normal' })).diff = b.dataset.ad; saveSoon(); arPickSync(); });
 $('arPickBack').onclick = () => setScreen('modes');
 $('goModes').onclick = () => setScreen('modes');
 $('modesBack').onclick = () => setScreen('menu');
@@ -13819,7 +13830,7 @@ $('restart').style.display = '';
 const restartMode = () => { if (G.mode === 'train'){ startTraining(); return; } if (G.mode === 'arena'){ startArena(AR.pickW); return; } G.mode==='world3d' ? startWorld3D() : G.mode==='world' ? startWorld() : G.mode==='free' ? startFree() : G.mode==='survival' ? startSurvival() : G.mode==='rush' ? startRush() : G.mode==='blitz' ? startBlitz() : G.mode==='zomb' ? startZomb(G.level) : startLevel(G.level); };
 $('restart').onclick = restartMode;
 $('resRetry').onclick = restartMode;
-$('resNext').onclick = () => { if (G.mode === 'zomb') startZomb(G.level+1); else startLevel(G.level+1); };
+$('resNext').onclick = () => { if (G.mode === 'arena' && AR.tour){ arTourNext(); return; } if (G.mode === 'zomb') startZomb(G.level+1); else startLevel(G.level+1); };
 const toMenuBase = () => { document.body.classList.remove('hasBoss'); G.running=false; G.P=null; G.eproj=[]; G.warns=[]; G.E=[]; G.debris=[]; G.parts=[]; G.orbs=[]; G.slashes=[]; G.ghosts=[]; G.coins=[]; G.proj=[]; G.haz=[]; G.clone=null; slowBadge.classList.remove('on'); setScreen('menu'); };
 const toMenu = () => { if (G.mode === 'duel') leaveDuel(); toMenuBase(); };
 $('toMenu1').onclick = toMenu;
@@ -14080,14 +14091,24 @@ const AR_MOVES = {
            wp:{ lean:0.3, fU:1.3, fL:1.4, bU:1.2, bL:1.3 }, ap:{ lean:0.35, fU:1.5, fL:1.6, bU:1.45, bL:1.5 } }
 };
 const AR_PUNCH = ['jab','cross','upper'];
+const AR_DIFF = { easy:0.45, normal:0.75, hard:1.0, insane:1.3 };
+const AR_WNAME = { none:'Brawler', boots:'Rocket Boots', blades:'Orbiting Blades', web:'Web Slinger' };
+/* the tournament: six rivals, each with a weapon and a temper; the last one is a best of three */
+const AR_TOUR = [
+  { name:'Rookie',   w:'none',   d:'easy',   col:'#FF7A1A' },
+  { name:'Jet',      w:'boots',  d:'normal', col:'#2ECC71' },
+  { name:'Spinner',  w:'blades', d:'normal', col:'#E84393' },
+  { name:'Weaver',   w:'web',    d:'hard',   col:'#C7CEDB' },
+  { name:'Blitz',    w:'boots',  d:'hard',   col:'#E74C3C' },
+  { name:'Champion', w:'blades', d:'insane', col:'#F1C40F', hp:130 } ];
 const AR_LIST = [
   ['J J J', 'Jab, cross, uppercut (launches)'], ['U', 'Head kick'], ['Forward + U', 'Flying knee'], ['Back + U', 'Flip kick (launches)'],
   ['Down + U  /  N', 'Launcher kick'], ['Forward + J', 'Superman punch'], ['Back + J', 'Spin fist'], ['Down + J', 'Slide under their legs'],
   ['Air: U / J', 'Air kick / downward punch'], ['Air: Down + U', 'Lightning dive kick'], ['Air: Down + J', 'Ground slam'],
   ['Jump at the cage', 'Wall jump'], ['K + J  or  T (close)', 'Suplex throw'], ['F (meter full)', 'LIGHTNING FURY finisher'] ];
-const AR_WLIST = { boots:[['Hold Jump in the air', 'Fly on the rocket boots'], ['G', 'Rocket kick'], ['L', 'Rocket dash (in the air too)']],
+const AR_WLIST = { web:[['G', 'Shoot a web: it cuts, wraps them up and pulls them to you'], ['Hold Jump in the air', 'Swing from a web line']], boots:[['Hold Jump in the air', 'Fly on the rocket boots'], ['G', 'Rocket kick'], ['L', 'Rocket dash (in the air too)']],
   blades:[['(always on)', 'The blades spin round you and cut on contact'], ['G', 'Throw the blades: they hit going out and coming back']] };
-const AR_WLIST_T = { boots:[['Hold Jump (air)', 'Fly on the boots'], ['ROCKET', 'Rocket kick'], ['Dash (air)', 'Rocket dash']],
+const AR_WLIST_T = { web:[['WEB', 'Shoot a web: wraps and pulls'], ['Hold Jump (air)', 'Web swing']], boots:[['Hold Jump (air)', 'Fly on the boots'], ['ROCKET', 'Rocket kick'], ['Dash (air)', 'Rocket dash']],
   blades:[['(always on)', 'Spinning blades cut on contact'], ['BLADES', 'Throw them, they come back']] };
 /* the same list for phones, in the names of the on-screen buttons: ➡ = the arrow toward the rival, ⬅ = the arrow away */
 const AR_LIST_TOUCH = [
@@ -14111,7 +14132,7 @@ function arFighter(x, face, col, name, isAI, wpn){
   const F = { x, y:0, vx:0, vy:0, face, col, name, ai:isAI ? { cd:0.8, q:[], blockT:0, jumpT:0, seen:null } : null,
     hp:100, maxHp:100, sp:0, onG:true, jumps:2, state:'ctrl', atk:null, chainN:0, chainT:9, blocking:false, hurtT:0, dashT:0, dashCd:0,
     inv:0, rot:0, pose:Object.assign({}, AR_POSE.guard), walk:0, pts:[], prev:[], rag:null, comboN:0, comboT:0, airK:0, trail:[], ghosts:[], ghostT:0, hold:false,
-    wpn:wpn || 'none', fuel:100, jet:0, specCd:0, blades:wpn === 'blades' ? [arBlade(0), arBlade(Math.PI)] : null };
+    wpn:wpn || 'none', fuel:100, jet:0, specCd:0, blades:wpn === 'blades' ? [arBlade(0), arBlade(Math.PI)] : null, web:wpn === 'web' ? { st:'idle', t:0 } : null, webT:0, pullT:0, swingOK:true };
   for (let i=0;i<11;i++){ F.pts.push([x, -50]); F.prev.push([x, -50]); }
   arFK(F); return F;
 }
@@ -14138,6 +14159,8 @@ function arTargetPose(F){
   const T = Object.assign({}, AR_POSE.guard), A = F.atk;
   if (F.state === 'won') return Object.assign(T, AR_POSE.win);
   if (F.sup) return Object.assign(T, F.sup.pose || AR_POSE.guard);
+  if (F.webT > 0) return Object.assign(T, { lean:0.02, head:-0.15, fU:0.25, fL:0.35, bU:0.15, bL:0.3, fT:0.06, fS:0.02, bT:-0.06, bS:-0.02 });   // wrapped tight
+  if (F.web && F.web.st === 'swing' && !F.atk) return Object.assign(T, AR_POSE.air, { fU:2.75, fL:2.9, lean:0.15 });   // one arm up on the line
   if (F.hurtT > 0) return Object.assign(T, AR_POSE.hurt);
   if (A){ const d = A.d; Object.assign(T, F.onG ? {} : AR_POSE.air, d.wp); if (A.t >= d.wind) Object.assign(T, d.ap); return T; }
   if (F.dashT > 0) return Object.assign(T, AR_POSE.dash);
@@ -14169,8 +14192,20 @@ function arControl(F, O, I, dt){
   if (F.specCd > 0) F.specCd -= dt;
   if (F.wpn === 'boots') F.fuel = Math.min(100, F.fuel + dt*(F.onG ? 55 : 8));
   if (F.state !== 'ctrl' || F.sup) return;
+  if (F.webT > 0){   // wrapped in a web: can't move or strike for a moment
+    F.webT -= dt; F.blocking = false; F.atk = null;
+    if (F.pullT > 0) F.pullT -= dt; else if (F.onG) F.vx *= Math.pow(0.02, dt);
+    return; }
   if (F.hurtT > 0){ F.hurtT -= dt; return; }
   const h = I.h, p = I.p, mv = (h.right ? 1 : 0) - (h.left ? 1 : 0), boots = F.wpn === 'boots';
+  // web swing: hold jump in the air to hang from a line and swing; let go to fly
+  if (F.web){
+    if (F.onG) F.swingOK = true;
+    if (F.web.st === 'swing'){ if (!h.jump || F.onG){ F.web.st = 'idle'; F.swingOK = false; F.vy = Math.min(F.vy, -260); } else F.vx += mv*700*dt; }
+    else if (!F.onG && h.jump && !p.jump && !F.atk && F.swingOK && F.web.st === 'idle' && F.vy > -300){
+      const ax = Math.max(-AR.W + 40, Math.min(AR.W - 40, F.x + F.face*170 + F.vx*0.15)), ay = Math.min(F.y - 300, -460);
+      F.web = { st:'swing', ax, ay, L:Math.hypot(F.x - ax, F.y - 60 - ay) }; sfx('swish'); }
+  }
   if (F.dashCd > 0) F.dashCd -= dt;
   if (F.chainT < 9) F.chainT += dt;
   if (F.flipT > 0) F.flipT -= dt;
@@ -14199,6 +14234,7 @@ function arControl(F, O, I, dt){
     F.face = arSign(arRootX(O) - F.x) || F.face;
     if (boots && F.fuel >= 30){ F.fuel -= 30; F.specCd = 0.6; arStartMove(F, 'rocket', O); return; }
     if (F.wpn === 'blades' && arBladeThrow(F)){ F.specCd = 0.5; arStartMove(F, 'bthrow', O); return; }
+    if (F.web && F.web.st !== 'shot' && arWebShoot(F, O)){ F.specCd = 0.9; arStartMove(F, 'bthrow', O); return; }
   }
   const wantAtk = p.attack || p.kick || p.launch || p.grab;
   if (wantAtk && (!F.atk || (F.atk.t > F.atk.d.wind + F.atk.d.act + 0.03 && !F.atk.d.untilLand)) && (!F.blocking || p.attack)){
@@ -14235,6 +14271,10 @@ function arPhysics(F, O, dt){
   if (F.y >= 0){ if (wasAir && F.vy > 500) arDust(F.x, 0, 5); F.y = 0; F.vy = 0; F.onG = true; F.jumps = 2; F.airK = 0; F.wallSide = 0;
     if (A && d.untilLand && A.t >= d.wind){ if (d.onLand === 'quake') arQuake(F, O); else { arDust(F.x, 0, 7); F.vx *= 0.3; } F.atk = null; }
   } else F.onG = false;
+  if (F.web && F.web.st === 'swing' && !F.onG){   // the web line holds the body on a circle round the anchor
+    const W2 = F.web, cx = F.x, cy = F.y - 60, dx = cx - W2.ax, dy = cy - W2.ay, dd = Math.hypot(dx, dy) || 1;
+    if (dd > W2.L){ const nx = dx/dd, ny = dy/dd; F.x = W2.ax + nx*W2.L; F.y = W2.ay + ny*W2.L + 60; const vr = F.vx*nx + F.vy*ny; if (vr > 0){ F.vx -= vr*nx; F.vy -= vr*ny; } }
+    if (F.y >= 0){ F.web.st = 'idle'; } }
   if (F.y < AR.CEIL + 120){ F.y = AR.CEIL + 120; F.vy = Math.max(0, F.vy); }
   if (Math.abs(F.x) > AR.W - 24){ F.x = arSign(F.x)*(AR.W - 24); if (F.atk && F.atk.d.untilLand) F.vx = 0; }
   if (F.onG && F.dashT <= 0 && !F.atk && Math.abs(F.vx) > 40) F.walk += dt*Math.abs(F.vx)*0.034;
@@ -14289,6 +14329,45 @@ function arBladesStep(F, O, dt){
       if (L < 40){ b.st = 'orbit'; b.ret = 0.25; b.a = Math.atan2((b.y - c[1] - 8)/30, (b.x - c[0])/54); }
     }
   }
+}
+/* ---------- Web Slinger ---------- */
+function arWebShoot(F, O){
+  const h = F.pts[4], tx = O.pts[1][0], ty = (O.pts[1][1] + O.pts[2][1])/2, dx = tx - h[0], dy = ty - h[1], L = Math.hypot(dx, dy) || 1;
+  F.web = { st:'shot', x:h[0], y:h[1], vx:dx/L*1500, vy:dy/L*1500, t:0 }; sfx('whoosh'); return true;
+}
+function arWebStep(F, O, dt){
+  const W2 = F.web; if (!W2) return;
+  if (W2.st === 'shot'){
+    W2.t += dt; W2.x += W2.vx*dt; W2.y += W2.vy*dt;
+    if (W2.t > 0.42 || Math.abs(W2.x) > AR.W || W2.y > 0){ F.web = { st:'idle' }; return; }
+    if (AR.phase !== 'fight' || O.state === 'ko' || O.state === 'getup' || O.inv > 0 || O.sup) return;
+    if (!arTouches([W2.x, W2.y], O, 8)) return;
+    const dir = arSign(arRootX(O) - F.x);
+    if (O.state === 'ctrl' && O.blocking && arSign(F.x - O.x) === O.face){ arText(O.x, -140, 'BLOCK', '#9FD3FF'); sfx('parry'); F.web = { st:'idle' }; return; }
+    O.hp = Math.max(0, O.hp - 5); F.sp = Math.min(100, F.sp + 6); F.comboN = F.comboT > 0 ? F.comboN + 1 : 1; F.comboT = 1.0;
+    arSpark(W2.x, W2.y, '#FFFFFF', 1.1); sfx('punch'); arText(W2.x, W2.y - 50, 'WEBBED!', '#FFFFFF');
+    if (O.hp <= 0){ arToRag(O, -dir*300, -500, -dir*200); AR.slow = 1.1; sfx('boom'); F.web = { st:'idle' }; return; }
+    if (O.state === 'rag'){ for (let i=0;i<11;i++){ O.prev[i][0] += dir*650*AR.STEP; O.prev[i][1] += 150*AR.STEP; } O.rag.t = Math.min(O.rag.t, 0.3); }
+    else { O.webT = 1.1; O.pullT = 0.28; O.atk = null; O.hurtT = 0; O.vx = -dir*Math.min(620, 140 + Math.abs(arRootX(O) - F.x)*1.4); }   // wrapped, and yanked toward you
+    F.web = { st:'pull', t:0.25, target:O };
+  } else if (W2.st === 'pull'){ W2.t -= dt; if (W2.t <= 0) F.web = { st:'idle' }; }
+}
+function arDrawWeb(F){
+  const W2 = F.web, hnd = F.pts[4];
+  const line = (x1, y1, x2, y2) => { ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
+  const splat = (x, y, r) => { ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.6; for (let i=0;i<6;i++){ const a = i*1.047; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a)*r, y + Math.sin(a)*r); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(x, y, r*0.55, 0, 6.283); ctx.stroke(); };
+  if (W2 && W2.st === 'shot'){ line(hnd[0], hnd[1], W2.x, W2.y); splat(W2.x, W2.y, 9); }
+  else if (W2 && W2.st === 'swing'){ line(hnd[0], hnd[1], W2.ax, W2.ay); splat(W2.ax, W2.ay, 12); }
+  else if (W2 && W2.st === 'pull' && W2.target){ const c = W2.target.pts[1]; line(hnd[0], hnd[1], c[0], c[1] + 14); }
+}
+function arDrawWrap(F){   // white web strands round a wrapped fighter
+  if (!(F.webT > 0)) return; const p = F.pts, a = Math.min(1, F.webT*2);
+  ctx.globalAlpha = 0.85*a; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+  for (const [i, j, k] of [[1, 2, 14], [2, 8, 12], [2, 10, 12], [0, 2, 16]]){ const x1 = p[i][0], y1 = p[i][1], x2 = p[j][0], y2 = p[j][1];
+    for (let s=0; s<3; s++){ const t = (s + 1)/4, mx = x1 + (x2 - x1)*t, my = y1 + (y2 - y1)*t; ctx.beginPath(); ctx.ellipse(mx, my, k, 4, Math.atan2(y2 - y1, x2 - x1) + 1.57, 0, 6.283); ctx.stroke(); } }
+  ctx.globalAlpha = 1;
 }
 function arBladeHit(F, O, b, dmg, kbx, kby){
   if (O.state === 'ko' || O.state === 'getup' || O.inv > 0 || O.sup || F.sup) return false;
@@ -14491,6 +14570,7 @@ function arAI(F, O, dt){
     if (b === 'grab'){ I.h.block = true; I.p.attack = true; } else if (b === 'super') I.p.astra = true; else I.p[b] = true; };
   if (F.sp >= 100 && dist < 300 && O.state !== 'ko' && Math.random() < 0.05*sk){ press('super'); return I; }
   if (F.wpn === 'boots' && F.specCd <= 0 && F.fuel > 45 && dist > 160 && dist < 430 && O.state === 'ctrl' && Math.random() < 0.02*sk){ I.p.fire = true; return I; }
+  if (F.wpn === 'web' && F.specCd <= 0 && F.web.st === 'idle' && dist > 150 && dist < 520 && O.state === 'ctrl' && Math.random() < 0.02*sk){ I.p.fire = true; return I; }
   if (F.wpn === 'blades' && F.specCd <= 0 && dist > 140 && dist < 470 && F.blades.every(b => b.st === 'orbit') && Math.random() < 0.018*sk){ I.p.fire = true; return I; }
   if (O.state === 'rag'){   // chase the body and keep the juggle going
     const py = O.pts[2][1];
@@ -14525,32 +14605,53 @@ function arAI(F, O, dt){
 /* ---------- flow: rounds, camera, HUD ---------- */
 function startArena(w){
   if (w) AR.pickW = w; AR.pickW = AR.pickW || 'none';
-  const pool = ['none','boots','blades'].filter(x => x !== AR.pickW); AR.rivalW = pool[(Math.random()*pool.length)|0];
+  const cfg = SV.arenaCfg || (SV.arenaCfg = { mode:'duel', diff:'normal' });
+  if (cfg.mode === 'tour'){ AR.tour = { i:0 }; arTourRival(); }
+  else { AR.tour = null; AR.need = 2; AR.diffK = cfg.diff;
+    const pool = ['none','boots','blades','web'].filter(x => x !== AR.pickW); AR.rivalW = pool[(Math.random()*pool.length)|0];
+    AR.rivalName = 'Rival'; AR.rivalCol = '#FF7A1A'; AR.rivalHp = cfg.diff === 'insane' ? 120 : 100; }
   G.mode = 'arena'; G.level = 0; G.nightmare = false; G.dojo = false; G.worldW = AR.W*2;
   resetCommon(); G.E = [];
   document.body.classList.add('arena', 'fistmode');
-  AR.wins = [0, 0]; AR.round = 0; AR.skill = 0.75;
+  AR.wins = [0, 0]; AR.round = 0; AR.skill = 0.75; AR.rec = []; AR.clock = 0;
   const sb = $('arSuperBtn'); if (sb && !sb.bound){ sb.bound = true; sb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.astra = true; }); }
   arNewRound();
   const atkB = document.querySelector('#touch .tb.atk'); if (atkB) atkB.textContent = 'Punch';
-  const wb = $('arWeapBtn'); if (wb){ wb.textContent = AR.pickW === 'boots' ? 'ROCKET' : AR.pickW === 'blades' ? 'BLADES' : ''; wb.style.display = AR.pickW === 'none' ? 'none' : '';
+  const wb = $('arWeapBtn'); if (wb){ wb.textContent = AR.pickW === 'boots' ? 'ROCKET' : AR.pickW === 'blades' ? 'BLADES' : AR.pickW === 'web' ? 'WEB' : ''; wb.style.display = AR.pickW === 'none' ? 'none' : '';
     if (!wb.bound){ wb.bound = true; wb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.fire = true; }); } }
   setScreen(null); G.running = true;
+}
+function arTourRival(){
+  const R = AR_TOUR[AR.tour.i]; AR.rivalW = R.w; AR.rivalName = R.name; AR.rivalCol = R.col; AR.diffK = R.d; AR.rivalHp = R.hp || 100;
+  AR.need = AR.tour.i === AR_TOUR.length - 1 ? 2 : 1;
+}
+function arTourNext(){
+  AR.tour.i++; arTourRival(); AR.wins = [0, 0]; AR.round = 0; AR.rec = []; AR.p1 = null; AR.p2 = null;
+  document.body.classList.add('arena', 'fistmode'); const atkB = document.querySelector('#touch .tb.atk'); if (atkB) atkB.textContent = 'Punch';
+  arNewRound(); setScreen(null); G.running = true;
 }
 function arNewRound(){
   AR.round++; AR.t = 0; AR.phase = 'intro'; AR.phaseT = 0; AR.fx = []; AR.shake = 0; AR.slow = 0; AR.ts = 1;
   const keep1 = AR.p1 ? AR.p1.sp : 0, keep2 = AR.p2 ? AR.p2.sp : 0;
   AR.p1 = arFighter(-200, 1, '#4FA8FF', 'You', false, AR.pickW);
-  AR.p2 = arFighter(200, -1, '#FF7A1A', 'Rival', true, AR.rivalW);
+  AR.p2 = arFighter(200, -1, AR.rivalCol || '#FF7A1A', AR.rivalName || 'Rival', true, AR.rivalW);
+  AR.p2.hp = AR.p2.maxHp = AR.rivalHp || 100;
   if (AR.round > 1){ AR.p1.sp = keep1; AR.p2.sp = keep2; }   // the meter carries over between rounds
   AR.cam = { x:0, y:-150, z:1 };
-  AR.skill = 0.7 + 0.12*(AR.round - 1) + 0.1*AR.wins[0];
-  callout(`ROUND ${AR.round}`, '#FBEFE0', 0.9, `Round ${AR.round}`, 'Duelist Arena');
+  AR.skill = (AR_DIFF[AR.diffK] || 0.75) + 0.08*(AR.round - 1);
+  if (AR.tour && AR.round === 1) callout(`MATCH ${AR.tour.i + 1}`, '#FBEFE0', 1.0, `Match ${AR.tour.i + 1}`, `vs ${AR.rivalName} · ${AR_WNAME[AR.rivalW]}`);
+  else callout(`ROUND ${AR.round}`, '#FBEFE0', 0.9, `Round ${AR.round}`, AR.tour ? `vs ${AR.rivalName}` : 'Duelist Arena');
+  const n2 = $('arN2'); if (n2){ n2.textContent = AR.rivalName || 'Rival'; n2.parentNode.style.color = AR.rivalCol || '#FF7A1A'; }
   const hint = $('arHint'); if (hint){ hint.innerHTML = arHintHtml(); hint.classList.toggle('on', AR.round === 1); AR.hintT = AR.round === 1 ? (isTouch ? 9 : 7) : 0; }
   arHud();
 }
 function arStep(dt){
   AR.phaseT += dt;
+  if (AR.phase === 'replay'){   // the knockout again, slowly
+    AR.rp.t += dt*0.5;
+    if (AR.rp.t >= AR.rp.end || pressed.attack || pressed.jump || pressed.kick){ AR.phase = 'ko'; AR.phaseT = 99; arRoundOver(); }
+    arHud(); return; }
+  AR.clock += dt;
   if (AR.slow > 0){ AR.slow -= dt; AR.ts = 0.3; } else AR.ts = 1;
   if (AR.hintT > 0){ AR.hintT -= dt; if (AR.hintT <= 0){ const hint = $('arHint'); if (hint) hint.classList.remove('on'); } }
   const d = dt*AR.ts; AR.t += d;
@@ -14563,23 +14664,31 @@ function arStep(dt){
   arBladesStep(P1, P2, d); arBladesStep(P2, P1, d);
   if (P1.state === 'ctrl' && P2.state === 'ctrl' && !P1.sup && !P2.sup && Math.abs(P1.x - P2.x) < 34 && Math.abs(P1.y - P2.y) < 70){   // bodies don't pass through
     const m = (P1.x + P2.x)/2, s = arSign(P1.x - P2.x); P1.x = m + s*17; P2.x = m - s*17; }
+  arWebStep(P1, P2, d); arWebStep(P2, P1, d);
   if (AR.phase === 'fight'){ arHits(P1, P2); arHits(P2, P1); }
   for (const F of [P1, P2]){ if (F.comboT > 0) F.comboT -= d; for (const q of F.trail) q[2] -= d; F.trail = F.trail.filter(q => q[2] > 0); }
   for (const e of AR.fx){ e.t += d; if (e.k === 'dust' || e.k === 'flame'){ e.x += e.vx*d; e.y += e.vy*d; if (e.k === 'dust') e.vy += 200*d; } }
   AR.fx = AR.fx.filter(e => e.t < e.d);
   if (AR.shake > 0) AR.shake = Math.max(0, AR.shake - dt*30);
+  // record what happened, for the replay
+  if (AR.phase === 'fight' || (AR.phase === 'ko' && AR.phaseT < 1.2)){
+    const cp = F => F.pts.map(q => [q[0], q[1]]), cb = F => F.blades ? F.blades.map(b => [b.x, b.y, b.spin]) : null;
+    AR.rec.push({ t:AR.clock, p1:cp(P1), p2:cp(P2), b1:cb(P1), b2:cb(P2), cam:{ x:AR.cam.x, y:AR.cam.y, z:AR.cam.z } });
+    while (AR.rec.length && AR.rec[0].t < AR.clock - 4) AR.rec.shift(); }
   if (AR.phase === 'fight' && (P1.state === 'ko' || P2.state === 'ko')){
-    AR.phase = 'ko'; AR.phaseT = 0; const won = P2.state === 'ko' ? 0 : 1; AR.wins[won]++;
+    AR.phase = 'ko'; AR.phaseT = 0; AR.koClock = AR.clock; const won = P2.state === 'ko' ? 0 : 1; AR.wins[won]++;
     const w = won === 0 ? P1 : P2; w.atk = null; w.blocking = false;
     callout('K.O.', '#FFE14D', 1.2, 'K.O.!', won === 0 ? 'YOU WIN THE ROUND' : 'RIVAL WINS THE ROUND');
   }
   if (AR.phase === 'ko'){
     const w = AR.p1.state === 'ko' ? AR.p2 : AR.p1;
     if (w.state === 'ctrl' && w.onG && !w.sup && AR.phaseT > 0.8) w.state = 'won';
-    if (AR.phaseT > 3.4){ if (AR.wins[0] >= 2 || AR.wins[1] >= 2) arEnd(); else arNewRound(); }
+    if (AR.phaseT > 1.7 && AR.phaseT < 50 && AR.rec.length > 20){ AR.phase = 'replay'; AR.rp = { t:AR.koClock - 1.6, end:AR.koClock + 0.7 }; callout('REPLAY', '#FF5A4A', 0.6, 'Replay'); }
+    else if (AR.phaseT > 3.4) arRoundOver();
   }
   arCamera(dt); arHud();
 }
+function arRoundOver(){ if (AR.wins[0] >= AR.need || AR.wins[1] >= AR.need) arEnd(); else arNewRound(); }
 function arCamera(dt){
   const a = AR.p1.pts[2], b = AR.p2.pts[2], C = AR.cam;
   const cx = (a[0] + b[0])/2, cy = Math.min(-150, (a[1] + b[1])/2 - 40);
@@ -14595,13 +14704,14 @@ function arHud(){
   const P1 = AR.p1, P2 = AR.p2; if (!P1) return;
   $('arHp1').style.width = (P1.hp/P1.maxHp*100) + '%'; $('arHp2').style.width = (P2.hp/P2.maxHp*100) + '%';
   $('arSp1').style.width = P1.sp + '%'; $('arSp2').style.width = P2.sp + '%';
-  const wn = w => w === 'boots' ? '· BOOTS' : w === 'blades' ? '· BLADES' : '';
+  const wn = w => w === 'boots' ? '· BOOTS' : w === 'blades' ? '· BLADES' : w === 'web' ? '· WEB' : '';
   $('arW1').textContent = wn(P1.wpn); $('arW2').textContent = wn(P2.wpn);
   $('arFu1').parentNode.style.display = P1.wpn === 'boots' ? '' : 'none'; $('arFu1').style.width = P1.fuel + '%';
   $('arFu2').parentNode.style.display = P2.wpn === 'boots' ? '' : 'none'; $('arFu2').style.width = P2.fuel + '%';
   $('arSp1').parentNode.classList.toggle('full', P1.sp >= 100); $('arSp2').parentNode.classList.toggle('full', P2.sp >= 100);
-  $('arPips1').textContent = '●'.repeat(AR.wins[0]) + '○'.repeat(2 - AR.wins[0]);
-  $('arPips2').textContent = '○'.repeat(2 - AR.wins[1]) + '●'.repeat(AR.wins[1]);
+  const nd = AR.need || 2;
+  $('arPips1').textContent = '●'.repeat(Math.min(nd, AR.wins[0])) + '○'.repeat(Math.max(0, nd - AR.wins[0]));
+  $('arPips2').textContent = '○'.repeat(Math.max(0, nd - AR.wins[1])) + '●'.repeat(Math.min(nd, AR.wins[1]));
   $('arRound').textContent = `ROUND ${AR.round}`;
   $('arCombo1').textContent = P1.comboT > 0 && P1.comboN > 1 ? `${P1.comboN} HITS` : '';
   $('arCombo2').textContent = P2.comboT > 0 && P2.comboN > 1 ? `${P2.comboN} HITS` : '';
@@ -14610,7 +14720,21 @@ function arHud(){
 function arEnd(){
   const win = AR.wins[0] > AR.wins[1];
   G.running = false; $('arenaHud').classList.remove('on');
-  if (win){ addCoins(200); SV.arena = SV.arena || { wins:0 }; SV.arena.wins++; save(); }
+  SV.arena = SV.arena || { wins:0, champ:0 };
+  if (AR.tour){
+    const R = AR_TOUR[AR.tour.i], last = AR.tour.i === AR_TOUR.length - 1;
+    if (win && last){ addCoins(500); SV.arena.champ = (SV.arena.champ || 0) + 1; save();
+      $('resTitle').textContent = 'TOURNAMENT CHAMPION'; $('resText').textContent = `You beat all ${AR_TOUR.length} rivals with the ${AR_WNAME[AR.pickW]}. Try it on a different fighter.`;
+      $('coinBreak').innerHTML = `Champion <b>+500</b> coins`; $('resNext').style.display = 'none'; }
+    else if (win){ addCoins(100); save(); const N = AR_TOUR[AR.tour.i + 1];
+      $('resTitle').textContent = `${R.name} is down`; $('resText').textContent = `Match ${AR.tour.i + 1} of ${AR_TOUR.length} won. Next: ${N.name}, ${AR_WNAME[N.w]}, ${N.d}.`;
+      $('coinBreak').innerHTML = `Match won <b>+100</b> coins`; $('resNext').textContent = 'Next match'; $('resNext').style.display = ''; }
+    else { $('resTitle').textContent = 'Knocked out of the tournament';
+      $('resText').textContent = `${R.name} (${AR_WNAME[R.w]}) beat you in match ${AR.tour.i + 1} of ${AR_TOUR.length}. Retry starts the tournament again.`;
+      $('coinBreak').innerHTML = ''; $('resNext').style.display = 'none'; }
+    setScreen('result'); return;
+  }
+  if (win){ addCoins(200); SV.arena.wins++; save(); }
   $('resTitle').textContent = win ? 'You win the duel' : 'The rival wins';
   $('resText').textContent = `Rounds ${AR.wins[0]} : ${AR.wins[1]}. ` + (win ? 'The rival fights harder every round. Try the flip kick into a lightning dive.' : 'Block when they wind up, slide under a guard, throw a turtle, and save your meter for Lightning Fury (F).');
   $('coinBreak').innerHTML = win ? `Duel won <b>+200</b> coins` : '';
@@ -14626,6 +14750,24 @@ function arMesh(){
   AR_MESH = ctx.createPattern(c, 'repeat'); return AR_MESH;
 }
 function arRender(){
+  // in the replay, put every body (and the camera) back where it was at that moment
+  let undo = null;
+  if (AR.phase === 'replay' && AR.rec.length){
+    const R = AR.rec, t = AR.rp.t; let f = R[R.length - 1]; for (const q of R) if (q.t >= t){ f = q; break; }
+    const s1 = AR.p1.pts, s2 = AR.p2.pts, sc = AR.cam, g1 = [AR.p1.ghosts, AR.p1.trail], g2 = [AR.p2.ghosts, AR.p2.trail], sfx2 = AR.fx;
+    const bl = F => F.blades ? F.blades.map(b => [b.x, b.y, b.spin]) : null, sb1 = bl(AR.p1), sb2 = bl(AR.p2);
+    AR.p1.pts = f.p1; AR.p2.pts = f.p2; AR.cam = f.cam; AR.p1.ghosts = []; AR.p1.trail = []; AR.p2.ghosts = []; AR.p2.trail = []; AR.fx = [];
+    const put = (F, B) => { if (F.blades && B) F.blades.forEach((b, i) => { b.x = B[i][0]; b.y = B[i][1]; b.spin = B[i][2]; }); };
+    put(AR.p1, f.b1); put(AR.p2, f.b2);
+    undo = () => { AR.p1.pts = s1; AR.p2.pts = s2; AR.cam = sc; [AR.p1.ghosts, AR.p1.trail] = g1; [AR.p2.ghosts, AR.p2.trail] = g2; AR.fx = sfx2; put(AR.p1, sb1); put(AR.p2, sb2); };
+  }
+  try { arRenderScene(); } finally { if (undo) undo(); }
+  if (AR.phase === 'replay'){   // letterbox and a REPLAY tag
+    ctx.setTransform(S, 0, 0, S, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH*0.08); ctx.fillRect(0, VH*0.92, VW, VH*0.08);
+    ctx.font = '600 26px Teko, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = (AR.clock*2 % 1) < 0.6 ? '#FF3B2F' : 'rgba(255,59,47,0.3)';
+    ctx.beginPath(); ctx.arc(30, VH*0.92 + 20, 7, 0, 6.283); ctx.fill(); ctx.fillStyle = '#FBEFE0'; ctx.fillText('REPLAY  ·  tap to skip', 46, VH*0.92 + 29); }
+}
+function arRenderScene(){
   const C = AR.cam, z = C.z, sh = AR.shake, sx = sh ? (Math.random()-0.5)*sh : 0, sy = sh ? (Math.random()-0.5)*sh : 0;
   ctx.setTransform(S, 0, 0, S, 0, 0);
   const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, '#5B6278'); g.addColorStop(0.6, '#8A8FA0'); g.addColorStop(1, '#3A3C46');
@@ -14659,6 +14801,7 @@ function arRender(){
   const order = AR.p1.atk && !AR.p2.atk ? [AR.p2, AR.p1] : [AR.p1, AR.p2];
   for (const F of order) arDrawFighter(F, F.pts, 1, null);
   for (const F of [AR.p1, AR.p2]) if (F.blades) for (const b of F.blades) arDrawBlade(b);
+  if (AR.phase !== 'replay') for (const F of [AR.p1, AR.p2]){ arDrawWrap(F); arDrawWeb(F); }
   for (const F of [AR.p1, AR.p2]){   // a crackle of electricity round a fighter with a full meter
     if (F.sp >= 100 && F.state === 'ctrl' && Math.random() < 0.5){ const p = F.pts[1]; arJag(p[0] + (Math.random()-0.5)*50, p[1] - 30, p[0] + (Math.random()-0.5)*50, p[1] + 50, '#9FE8FF', 0.7); } }
   for (const e of AR.fx){ const q = e.t/e.d;
