@@ -45,6 +45,12 @@ p.lead{max-width:34em;font-size:18px;line-height:1.45;opacity:.92}
 .keys b{display:inline-block;min-width:26px;padding:0 6px;border:1px solid rgba(251,239,224,.5);border-radius:4px;text-align:center;font-weight:600;margin-right:4px;line-height:1.5}
 
 .grid{display:grid;grid-template-columns:repeat(5,minmax(56px,84px));gap:10px;margin:18px 0}
+.grid .chHead{grid-column:1/-1;font:600 15px/1.2 Teko,sans-serif;letter-spacing:.04em;color:#E8D9C4;text-align:left;margin:8px 0 -4px;opacity:.9}
+.grid .chHead b{color:#FFB347;margin-right:6px}
+.grid .chHead.locked{opacity:.45}
+.grid .chHead .newTag{font-size:12px;color:#120806;background:#FFB347;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:2px}
+.grid .lv.dojo{box-shadow:inset 0 -3px 0 #C9773A}
+.grid .lv.elite{box-shadow:inset 0 -3px 0 #E8B23A}
 .lv{aspect-ratio:1;border:2px solid var(--bone);background:transparent;font-family:Teko,sans-serif;font-size:34px;line-height:1;padding-top:6px;position:relative}
 .lv.boss{border-color:var(--dusk);color:var(--sun)}
 .lv.boss{padding-bottom:10px}
@@ -350,6 +356,7 @@ body:not(.touch).hasBoss #slowBadge{top:calc(env(safe-area-inset-top,0px) + 142p
   .big{font-size:23px;padding:9px 16px 5px}
   .keys{font-size:14px;line-height:1.65}
   .grid{grid-template-columns:repeat(10,minmax(36px,52px));gap:6px;margin:10px 0}
+  .grid .chHead{font-size:13px;margin:4px 0 -2px}
   .lv{font-size:24px;padding-top:4px}
   .lv.boss::after{font-size:10px;bottom:1px}
   #lvInfo{min-height:2.6em;font-size:15px}
@@ -760,7 +767,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 
 <section class="screen" id="levels">
   <h2>Choose a level<span id="lvStars"></span></h2>
-  <div id="lvInfo">Each level adds more enemies, faster swings and harder hits.</div>
+  <div id="lvInfo">40 levels in 8 chapters. Every level has its own twist: ambushes, gold elites, hordes, and hand-to-hand dojo fights.</div>
   <div class="grid" id="grid"></div>
   <div class="btnrow"><button class="big" id="backMenu">Back</button><button class="big" id="lvDojo">Dojo</button><button class="big" id="nmBtn">Nightmare: off</button></div>
 </section>
@@ -1059,7 +1066,7 @@ const gunTierCost = (id, t) => Math.max(120, Math.round((GUNS[id].price * 0.45 *
 const hasAstra = () => !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
 const hasGun = () => !!(SV.eq.gun && GUNS[SV.eq.gun] && (SV.eq.gun in SV.guns));
 const isFistId = id => !!(SWORDS[id] && SWORDS[id].fist);
-const hasFists = () => 'fists' in SV.swords;
+const hasFists = () => 'fists' in SV.swords || !!(G_ref && G_ref.dojo && G_ref.mode === 'levels');   // the dojo lends you fists   // the dojo lends you fists
 const SWORD_TIER_MAX = 3;
 const swordTierCost = (id, t) => Math.max(80, Math.round(((SWORDS[id].price || 160) * 0.5 * (t+1)) / 10) * 10);
 
@@ -1186,7 +1193,10 @@ const TYPES = {
   yama:    { hp:6000,spd:235, size:2.6, dmg:42, range:150, wind:0.42, swing:0.16, rec:0.38, coins:1500, armor:true, unblock:true, combo:4, boss:true, demon:true, phases:[0.7,0.4,0.15], tint:'#1a0a1e',
              name:'Yama', title:'King of the Dead — every boss in one' }
 };
-const BOSS_BY_LEVEL = { 5:'ronin', 10:'kage', 15:'ogre', 20:'asura' };
+const BOSS_BY_LEVEL = { 5:'ronin', 10:'kage', 15:'ogre', 20:'asura', 25:'abom', 30:'ronin', 35:'ogre', 40:'yama' };
+const BOSS_EXTRA = { 30:['kage'], 35:['asura'] };                       // twin-boss fights
+const BOSS_LV_HP = { abom:0.5, yama:0.36 };                              // the free-mode giants, cut down to a fair level boss
+const BOSS_NAME_BY_LEVEL = { 30:'Twin Masters: Iron Ronin and Kage', 35:'Gorath and the Asura', 40:'Yama, King of the Dead' };
 const BOSS_LIST = ['ronin','kage','ogre','asura'];
 const isBoss = e => !!e.T.boss;
 /* hand to hand: when the player puts the sword away (H), ordinary enemies put theirs away too */
@@ -1271,15 +1281,27 @@ const THEMES = {
 };
 THEMES.grave = { name:'The Grave Fields', sky:['#05080A','#121D18','#27362B','#55674A'], sun:{col:'rgba(200,215,205,0.55)', glow:'rgba(180,210,190,0.08)', x:0.26, y:150, r:70, moon:true},
             m1:'#1B2A20', m2:'#0F1A14', near:'#060A07', fg:'deadtree', ground:'#040605', tuft:'#000', amb:'rain', rim:'rgba(140,200,150,0.35)', stars:0.2, cloud:'rgba(10,16,12,0.55)', haze:'rgba(85,103,74,0.22)', gtop:'rgba(143,227,138,0.07)', lightning:true };
+THEMES.dojo = Object.assign({}, THEMES.temple, { name:'The Iron Dojo', sky:['#140A06','#3B1C10','#7A3A1C','#C9773A'],
+  sun:{col:'rgba(255,200,140,0.75)', glow:'rgba(255,170,100,0.12)', x:0.62, y:210, r:84}, m1:'#4A2618', m2:'#2C150C', near:'#120806', ground:'#080403',
+  amb:'embers', rim:'rgba(255,170,110,0.45)', stars:0, cloud:'rgba(60,24,10,0.35)', rays:'rgba(255,190,120,1)', haze:'rgba(201,119,58,0.2)' });
+THEMES.fortress = Object.assign({}, THEMES.village, { name:'The Crimson Fortress', sky:['#0A0408','#2A0A14','#6B1424','#B8402C'],
+  sun:{col:'rgba(255,90,60,0.55)', glow:'rgba(255,60,40,0.14)', x:0.38, y:260, r:110}, m1:'#2E0C14', m2:'#1C060C', near:'#0B0306', ground:'#050103' });
+THEMES.yama = Object.assign({}, THEMES.grave, { name:'Gates of Yama', sky:['#030104','#16061C','#3A0C2E','#7A1A3A'],
+  sun:{col:'rgba(255,70,90,0.6)', glow:'rgba(255,40,80,0.12)', x:0.5, y:190, r:120, moon:true}, m1:'#24081E', m2:'#140412', near:'#070108', ground:'#030103',
+  amb:'embers', rim:'rgba(255,80,120,0.4)', stars:0.5, cloud:'rgba(40,6,24,0.5)', haze:'rgba(122,26,58,0.22)' });
 const THEME_ORDER = ['bamboo','snow','village','temple'];
-const themeForLevel = L => THEME_ORDER[Math.min(3, Math.floor((L-1)/5))];
+const themeForLevel = L => (CHAPTERS[Math.min(CHAPTERS.length - 1, Math.floor((L-1)/5))] || CHAPTERS[0]).theme;
 const CHAPTERS = [
   { theme:'bamboo',  name:'The Bamboo Pass', lines:['The Asura\'s army crossed the river at dusk.','Every swordsman of the valley fell, except one.','Kaal can slow time itself. Walk the pass and cut a way through.'] },
   { theme:'snow',    name:'Snow Peak',       lines:['The monks of the peak taught breath before blade.','Their bells have gone silent.','Something waits in the snow, faster than the wind.'] },
   { theme:'village', name:'The Burning Village', lines:['Smoke hides the valley.','The Asura\'s demons feed on fire and fear.','A giant of the mountain guards the last bridge.'] },
-  { theme:'temple',  name:'Moon Temple',     lines:['Under the full moon, the Asura waits.','Near him, even slowed time trembles.','End it here.'] }
+  { theme:'temple',  name:'Moon Temple',     lines:['Under the full moon, the Asura waits.','Near him, even slowed time trembles.','End it here.'] },
+  { theme:'grave',   name:'The Grave Fields', lines:['The Asura fell, but his blood soaked the old battlefield.','Now the dead are walking.','Something huge is stitched together out there in the rain.'] },
+  { theme:'dojo',    name:'The Iron Dojo',    lines:['The masters of the Iron Dojo fight with their hands.','In their hall, no blade is drawn.','Put the sword away. Learn their way, then beat them at it.'] },
+  { theme:'fortress',name:'The Crimson Fortress', lines:['The last army gathers behind red walls.','Arrows, muskets and demons on every rampart.','Two old enemies wait together at the top.'] },
+  { theme:'yama',    name:'Gates of Yama',    lines:['Every enemy you ever cut down passed through these gates.','Their king is waiting for you.','Time bends for one blade. Make it bend one last time.'] }
 ];
-const ENDING = { name:'Dawn', lines:['The moon sets. Time flows again, gently.','The valley breathes, and so do you.','Thank you for playing KAAL.'] };
+const ENDING = { name:'Dawn', lines:['The King of the Dead kneels, and the gates close.','The moon sets. Time flows again, gently.','The valley breathes, and so do you. Thank you for playing KAAL.'] };
 
 /* daily missions: three are picked each day from this list */
 const MISSIONS = [
@@ -1739,30 +1761,69 @@ addEventListener('touchstart', () => { if (!isTouch){ isTouch = true; if (G.runn
 /* =========================================================
    LEVELS
    ========================================================= */
+/* each level: a name, a twist (mods) and the enemy it is about (focus) */
+const LV = {
+  1:{ n:'First Blood' },                          2:{ n:'Crossing the Stream', mods:['horde'] },
+  3:{ n:"The Fencer's Bridge", focus:'fencer' },  4:{ n:'Arrow Rain', focus:'archer' },             5:{ n:'The Iron Ronin' },
+  6:{ n:'Shield Wall', focus:'shield' },          7:{ n:'Brute Force', focus:'brute' },            8:{ n:'Whiteout Ambush', mods:['ambush'] },
+  9:{ n:'Shadows in the Snow', focus:'ninja' },  10:{ n:'Kage' },
+  11:{ n:'Smoke and Powder', focus:'gunner' },   12:{ n:'Elite Guard', mods:['elite'] },          13:{ n:'Demons in the Fire', focus:'demon' },
+  14:{ n:'The Last Bridge', mods:['horde'] },    15:{ n:'Gorath' },
+  16:{ n:'Temple Steps', mods:['ambush'] },      17:{ n:'Moonlit Dojo', mods:['dojo'] },          18:{ n:'Elite Monks', mods:['elite'] },
+  19:{ n:'Arrow and Shield', focus:'archer', mods:['elite'] }, 20:{ n:'The Asura' },
+  21:{ n:'The Dead Walk', focus:'zombie', pool:'dead' },        22:{ n:'Runners in the Rain', focus:'runner', pool:'dead', mods:['horde'] },
+  23:{ n:'Bloated', focus:'bloater', pool:'dead', mods:['elite'] }, 24:{ n:'Graveyard Ambush', pool:'dead', mods:['ambush'] }, 25:{ n:'The Abomination', pool:'dead' },
+  26:{ n:'Bare Hands', mods:['dojo'] },          27:{ n:'Iron Students', focus:'fencer', mods:['dojo'] },   28:{ n:'The Hundred Fists', mods:['dojo','horde'] },
+  29:{ n:'Masters of the Dojo', mods:['dojo','elite'] },       30:{ n:'Twin Masters' },
+  31:{ n:'Siege', focus:'gunner' },              32:{ n:'Ambush at the Gate', mods:['ambush'] },   33:{ n:'Elite Vanguard', mods:['elite'] },
+  34:{ n:'Demon Legion', focus:'demon', mods:['horde'] },      35:{ n:'Two Warlords' },
+  36:{ n:'Souls of the Fallen', mods:['elite'] }, 37:{ n:'Endless Night', mods:['horde','ambush'] }, 38:{ n:'The Judges', mods:['elite','dojo'] },
+  39:{ n:'The Last Gate', mods:['ambush','elite'] }, 40:{ n:'King of the Dead' }
+};
+const MOD_TEXT = { ambush:'Ambush: they come from both sides at once.', elite:'Elite: some enemies glow gold, tougher and worth triple coins.',
+  horde:'Horde: many weak enemies, a good place for a long combo.', dojo:'Dojo: hand to hand only. Your sword stays sheathed and so does theirs.' };
+const MOD_SHORT = { ambush:'Ambush', elite:'Gold elites', horde:'Horde', dojo:'Dojo: hand to hand' };
+const lvMods = L => (LV[L] && LV[L].mods) || [];
 function diffFor(L){
+  const a = Math.min(L, 20) - 1, b = Math.max(0, L - 20);   // after level 20 the climb is gentler
   return {
-    hp: 1 + 0.07*(L-1), spd: Math.min(1.55, 1 + 0.035*(L-1)), dmg: 1 + 0.07*(L-1),
+    hp: 1 + 0.07*a + 0.04*b, spd: Math.min(1.55, 1 + 0.035*(L-1)), dmg: 1 + 0.07*a + 0.04*b,
     wind: Math.max(0.55, 1 - 0.025*(L-1)), rec: Math.max(0.5, 1 - 0.025*(L-1)),
     cd: Math.max(0.3, 1.3 - 0.05*(L-1)), maxAtk: Math.min(5, 1 + Math.floor((L-1)/3)),
     block: Math.min(0.85, 0.45 + 0.02*L), lv: L
   };
 }
-const LEVELS = 20;
+const LEVELS = 40;
 function levelPlan(L){
-  const list = [];
-  for (let i=0;i<2+Math.floor(L*0.45);i++) list.push('grunt');
-  if (L >= 3) for (let i=0;i<Math.floor((L-1)/3);i++) list.push('fencer');
-  if (L >= 4) for (let i=0;i<Math.max(1,Math.floor((L-2)/3));i++) list.push('archer');
-  if (L >= 5) for (let i=0;i<Math.max(1,Math.floor((L-3)/3));i++) list.push('assassin');
-  if (L >= 6) for (let i=0;i<Math.max(1,Math.floor((L-4)/4));i++) list.push('shield');
-  if (L >= 7) for (let i=0;i<Math.max(1,Math.floor((L-5)/4));i++) list.push('brute');
-  if (L >= 9) for (let i=0;i<Math.max(1,Math.floor((L-7)/3));i++) list.push('ninja');
-  if (L >= 11) for (let i=0;i<Math.max(1,Math.floor((L-9)/4));i++) list.push('gunner');
-  if (L >= 13) for (let i=0;i<Math.max(1,Math.floor((L-11)/3));i++) list.push('demon');
+  const C = LV[L] || {}, M = lvMods(L);
+  const list = [], Lc = Math.min(L, 20);   // the mix of enemy types tops out at 20; later levels get harder, not longer
+  for (let i=0;i<2+Math.floor(Lc*0.45);i++) list.push('grunt');
+  if (Lc >= 3) for (let i=0;i<Math.floor((Lc-1)/3);i++) list.push('fencer');
+  if (Lc >= 4) for (let i=0;i<Math.max(1,Math.floor((Lc-2)/3));i++) list.push('archer');
+  if (Lc >= 5) for (let i=0;i<Math.max(1,Math.floor((Lc-3)/3));i++) list.push('assassin');
+  if (Lc >= 6) for (let i=0;i<Math.max(1,Math.floor((Lc-4)/4));i++) list.push('shield');
+  if (Lc >= 7) for (let i=0;i<Math.max(1,Math.floor((Lc-5)/4));i++) list.push('brute');
+  if (Lc >= 9) for (let i=0;i<Math.max(1,Math.floor((Lc-7)/3));i++) list.push('ninja');
+  if (Lc >= 11) for (let i=0;i<Math.max(1,Math.floor((Lc-9)/4));i++) list.push('gunner');
+  if (Lc >= 13) for (let i=0;i<Math.max(1,Math.floor((Lc-11)/3));i++) list.push('demon');
+  if (L > 20){ const extra = Math.floor((L - 20)*0.5); for (let i=0;i<extra;i++) list.push(['fencer','shield','ninja','assassin','archer'][i % 5]); }
+  if (C.pool === 'dead'){   // the Grave Fields: the dead take the place of most foot soldiers
+    for (let i=0;i<list.length;i++) if (['grunt','assassin','fencer'].includes(list[i]) && Math.random() < 0.75) list[i] = list[i] === 'assassin' ? 'runner' : 'zombie';
+    for (let i=0;i<Math.floor((L-19)/2);i++) list.push('bloater');
+  }
+  if (M.includes('horde')){ for (let i=0;i<6 + Math.floor(Math.min(L, 24)/3);i++) list.push(C.pool === 'dead' ? 'zombie' : 'grunt'); }
   for (let i=list.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [list[i],list[j]]=[list[j],list[i]]; }
-  const waves = [], per = 6 + Math.floor(L/5);
+  const waves = [], per = 6 + Math.floor(Math.min(L, 25)/5);
   for (let i=0;i<list.length;i+=per) waves.push(list.slice(i,i+per));
-  if (BOSS_BY_LEVEL[L]) waves.push([BOSS_BY_LEVEL[L], ...(L>=10?['grunt','archer']:[]), ...(L>=15?['fencer','ninja']:[])]);
+  if (C.focus && !BOSS_BY_LEVEL[L]){   // a wave all about the enemy this level is named for
+    const k = 3 + Math.floor(L/8), fw = []; for (let i=0;i<k;i++) fw.push(C.focus);
+    if (C.focus === 'archer' || C.focus === 'gunner') fw.push('shield', 'shield');   // ranged with a wall in front
+    waves.splice(Math.min(1, waves.length), 0, fw);
+  }
+  if (BOSS_BY_LEVEL[L]){
+    const guards = C.pool === 'dead' ? ['zombie','runner','zombie'] : [...(L>=10?['grunt','archer']:[]), ...(L>=15?['fencer','ninja']:[]), ...(L>=30?['shield']:[])];
+    waves.push([BOSS_BY_LEVEL[L], ...(BOSS_EXTRA[L] || []), ...guards]);
+  }
   return waves;
 }
 function levelBlurb(L){
@@ -1777,10 +1838,13 @@ function levelBlurb(L){
   if (L===9) add.push('Ninjas join. They leap over you and throw stars.');
   if (L===11) add.push('Gunners join. Their musket balls fly fast: slow time and cut them, or crouch and close in.');
   if (L===13) add.push('Demons join. They heal unless you keep hitting them, and breathing forms hurt them more.');
-  if (BOSS_BY_LEVEL[L]) add.push(`Boss: ${TYPES[BOSS_BY_LEVEL[L]].name}.`);
+  if (L===21) add.push('The dead walk. They never block, but they keep coming.');
+  if (L===26) add.push('The Iron Dojo: hand-to-hand. Highs, mids and lows, like Tekken.');
+  for (const m of lvMods(L)) add.push(MOD_TEXT[m]);
+  if (BOSS_BY_LEVEL[L]) add.push(`Boss: ${BOSS_NAME_BY_LEVEL[L] || TYPES[BOSS_BY_LEVEL[L]].name}.`);
   const w = levelPlan(L); const n = w.reduce((s,x)=>s+x.length,0);
   if (nightmareOn && L <= SV.beat) return `Nightmare ${L}: ${n} enemies with +60% health and +45% damage, double coins. Clear bonus ${(50+10*L)*2} coins.${SV.nm[L] ? ' Already cleared on Nightmare.' : ''}`;
-  return `Level ${L}: ${n} enemies in ${w.length} wave${w.length>1?'s':''}. Clear bonus ${50+10*L} coins. ` + add.join(' ');
+  return `Level ${L}, ${(LV[L] && LV[L].n) || ''}: ${n} enemies in ${w.length} wave${w.length>1?'s':''}. Clear bonus ${50+10*L} coins. ` + add.join(' ');
 }
 
 /* =========================================================
@@ -1831,13 +1895,15 @@ function startLevel(L){
   }
   G.theme = themeForLevel(L);
   G.mode='levels'; G.level=L; G.nightmare = nightmareOn && L <= SV.beat;
+  G.dojo = lvMods(L).includes('dojo');
   G.diff = G.nightmare ? nightmareDiff(diffFor(L)) : diffFor(L);
   G.worldW = 2400 + L*80;
   resetCommon();
   G.waves = levelPlan(L); G.waveIdx = 0;
   spawnWave(true);
   setScreen(null); G.running = true;
-  callout(G.nightmare ? `NIGHTMARE ${L}` : `LEVEL ${L}`, G.nightmare ? '#FF5A4A' : '#FBEFE0', 0.9, `Level ${L}`, (THEMES[G.theme] || {}).name || '');
+  callout(G.nightmare ? `NIGHTMARE ${L}` : `LEVEL ${L}`, G.nightmare ? '#FF5A4A' : '#FBEFE0', 0.9, `Level ${L}`, (LV[L] && LV[L].n) || (THEMES[G.theme] || {}).name || '');
+  { const mt = lvMods(L).map(m => MOD_SHORT[m]); if (mt.length && !BOSS_BY_LEVEL[L]) setTimeout(() => { if (G.running && G.mode === 'levels' && G.level === L) showBanner((LV[L] && LV[L].n) || 'Level ' + L, mt.join(' + '), '', '#FFB347'); }, 2200); }
   setTimeout(() => { if (G.running && G.mode === 'levels' && G.level === L) callout('FIGHT!', '#FFB347', 0.8, 'Fight!'); }, 1250);
 }
 /* Boss Rush: the four bosses one after another, against the clock */
@@ -2073,7 +2139,8 @@ function nextSurvWave(){
 }
 function resetCommon(){
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.dragons = []; G.serpents = [];
-  G.fistsOut = !!(SV.eq.fistsOut && hasFists());
+  if (G.mode !== 'levels') G.dojo = false;
+  G.fistsOut = !!(G.dojo || (SV.eq.fistsOut && hasFists()));
   document.body.classList.toggle('fistmode', G.fistsOut);
   G.ST = computeStats();
   G.lines = []; G.kickX = 0; G.kickY = 0; G.motes = []; G.secondWindUsed = false; freePause = false;
@@ -2137,11 +2204,20 @@ function spawnWave(first){
       x = side>0 ? Math.min(G.worldW-40, G.camX + VW + 80 + i*40) : Math.max(40, G.camX - 80 - i*40);
       if (Math.abs(x - G.P.x) < 200) x = G.P.x + side*500;
     }
-    const boss = TYPES[t] && TYPES[t].boss;
-    if (boss) x = clamp(G.P.x + 520, 300, G.worldW-120);
-    const e = makeEnemy(t, clamp(x,40,G.worldW-40), G.diff, !first || boss);
+    const boss = TYPES[t] && TYPES[t].boss, M = G.mode === 'levels' ? lvMods(G.level) : [];
+    if (M.includes('ambush') && !boss){ const side = (i%2===0) ? 1 : -1; x = G.P.x + side*(380 + (i>>1)*70 + rnd(0, 60)); }   // ambush: both sides at once
+    if (boss) x = clamp(G.P.x + 520 + (i > 0 ? 160 : 0), 300, G.worldW-120);
+    const e = makeEnemy(t, clamp(x,40,G.worldW-40), G.diff, !first || boss || M.includes('ambush'));
+    if (G.mode === 'levels'){
+      if (boss && BOSS_LV_HP[t]){ e.hp *= BOSS_LV_HP[t]; e.maxHp = e.hp; }
+      if (boss && BOSS_EXTRA[G.level]){ e.hp *= 0.62; e.maxHp = e.hp; }      // two bosses share the fight
+      if (!boss && M.includes('horde') && (t === 'grunt' || t === 'zombie')){ e.hp *= 0.55; e.maxHp = e.hp; }
+      if (!boss && M.includes('elite') && Math.random() < 0.35){             // gold elites: tougher, hit harder, triple coins
+        e.elite = true; e.hp *= 1.8; e.maxHp = e.hp; e.dmg *= 1.3; e.coinMult *= 3; e.tint = '#8A6A1E'; e.blockP = Math.min(0.9, (e.blockP || 0) + 0.15);
+      }
+    }
     G.E.push(e);
-    if (boss) bossIntro(e);
+    if (boss && (i === 0 || !BOSS_EXTRA[G.level])) bossIntro(e);
   });
   if (!first && !wave.some(t => TYPES[t] && TYPES[t].boss)) toast(`Wave ${G.waveIdx+1}`, 1.2);
 }
@@ -2793,7 +2869,8 @@ function updatePlayer(dt){
   if (pressed.astra) tryAstra(P);
   if (P.vthrow) updateVajraThrow(P, dt);
   if (P.gsum) updateGadaSummon(P, dt);
-  if (pressed.switch && hasFists() && !P.form && P.dashT <= 0) switchWeapon();
+  if (pressed.switch && G.dojo && G.time - (P.dojoT || -9) > 1.5){ P.dojoT = G.time; toast('Dojo: no blades here', 0.8); }
+  if (pressed.switch && hasFists() && !G.dojo && !P.form && P.dashT <= 0) switchWeapon();
   if (pressed.clone && hasAbil('clone') && P.cloneCd <= 0){
     P.cloneCd = 25; G.clone = { isPlayer:true, isClone:true, x:P.x-P.face*45, y:P.y, vx:0, face:P.face, size:1, onG:true, walk:0, sword:P.sword, atk:null, blockT:-1, dashT:0, hurtT:0, t:6 };
     burst(P.x, P.y-40, 18, '#5FA8E0', 260, 3, true); toast('Shadow clone', 0.6);
@@ -3978,7 +4055,8 @@ function checkPhase(e){
 }
 function bossIntro(e){
   G.introT = 1.7; G.introBoss = e;
-  showBanner(e.T.title, e.T.name, 'Boss', '#FF3B2F');
+  const twin = G.mode === 'levels' && BOSS_NAME_BY_LEVEL[G.level];
+  showBanner(twin ? 'Chapter boss' : e.T.title, twin || e.T.name, 'Boss', '#FF3B2F');
   sfx('boom'); flash('#FF3B2F', 0.2); vib(60);
 }
 /* enemy projectile touches the player */
@@ -11315,6 +11393,7 @@ const fd = $('fd'), god = $('god'), waves = $('waves');
 let freeHidden = isTouch, freePause = false;
 let curScreen = 'menu';
 function setScreen(id){
+  if (id && id !== 'pause' && id !== 'result' && typeof G !== 'undefined') G.dojo = false;   // borrowed dojo fists go back when you leave
   curScreen = id;
   for (const k in screens) screens[k].classList.toggle('on', k===id);
   const inGame = !id || id==='pause';
@@ -11363,17 +11442,21 @@ function renderModes(){
 }
 function buildGrid(){
   const grid = $('grid'); grid.innerHTML='';
+  SV.unlocked = Math.max(SV.unlocked || 1, Math.min(LEVELS, (SV.beat || 0) + 1));   // players who beat 20 before the new chapters
   let total = 0; for (const k in SV.stars){ const m = SV.stars[k]; total += (m&1?1:0)+(m&2?1:0)+(m&4?1:0); }
   let sCount = 0; for (const k in SV.ranks) if (SV.ranks[k] === 'S') sCount++;
   $('lvStars').innerHTML = `★ ${total} / ${LEVELS*3}` + (sCount ? ` &nbsp; <span style="color:#FFD23F">S rank ${sCount}</span>` : '');
   for (let i=1;i<=LEVELS;i++){
-    const b = document.createElement('button'); b.className='lv'+(BOSS_BY_LEVEL[i]?' boss':'')+(i<=SV.beat?' done':'')+(nightmareOn && i<=SV.beat?' nm':'');
+    if ((i-1) % 5 === 0){ const c = CHAPTERS[(i-1)/5], h = document.createElement('div'); h.className = 'chHead' + (i > SV.unlocked ? ' locked' : '');
+      h.innerHTML = `<b>Chapter ${(i-1)/5 + 1}</b> ${c ? c.name : ''}${i > 20 ? ' <span class="newTag">new</span>' : ''}`; grid.appendChild(h); }
+    const b = document.createElement('button'); b.className='lv'+(BOSS_BY_LEVEL[i]?' boss':'')+(lvMods(i).includes('dojo')?' dojo':'')+(lvMods(i).includes('elite')?' elite':'')+(i<=SV.beat?' done':'')+(nightmareOn && i<=SV.beat?' nm':'');
     const m = SV.stars[i] || 0;
     const rk = SV.ranks[i];
     b.innerHTML = `${i}${rk ? `<span class="lvRank r${rk}">${rk}</span>` : ''}${SV.nm[i] ? '<span class="nmk">☠</span>' : ''}<span class="st">${[1,2,4].map(bit => m&bit ? '★' : '<i>★</i>').join('')}</span>`;
     b.setAttribute('aria-label', `Level ${i}${BOSS_BY_LEVEL[i] ? ', boss' : ''}, ${(m&1?1:0)+(m&2?1:0)+(m&4?1:0)} of 3 stars${rk ? ', rank ' + rk : ''}`);
     b.disabled = i > SV.unlocked || (nightmareOn && i > SV.beat);
     b.onclick = () => startLevel(i);
+    b.title = (LV[i] && LV[i].n) || '';
     b.onmouseenter = b.onfocus = () => { $('lvInfo').textContent = levelBlurb(i); };
     grid.appendChild(b);
   }
@@ -11513,7 +11596,7 @@ function showResult(win){
   }
   $('resTitle').textContent = win ? (G.level===LEVELS ? 'All levels cleared' : (G.nightmare ? 'Nightmare clear' : 'Level clear')) : 'You fell';
   $('resText').textContent = win
-    ? `Level ${G.level} done in ${G.time.toFixed(1)} s with ${Math.round(P.hp)} health left. ${G.level<LEVELS ? 'Next: ' + levelBlurb(G.level+1) : 'You beat the final warlord. The Void Edge is now for sale in the Dojo.'}`
+    ? `Level ${G.level} done in ${G.time.toFixed(1)} s with ${Math.round(P.hp)} health left. ${G.level === 20 ? 'The Asura has fallen. The Void Edge is now for sale in the Dojo, and four new chapters are open. ' : ''}${G.level<LEVELS ? 'Next: ' + levelBlurb(G.level+1) : 'Yama has fallen. All 40 levels cleared.'}`
     : `Level ${G.level}. Kills: ${G.kills}. Tip: slow time, wait for the red glow, then block right before the swing to parry.`;
   $('coinBreak').innerHTML = starsHtml + breakdown;
   $('resNext').style.display = (win && G.level < LEVELS) ? '' : 'none';
