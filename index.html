@@ -1193,11 +1193,13 @@ const isBoss = e => !!e.T.boss;
 const EFIST = { fist:true, len:0, w:2.6, edge:'#B8323C' };
 const brawlOn = () => !!(G.ST && G.ST.sword && G.ST.sword.fist) && G.mode !== 'duel';
 const brawler = e => !!e && !e.isPlayer && !e.remote && !e.puppet && !e.isClone && !e.T.boss && brawlOn();
+/* enemy strings: punch = high, hkick = high, kick = mid, lkick = low */
+const BRAWL_STRINGS = [['punch','punch'], ['punch','punch','kick'], ['punch','hkick'], ['lkick','punch'], ['punch','lkick'], ['kick'], ['hkick'], ['lkick'], ['punch','punch','punch']];
+const BRAWL_LVL = { punch:'high', hkick:'high', kick:'mid', lkick:'low' };
 function brawlPick(e){
-  const r = Math.random();
-  if (r < 0.5){ e.bmove = 'punch'; e.bkAng = 0; }
-  else if (r < 0.78){ e.bmove = 'kick'; e.bkAng = 1.7; }   // body kick
-  else { e.bmove = 'hkick'; e.bkAng = 2.3; }                 // kick to the head
+  if (e.str && e.strI < e.str.length - 1){ e.strI++; e.bmove = e.str[e.strI]; return; }   // next hit of the string
+  e.str = e.punish ? ['punch','punch'] : BRAWL_STRINGS[(Math.random()*BRAWL_STRINGS.length)|0];
+  e.strI = 0; e.bmove = e.str[0]; e.punish = false;
 }
 /* hit reactions by body part, exaggerated so they read at speed:
    head = snaps back and stumbles, body = folds over the blow, legs = the leg buckles, flip = legs swept, body turns flat in the air */
@@ -1243,11 +1245,13 @@ function brawlContact(e){
   if (e.bmove && e.bmove !== 'punch'){ const leg = sg[1]; tip = leg ? [leg[2], leg[3]] : null; }
   else { const f = sg.find(q => q[5] === 'fist' && q[7] === 'main'); tip = f ? [f[2], f[3]] : null; }
   if (!tip) return true;
-  return Math.abs(tip[0] - P.x) < 16 && tip[1] > P.y - 74 && tip[1] < P.y + 8;
+  if (Math.abs(tip[0] - P.x) >= 16) return false;
+  if (e.bmove === 'lkick') return tip[1] > P.y - 34 && tip[1] < P.y + 8;
+  return tip[1] > P.y - 74 && tip[1] < P.y + 8;
 }
 function brawlBlockP(e, o){
   if (e.T.zombie) return 0;                                   // the dead never block
-  let p = e.T.block ? 0.45 : e.T.ninja ? 0.35 : e.T.armor ? 0.15 : 0.25;
+  let p = e.T.block ? 0.5 : e.T.ninja ? 0.4 : e.T.armor ? 0.18 : 0.3;
   if (e.state === 'block') p += 0.1;                          // already guarding
   if (o.heavy) p *= 0.5;
   return p;
@@ -1660,6 +1664,9 @@ const FIST_MOVES = {
   grab:    F({ nm:'Grab and Slam',   wind:0.10,  act:0.12,  total:0.58, dmg:46, kb:120, range:58, from:[-0.3,0], to:[0.5,0], ext:2.0, heavy:true, grab:true, unblockable:true })
 };
 const PUNCH_CHAIN = ['jab','cross','hook','upper'], KICK_CHAIN = ['face','spin','rising'];
+/* hit levels: highs whiff over a ducking enemy, lows go under a standing guard, mids hit a crouching one */
+for (const [k, lv] of Object.entries({ jab:'high', cross:'high', hook:'high', straight:'high', backfist:'high', face:'high', air1:'high', air2:'high', airP:'high', dive:'high', rush:'high',
+  upper:'mid', push:'mid', round:'mid', spin:'high', rising:'mid', axe:'mid', quake:'low', grab:'high', body:'low', sweep:'low', sky:'low' })) if (FIST_MOVES[k]) FIST_MOVES[k].lvl = lv;
 /* shown on the Moves screen, in order */
 const MOVE_LIST = [
   ['chain','Punch, Punch, Punch, Punch','Jab, Cross, Hook, Uppercut','The last hit launches the enemy into the air. Keep hitting them while they fall for a juggle.'],
@@ -1677,6 +1684,8 @@ const MOVE_LIST = [
   ['sp','Forward, Forward + Punch','Dragon Rush','Charges through enemies, breaks armour.'],
   ['sp','Down, Down + Kick','Earthshaker','Smashes the ground and stuns everyone around you.'],
   ['sp','Hold Block + Punch','Grab and Slam','Up close only. Cannot be blocked. Slams them behind you.'],
+  ['sys','High, Mid, Low','Like Tekken','Highs miss a ducking enemy. Lows go under a standing guard. Mids hit a crouching enemy. Enemies learn: hit them low and they start crouching.'],
+  ['sys','Down','Duck','Hold Down in hand to hand: punches and head kicks go over you. Down + Block stops low kicks.'],
   ['sys','Counter hit','+40% damage','Hit an enemy while they are winding up a swing.'],
   ['sys','Juggle','Air hits chain','An enemy in the air can be hit again and again, each hit a little weaker.']
 ];
@@ -2495,12 +2504,22 @@ function damageEnemy(e, dmg, o){
   if (e.T.demon && o.src === 'form') dmg *= 1.25;     // breathing techniques were made for demons
   e.lastHitT = 0;
   // hand to hand: enemies with their fists up guard against punches and kicks
-  if (o.fist && guarded && !o.guardBreak && brawler(e) && facingP && e.onG && ['chase','idle','approach','recover','block'].includes(e.state) && Math.random() < brawlBlockP(e, o)){
-    e.state='block'; e.timer=0.4; e.vx = -e.face*110; P.vx = -P.face*120;
-    impactFx(e.x + e.face*14, e.y-46*e.size, '#FFD9B0', 0.7); sfx('punch'); G.hitstop = Math.max(G.hitstop, 0.035); G.shake = Math.max(G.shake, 3);
-    if (!o.quiet) pop(e.x, e.y-90*e.size, 'Blocked', '#FFD9B0');
-    if (!e.alert) alertEnemy(e);
-    return false;
+  if (o.fist && !o.unblockable && !o.guardBreak && brawler(e) && facingP && e.onG && ['chase','idle','approach','recover','block'].includes(e.state) && Math.random() < brawlBlockP(e, o)){
+    const lv = o.lvl || (o.low ? 'low' : 'high');
+    const crouchG = e.state === 'block' ? !!e.guardLow : Math.random() < (e.lowBias || 0.15);   // which guard they chose
+    const defend = (lv === 'low') ? crouchG : (lv === 'mid') ? !crouchG : true;
+    if (defend){
+      e.state = 'block'; e.timer = 0.35; e.guardLow = crouchG; e.vx = -e.face*60; P.vx = -P.face*60;
+      e.cd = 0; e.punish = true;                                   // a blocked or ducked attack gets punished
+      if (lv === 'high' && crouchG){ if (!o.quiet) pop(e.x, e.y-70*e.size, 'Ducked', '#FFD9B0'); sfx('whoosh'); }
+      else { sfx('punch'); if (!o.quiet) pop(e.x, e.y-90*e.size, crouchG ? 'Low block' : 'Blocked', '#FFD9B0'); }
+      if (!e.alert) alertEnemy(e);
+      return false;
+    }
+  }
+  if (o.fist && brawler(e)){   // they learn: hit low and they crouch more; hit mid while they crouch and they stand
+    if ((o.lvl || (o.low ? 'low' : '')) === 'low') e.lowBias = Math.min(0.65, (e.lowBias || 0.15) + 0.2);
+    else if (o.lvl === 'mid') e.lowBias = Math.max(0.1, (e.lowBias || 0.15) - 0.1);
   }
   // Fencers block slashes and projectiles from the front (breathing forms go through)
   if (o.src !== 'form' && guarded && e.blockP && facingP && ['chase','idle','block','approach'].includes(e.state) && Math.random() < e.blockP){
@@ -2536,11 +2555,12 @@ function damageEnemy(e, dmg, o){
     e.juggle = (e.juggle || 0) + 1; dmg *= Math.pow(0.68, e.juggle - 1); juggled = true;
   }
   if (o.noKill) dmg = Math.min(dmg, Math.max(0, e.hp - 1));   // gada going out: it hurts, it does not kill
-  e.hp -= dmg; e.flash = 0.1; e.hurtBar = 2;
+  e.hp -= dmg; e.flash = o.fist ? 0 : 0.1; e.hurtBar = 2;
   {
     const ey = e.y - 34*e.size;
     const sid = (o.src==='form' && P.form && P.form.sid) ? P.form.sid : null;
-    if (!o.quiet){
+    if (!o.quiet && o.fist){ sfx(o.kick || o.heavy ? 'kick' : 'punch'); G.shake = Math.max(G.shake, o.heavy ? 3 : 1.5); comboHit(); }   // hand to hand: the body reacts, the screen does not freeze
+    else if (!o.quiet){
       impactFx(e.x - dir*6, ey, sid ? STYLE_FX[sid].cols[0] : (o.src==='slash' ? G.ST.trail : '#FFFFFF'), o.heavy ? 1.5 : 1);
       if (sid) styleImpact(sid, e.x, ey, !!o.heavy);
       if (o.fist){ sfx(o.kick || o.heavy ? 'kick' : 'punch'); if (!o.heavy) G.shake = Math.max(G.shake, 3); }
@@ -2551,7 +2571,8 @@ function damageEnemy(e, dmg, o){
       comboHit();
     }
     dmgPop(e.x + rnd(-12,12), ey - 34*e.size, dmg, counter ? '#FF8A5A' : sid ? STYLE_FX[sid].cols[1] : (o.heavy ? '#FFE7A8' : '#FFFFFF'), !!o.heavy || !!sid || counter);
-    if (counter && !o.quiet){ pop(e.x, e.y-100*e.size, 'Counter', '#FF8A5A'); G.hitstop = Math.max(G.hitstop, 0.09); flash('#FFD0A0', 0.2); speedLines(e.x, ey, 10, '#FF8A5A', 0.2); }
+    if (counter && !o.quiet && o.fist) pop(e.x, e.y-100*e.size, 'Counter', '#FF8A5A');
+    else if (counter && !o.quiet){ pop(e.x, e.y-100*e.size, 'Counter', '#FF8A5A'); G.hitstop = Math.max(G.hitstop, 0.09); flash('#FFD0A0', 0.2); speedLines(e.x, ey, 10, '#FF8A5A', 0.2); }
     if (juggled && !o.quiet && G.comboN > 1) pop(e.x + rnd(-10,10), ey - 58*e.size, 'Juggle x'+e.juggle, '#9FD3F0');
   }
   e.vx = dir * (o.kb||0) * (isArmored(e) ? 0.35 : 1) * (juggled ? 0.3 : 1);   // juggled enemies stay in front of you
@@ -2560,7 +2581,7 @@ function damageEnemy(e, dmg, o){
   const canInterrupt = !isArmored(e) || (o.heavy && !isBoss(e)) || counter;
   if (canInterrupt && !o.noInterrupt && ['windup','swing','chase','idle','approach'].includes(e.state)){ e.state='hurt'; e.timer = counter ? 0.5 : 0.28; }
   if (o.launch && !isBoss(e)){ e.vy = -o.launch*(e.type==='brute'?0.6:1); e.onG=false; e.state='hurt'; e.timer=0.9; e.juggle = 0; e.lowG = 1.6;
-    if (!o.quiet){ pop(e.x, e.y-100*e.size, 'Launch!', '#FFD9B0'); ringFx(e.x, e.y-40*e.size, 46, '#FFD9B0', false, 2); } }
+    if (!o.quiet){ pop(e.x, e.y-100*e.size, 'Launch!', '#FFD9B0'); if (!o.fist) ringFx(e.x, e.y-40*e.size, 46, '#FFD9B0', false, 2); } }
   if (juggled){ e.vy = Math.min(e.vy, -210); e.lowG = Math.max(e.lowG || 0, 0.9); e.state='hurt'; e.timer=0.6; }
   if (o.knockdown && !isBoss(e)){ e.state='down'; e.timer = o.knockdown; e.comboLeft = 0; e.vy = Math.min(e.vy, -120); e.onG = false;
     if (!o.quiet) pop(e.x, e.y-86*e.size, 'Knockdown', '#FFD9B0'); }
@@ -2571,21 +2592,23 @@ function damageEnemy(e, dmg, o){
   else if (o.poison) { e.poison = { dps: o.poison*0.5, t:5 }; }
   // how big this hit felt, 0 for a tickle and 1 for a monster of a blow
   const W = clamp(dmg / 70, 0.12, 1) * (o.heavy ? 1.25 : 1) * (counter ? 1.2 : 1);
+  if (!o.fist){
   burst(e.x, e.y-36*e.size, Math.round(7 + 18*W), '#C8102E', 260 + 320*W, 3.5);
   burst(e.x, e.y-36*e.size, Math.round(2 + 4*W), '#000', 260, 4);
-  if (W > 0.35){   // a crescent of blood thrown in the direction of the blow
+  }
+  if (W > 0.35 && !o.fist){   // a crescent of blood thrown in the direction of the blow
     const n = Math.round(4 + 10*W);
     for (let k=0;k<n;k++){ const a = rnd(-0.8, 0.8);
       G.parts.push({ x:e.x, y:e.y-38*e.size, vx:dir*(260+520*W)*Math.cos(a), vy:Math.sin(a)*(200+300*W) - 120,
         life:0.5, max:0.5, col:'#C8102E', size:2.5+2.5*W, real:true, g:1.4 }); }
   }
-  e.freezeT = Math.max(e.freezeT || 0, 0.04 + 0.1*W);      // the body holds still for a beat, then snaps back
+  if (!o.fist) e.freezeT = Math.max(e.freezeT || 0, 0.04 + 0.1*W);      // the body holds still for a beat, then snaps back
   e.shakeAmp = 3 + 7*W;
   // bullets land many times a second: they must not freeze or shake the game the way a sword blow does
   const shot = o.src === 'proj';
-  G.hitstop = Math.max(G.hitstop, (o.src === 'slash' || o.src === 'form') ? (0.025 + 0.11*W) : shot ? ((o.heavy && G.time - (G.shotStopT ?? -9) > 0.3) ? (G.shotStopT = G.time, 0.025) : 0) : 0.02 + 0.05*W);
-  G.shake = Math.max(G.shake, shot ? 1.5 + 4*W : 3 + 13*W);
-  if (W > 0.45 && !shot) zoomPunch(1 + 0.05*W);
+  if (!o.fist) G.hitstop = Math.max(G.hitstop, (o.src === 'slash' || o.src === 'form') ? (0.025 + 0.11*W) : shot ? ((o.heavy && G.time - (G.shotStopT ?? -9) > 0.3) ? (G.shotStopT = G.time, 0.025) : 0) : 0.02 + 0.05*W);
+  if (!o.fist){ G.shake = Math.max(G.shake, shot ? 1.5 + 4*W : 3 + 13*W);
+  if (W > 0.45 && !shot) zoomPunch(1 + 0.05*W); }
   if (shot) e.freezeT = Math.min(e.freezeT, 0.05);
   thump(W, counter);
   // a real blow shoves you back a little too
@@ -3115,18 +3138,11 @@ function slashHits(who, A, mult){
         e.x = who.x - who.face*46; e.face = who.face; e.vy = -320; e.onG = false;
         G.hitstop = Math.max(G.hitstop, 0.1); flash('#FFD9B0', 0.25); cameraKick(-who.face*8, -5);
       }
-      const ok = damageEnemy(e, dmg, { kb:d.kb, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
+      const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4 : d.kb, lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
         burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
         launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0), breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0), poison: poisonHit });
       if (ok && sw.fist){
-        const tip = fistTip(who, d), big = !!(d.heavy || d.kick);
-        if (tip){ impactFx(tip[0], tip[1], '#FFE7C2', big ? 1.5 : 1); ringFx(tip[0], tip[1], big ? 34 : 20, '#FFF4E0'); }
-        if (!who.isClone){
-          G.hitstop = Math.max(G.hitstop, d.kick ? (d.aim === 'head' || d.heavy ? 0.09 : 0.065) : (d.heavy ? 0.075 : 0.05));   // hold the impact frame
-          if (d.aim === 'head') zoomPunch(1.025);
-          cameraKick(who.face*(d.kick ? 5 : 3), d.aim === 'legs' ? 2 : -1);
-        }
         hitReact(e, d);
       }
       if (ok && !who.isClone && d.legSweep && !e.dead){ impactFx(e.x, e.y - 14*e.size, '#FFD9B0', 1.2); burst(e.x, e.y - 6, 6, '#2a1418', 160, 3); }
@@ -3712,9 +3728,11 @@ function updateEnemy(e, dt){
             const od = o.x - e.x;
             if (Math.abs(od) < 34*e.size && sign(od)===e.face && Math.abs(o.x-P.x) < dist) want *= 0.15;
           } } }
+      if (e.sword === EFIST && want === 0 && dist < rng + 30){ e.foot = (e.foot || rnd(0, 6)) + dt*3.2; want = Math.sin(e.foot)*e.spd*0.35*e.face; }   // footsies: step in, step out
       if (e.onG) e.vx = lerp(e.vx, want, Math.min(1, dt*8));
       if (dist < rng + 6 && e.cd <= 0 && (G.atkN ?? attackersNow()) < G.diff.maxAtk && Math.abs(P.y - e.y) < 90*e.size && e.onG){
         G.atkN = (G.atkN || 0) + 1; e.state='windup'; e.timer=e.wind; e.comboLeft = (e.T.combo||1)-1;
+        if (e.sword === EFIST){ const pun = e.punish; e.str = null; brawlPick(e); e.comboLeft = e.str.length - 1; e.lastK = null; if (pun) e.timer = e.wind*0.4; }
       }
       break; }
     case 'windup':
@@ -3736,11 +3754,11 @@ function updateEnemy(e, dt){
       if (!e.T.lunge) e.vx = lerp(e.vx, 0, Math.min(1,dt*6));
       if (!e.hitDone) tryHitPlayer(e);
       if (e.timer <= 0){
-        if (e.comboLeft > 0){ e.comboLeft--; e.state='windup'; e.timer=e.wind*0.45; e.bmove = null; }
+        if (e.comboLeft > 0){ e.comboLeft--; e.state='windup'; e.timer=e.wind*(e.sword === EFIST ? 0.3 : 0.45); e.bmove = null; }
         else { e.state='recover'; e.timer=e.rec; if (e.T.lunge) e.vx*=0.2; }
       }
       break;
-    case 'recover': if (e.bmove && e.bmove !== 'punch' && G.P && !e.lastK){ const am = e.bmove === 'hkick' ? 'head' : 'body', tp = kickPoint(e, am, G.P); e.lastK = { aim:am, ik:kickIK(e, tp[0], tp[1], 1) }; }
+    case 'recover': if (e.bmove && e.bmove !== 'punch' && G.P && !e.lastK){ const am = e.bmove === 'hkick' ? 'head' : e.bmove === 'lkick' ? 'legs' : 'body', tp = kickPoint(e, am, G.P); e.lastK = { aim:am, ik:kickIK(e, tp[0], tp[1], 1) }; }
       if (e.bmove === 'punch') e.lastK = null; e.bmove = null; e.vx = lerp(e.vx,0,Math.min(1,dt*10)); if (e.timer<=0){ e.state='chase'; e.cd = e.cdBase*rnd(0.6,1.4); } break;
     case 'hurt': if (e.onG) e.vx = lerp(e.vx,0,Math.min(1,dt*5)); if (e.timer<=0 && e.onG){ e.state='chase'; e.cd = Math.max(e.cd, 0.25); } break;
     case 'stun': e.vx = lerp(e.vx,0,Math.min(1,dt*6)); if (e.timer<=0){ e.state='chase'; e.cd=0.4; } break;
@@ -3748,7 +3766,7 @@ function updateEnemy(e, dt){
       if (e.onG) e.vx = lerp(e.vx,0,Math.min(1,dt*7));
       if (e.timer<=0 && e.onG){ e.state='chase'; e.cd=0.5; e.juggle=0; burst(e.x, GROUND, 5, '#2a1418', 130, 3); }
       break;
-    case 'block': e.vx = lerp(e.vx,0,Math.min(1,dt*6)); if (e.timer<=0){ e.state='chase'; e.cd=Math.min(e.cd,0.15); } break;
+    case 'block': e.vx = lerp(e.vx,0,Math.min(1,dt*6)); if (e.timer<=0){ e.state='chase'; e.cd = e.punish ? 0 : Math.min(e.cd,0.15); e.guardLow = false; } break;
     case 'leap':
       if (e.onG && e.timer < 0.75){ e.face = sign(dx); e.vx = 0; e.state='windup'; e.timer = e.wind*0.6; e.comboLeft=0; smoke(e.x, e.y-10, 6); }
       else if (e.timer <= -1){ e.state='chase'; }
@@ -4008,7 +4026,13 @@ function tryHitPlayer(e){
   const reach = e.T.lunge ? 50 : e.range + 10;
   if (dxp < -12 || dxp > reach) return;
   if (e.y - P.y > 46*e.size + 10) return; // jumped over it
-  if (e.sword === EFIST && !brawlContact(e)) return;   // hand to hand: only a fist or foot that touches you hurts
+  if (e.sword === EFIST){
+    const lv = BRAWL_LVL[e.bmove] || 'high';
+    if (lv === 'high' && P.crouching){ e.hitDone = true; if (!e.duckPop){ e.duckPop = true; pop(P.x, P.y-70, 'Ducked', '#FFD9B0'); } return; }   // it goes over your head
+    if (!brawlContact(e)) return;   // only a fist or foot that touches you hurts
+    e.duckPop = false;
+    if (lv === 'low' && P.blockT >= 0 && !P.crouching){ e.hitDone = true; hurtPlayer(e.dmg*0.85, 200, e, true); sfx('kick'); return; }   // a low goes under a standing guard
+  }
   e.hitDone = true;
   if (P.inv > 0) return;
   const facing = sign(e.x - P.x) === P.face;
@@ -4035,7 +4059,8 @@ function tryHitPlayer(e){
       if (hasAbil('deflect')) G.proj.push({kind:'wave', x:P.x+P.face*20, y:P.y-44, vx:P.face*700, vy:0, dmg:40*FM(), pierce:2, hit:new Set(), life:0.6, col:G.ST.trail});
       return;
     }
-    if (!isUnblockable(e) || (P.form && FORMS[P.form.id] && FORMS[P.form.id].counter)){
+    if (e.sword === EFIST && BRAWL_LVL[e.bmove] === 'mid' && P.crouching){}   // a mid hits a crouching guard
+    else if (!isUnblockable(e) || (P.form && FORMS[P.form.id] && FORMS[P.form.id].counter)){
       hurtPlayer(e.dmg*0.2*((G.ST.passive === 'stone' || G.ST.passive === 'kaal') ? 0.85 : 1), 0, e); P.vx = -P.face*240; sparks(P.x + P.face*20, P.y-44); G.hitstop=0.04; G.shake=4; sfx(e.sword === EFIST ? 'punch' : 'clang'); vib(15);
       return;
     }
@@ -4043,7 +4068,7 @@ function tryHitPlayer(e){
   if (e.sword === EFIST){   // a punch or a kick, not a cut
     const k = e.bmove && e.bmove !== 'punch';
     hurtPlayer(e.dmg*(k ? 0.95 : 0.75), k ? 380 : 230, e, true); sfx(k ? 'kick' : 'punch');
-    impactFx(P.x - e.face*4, P.y - (e.bmove === 'hkick' ? 58 : 42), '#FFD9B0', 1); return;
+    return;
   }
   hurtPlayer(e.dmg, isArmored(e) ? 520 : 300, e, true);
 }
@@ -4810,17 +4835,17 @@ function getPose(e){
     if (e.sword && e.sword.fist){   // hand to hand: guard up, then a punch or a kick
       const tm = G.time + (e.walk || 0)*0.07, mv = e.bmove, kk = mv && mv !== 'punch';
       const guard = () => { a = -0.2 + Math.sin(tm*5)*0.06; a2 = 0.45 + Math.sin(tm*5 + 1)*0.05; ext = 1.05; ext2 = 0.85; };
-      const kAim = mv === 'hkick' ? 'head' : 'body', kIK = () => { const tp = kickPoint(e, kAim, G.P); return kickIK(e, tp[0], tp[1], crouch); };
+      const kAim = mv === 'hkick' ? 'head' : mv === 'lkick' ? 'legs' : 'body', kIK = () => { const tp = kickPoint(e, kAim, G.P); return kickIK(e, tp[0], tp[1], crouch); };
       if (st==='windup'){ const p = ease(clamp(1 - e.timer/e.wind, 0, 1));
-        if (kk){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = 1; lean = (kAim === 'head' ? -0.45 : -0.28)*p; kL = kickLeg(kIK(), kAim, 0, clamp((p - 0.35)/0.65, 0, 1)); }
+        if (kk){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = kAim === 'legs' ? 4 : 1; lean = (kAim === 'head' ? -0.45 : kAim === 'legs' ? -0.15 : -0.28)*p; kL = kickLeg(kIK(), kAim, 0, clamp((p - 0.35)/0.65, 0, 1)); }
         else { a = lerp(-0.2, 0.6, p); ext = lerp(1.05, 0.62, p); a2 = 0.45; ext2 = 0.85; crouch = 3*p; lean = 0.1*p; }
       } else if (st==='swing'){ const p = Math.min(1, ease(clamp(1 - e.timer/e.swingT, 0, 1))*1.6);
-        if (kk){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = 1; lean = kAim === 'head' ? -0.45 : -0.28; kL = kickLeg(kIK(), kAim, 1, p); }
+        if (kk){ a = -0.6; a2 = -0.3; ext = 0.85; ext2 = 0.8; crouch = kAim === 'legs' ? 4 : 1; lean = kAim === 'head' ? -0.45 : kAim === 'legs' ? -0.15 : -0.28; kL = kickLeg(kIK(), kAim, 1, p); }
         else { a = lerp(0.6, -0.05, p); ext = lerp(0.62, 2.0, p); a2 = 0.5; ext2 = 0.85; lean = 0.45; crouch = 4; }
       } else if (st==='recover'){ const p = clamp(1 - e.timer/e.rec, 0, 1); guard();
         if (e.lastK){ kL = kickLeg(e.lastK.ik, e.lastK.aim, 2, clamp(p*1.6, 0, 1)); lean = -0.3*(1 - p); }
         else { a = lerp(-0.05, a, p); ext = lerp(1.5, ext, p); lean = 0.3*(1 - p); } }
-      else if (st==='block'){ a = -0.8; a2 = -0.55; ext = 0.85; ext2 = 0.75; crouch = 4; lean = -0.08; }
+      else if (st==='block'){ if (e.guardLow){ a = -0.35; a2 = 0.1; ext = 0.8; ext2 = 0.75; crouch = 15; lean = 0.15; } else { a = -0.8; a2 = -0.55; ext = 0.85; ext2 = 0.75; crouch = 4; lean = -0.08; } }
       else if (st==='chase' || st==='idle' || st==='approach'){ guard(); crouch = Math.max(crouch, 2); }
       else if (st==='leap'){ a = -0.6; a2 = -0.3; ext = 0.9; ext2 = 0.8; }
     }
