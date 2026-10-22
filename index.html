@@ -300,6 +300,21 @@ body.touch #slots{display:none}
 #arenaHud .arMid{font-size:22px;color:#FBEFE0;padding-top:12px;text-shadow:0 1px 0 #000;white-space:nowrap}
 #arenaHud .arCombo{font-size:30px;color:#FFE14D;text-shadow:0 2px 0 #000;margin-top:6px;min-height:30px}
 #arenaHud .arSide.r .arCombo{text-align:right}
+#arenaHud .arSp{height:6px;background:rgba(0,0,0,.45);margin-top:3px;display:flex;border:1px solid rgba(159,232,255,.35)}
+#arenaHud .arSp.r{justify-content:flex-end}
+#arenaHud .arSp i{display:block;height:100%;background:#4FC3FF;transition:width .15s}
+#arenaHud .arSp.full{border-color:#9FE8FF;box-shadow:0 0 10px #9FE8FF}
+#arenaHud .arSp.full i{background:linear-gradient(90deg,#9FE8FF,#FFFFFF,#9FE8FF)}
+#arHint{position:fixed;left:calc(env(safe-area-inset-left,0px) + 14px);top:calc(env(safe-area-inset-top,0px) + 86px);display:none;background:rgba(10,12,20,.72);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:8px 12px;font:12.5px/1.3 system-ui,sans-serif;color:#E8ECF5}
+#arHint.on{display:block}
+#arHint b{font-family:Teko,sans-serif;font-size:18px;color:#FFB347;letter-spacing:.06em}
+#arHint span{display:inline-block;min-width:118px;color:#FFE14D;font-weight:600}
+#arSuperBtn{position:fixed;right:calc(env(safe-area-inset-right,0px) + 18px);bottom:calc(env(safe-area-inset-bottom,0px) + 210px);pointer-events:auto;display:none;
+  font:600 20px/1 Teko,sans-serif;color:#9FE8FF;background:rgba(10,20,40,.6);border:2px solid rgba(159,232,255,.4);border-radius:12px;padding:8px 12px 5px;opacity:.55}
+#arSuperBtn small{display:block;font-size:12px;opacity:.7}
+#arSuperBtn.ready{opacity:1;border-color:#9FE8FF;box-shadow:0 0 14px #9FE8FF}
+body.touch #arSuperBtn, body.arena #arSuperBtn{display:block}
+body:not(.touch) #arSuperBtn{bottom:calc(env(safe-area-inset-bottom,0px) + 24px)}
 body.arena #hud .bars, body.arena #info, body.arena #hudCoins, body.arena #extraBtns, body.arena #slots, body.arena #combo{display:none!important}
 #trainBox .tbStep{font:600 13px/1.2 Teko,sans-serif;letter-spacing:.08em;color:#FFB347;text-transform:uppercase}
 #trainBox .tbText{font-size:16px;margin:3px 0 6px}
@@ -640,9 +655,10 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
 </div>
 <div id="slowBadge">time slowed</div>
 <div id="trainBox"></div>
-<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arCombo" id="arCombo1"></div></div>
+<div id="arenaHud"><div class="arSide"><div class="arName" style="color:#4FA8FF">You <span id="arPips1"></span></div><div class="arBar"><i id="arHp1"></i></div><div class="arSp"><i id="arSp1"></i></div><div class="arCombo" id="arCombo1"></div></div>
   <div class="arMid" id="arRound">ROUND 1</div>
-  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> Rival</div><div class="arBar r"><i id="arHp2"></i></div><div class="arCombo" id="arCombo2"></div></div></div>
+  <div class="arSide r"><div class="arName" style="color:#FF7A1A"><span id="arPips2"></span> Rival</div><div class="arBar r"><i id="arHp2"></i></div><div class="arSp r"><i id="arSp2"></i></div><div class="arCombo" id="arCombo2"></div></div>
+  <div id="arHint"></div><button id="arSuperBtn" aria-label="Lightning Fury">SUPER<small>F</small></button></div>
 <div id="bossBar"><div class="bn"><span id="bossName"></span><span id="bossPh"></span></div><div class="bb"><i id="bossFill"></i></div></div>
 <div id="toast"></div>
 <div id="formName"></div>
@@ -13964,8 +13980,10 @@ zoomPunch = visOnly(zoomPunch);
    DUELIST ARENA — one on one, thick coloured stickmen with ragdoll physics.
    A fighter is either driven by poses (control) or thrown around as a ragdoll
    (verlet points + bone constraints) after a big hit, then gets back up.
+   Moves can turn the whole body (flips), carry it (leaps, slides, dives),
+   and a full meter unlocks a scripted finisher with lightning.
    ========================================================= */
-const AR = { W:620, CEIL:-1000, GRAV:2500, STEP:1/120 };
+const AR = { W:620, CEIL:-1000, GRAV:2500, STEP:1/120, fx:[] };
 // skeleton: 0 head, 1 neck, 2 pelvis, 3 elbow F, 4 hand F, 5 elbow B, 6 hand B, 7 knee F, 8 foot F, 9 knee B, 10 foot B
 const ARB = { neckHead:18, torso:34, uArm:19, lArm:19, thigh:23, shin:23, headR:14 };
 const AR_BONES = [[0,1,ARB.neckHead],[1,2,ARB.torso],[1,3,ARB.uArm],[3,4,ARB.lArm],[1,5,ARB.uArm],[5,6,ARB.lArm],[2,7,ARB.thigh],[7,8,ARB.shin],[2,9,ARB.thigh],[9,10,ARB.shin],
@@ -13978,38 +13996,74 @@ const AR_POSE = {
   fall: { lean:0.0,  head:0.0,  fU:0.7,  fL:1.6,  bU:-0.6, bL:0.3,  fT:0.5,  fS:0.25, bT:-0.1, bS:-0.35 },
   dash: { lean:0.6,  head:0.1,  fU:-0.6, fL:-0.3, bU:-0.85,bL:-0.5, fT:0.95, fS:0.1,  bT:-0.7, bS:-1.25 },
   hurt: { lean:-0.45,head:-0.3, fU:-0.6, fL:0.4,  bU:-0.9, bL:0.2,  fT:0.45, fS:0.12, bT:-0.4, bS:-0.75 },
-  win:  { lean:-0.1, head:-0.2, fU:2.6,  fL:3.0,  bU:0.2,  bL:0.4,  fT:0.2,  fS:0.0,  bT:-0.2, bS:-0.1 }
+  win:  { lean:-0.1, head:-0.2, fU:2.6,  fL:3.0,  bU:0.2,  bL:0.4,  fT:0.2,  fS:0.0,  bT:-0.2, bS:-0.1 },
+  tuck: { lean:0.3,  head:0.2,  fU:1.2,  fL:2.4,  bU:1.0,  bL:2.2,  fT:2.1,  fS:0.4,  bT:1.9,  bS:0.2 }
 };
-/* moves: tip = the point that hits (4 front hand, 6 back hand, 8 front foot), kb = knock (x along the attacker's facing, y),
-   rag = throws the target into a ragdoll, wp / ap = pose overrides in wind-up and strike */
+/* moves:
+   tip = the point that hits (4 front hand, 6 back hand, 7 front knee, 8 front foot); kb = knock (x along the facing, y);
+   rag = throws the target into a ragdoll; wp / ap = pose in wind-up and strike; vel = body launch when the strike starts;
+   rot = whole-body turn over the strike (a flip); grav = gravity scale while striking; untilLand = active until the feet touch down;
+   low = goes under a standing guard; nm = the name shown when it lands; slow = a short cinematic slow-down on hit */
 const AR_MOVES = {
-  jab:   { wind:0.06, act:0.08, total:0.22, tip:4, dmg:5,  kb:[150,-30],  wp:{ fU:0.95, fL:2.2 },                    ap:{ lean:0.25, fU:1.57, fL:1.57 } },
-  cross: { wind:0.07, act:0.08, total:0.27, tip:6, dmg:7,  kb:[210,-60],  wp:{ bU:0.4, bL:2.6, lean:-0.05 },         ap:{ lean:0.42, bU:1.57, bL:1.57, fU:0.6, fL:2.6 } },
-  upper: { wind:0.10, act:0.10, total:0.42, tip:4, dmg:10, kb:[110,-1000], rag:true, wp:{ fU:0.15, fL:1.1, lean:0.15, fT:0.6, fS:-0.5, bT:-0.5, bS:-1.1 }, ap:{ fU:2.7, fL:2.95, lean:-0.15 } },
-  hkick: { wind:0.11, act:0.10, total:0.42, tip:8, dmg:11, kb:[560,-430], rag:true, wp:{ fT:1.7, fS:0.25, lean:-0.2, bU:-0.4, bT:-0.1, bS:-0.2 },
-           ap:{ fT:2.2, fS:2.25, lean:-0.6, bU:-0.9, bL:-0.5, fU:0.9, fL:2.8, bT:-0.12, bS:-0.18 } },
-  launch:{ wind:0.12, act:0.12, total:0.5,  tip:8, dmg:9,  kb:[70,-1180],  rag:true, wp:{ fT:-0.25, fS:-0.7, lean:0.25, bT:-0.5, bS:-1.2 },
-           ap:{ fT:2.85, fS:3.05, lean:-0.45, bT:-0.1, bS:-0.15, fU:1.2, fL:2.4 } },
-  akick: { wind:0.06, act:0.10, total:0.26, tip:8, dmg:8,  kb:[430,-260],  rag:true, air:true, wp:{ fT:1.0, fS:-0.4, lean:0.1 }, ap:{ fT:1.6, fS:1.62, lean:-0.3, bT:0.3, bS:-0.5 } },
-  apunch:{ wind:0.06, act:0.10, total:0.30, tip:4, dmg:8,  kb:[220,760],   rag:true, air:true, wp:{ fU:2.4, fL:2.8, lean:-0.1 }, ap:{ lean:0.55, fU:1.0, fL:0.85, bU:-0.6, bL:0.0 } }
+  jab:   { wind:0.06, act:0.08, total:0.22, tip:4, dmg:5,  kb:[150,-30],  wp:{ fU:0.95, fL:2.2 }, ap:{ lean:0.25, fU:1.57, fL:1.57 } },
+  cross: { wind:0.07, act:0.08, total:0.27, tip:6, dmg:7,  kb:[210,-60],  wp:{ bU:0.4, bL:2.6, lean:-0.05 }, ap:{ lean:0.42, bU:1.57, bL:1.57, fU:0.6, fL:2.6 } },
+  upper: { wind:0.10, act:0.10, total:0.42, tip:4, dmg:10, kb:[110,-1050], rag:true, slow:0.25, nm:'UPPERCUT',
+           wp:{ fU:0.15, fL:1.1, lean:0.15, fT:0.6, fS:-0.5, bT:-0.5, bS:-1.1 }, ap:{ fU:2.7, fL:2.95, lean:-0.15 } },
+  hkick: { wind:0.11, act:0.10, total:0.42, tip:8, dmg:11, kb:[560,-430], rag:true,
+           wp:{ fT:1.7, fS:0.25, lean:-0.2, bU:-0.4, bT:-0.1, bS:-0.2 }, ap:{ fT:2.2, fS:2.25, lean:-0.6, bU:-0.9, bL:-0.5, fU:0.9, fL:2.8, bT:-0.12, bS:-0.18 } },
+  launch:{ wind:0.12, act:0.12, total:0.5,  tip:8, dmg:9,  kb:[70,-1200], rag:true, slow:0.3, nm:'LAUNCHER',
+           wp:{ fT:-0.25, fS:-0.7, lean:0.25, bT:-0.5, bS:-1.2 }, ap:{ fT:2.85, fS:3.05, lean:-0.45, bT:-0.1, bS:-0.15, fU:1.2, fL:2.4 } },
+  // forward + kick: a running jump into a flying knee
+  fknee: { wind:0.08, act:0.26, total:0.5, tip:7, dmg:12, kb:[480,-560], rag:true, vel:[640,-520], noStep:true, ghost:true, nm:'FLYING KNEE',
+           wp:{ lean:0.2, fT:-0.4, fS:-1.0, bT:0.3, bS:-0.2 }, ap:{ lean:0.35, fT:1.95, fS:-0.1, bT:-0.5, bS:-1.3, fU:-0.7, fL:-0.2, bU:1.2, bL:2.6 } },
+  // back + kick: backflip, the straight leg sweeps up through the front
+  flip:  { wind:0.08, act:0.42, total:0.62, tip:8, dmg:12, kb:[160,-1150], rag:true, vel:[-120,-780], rot:[0,-6.283], noStep:true, ghost:true, slow:0.25, nm:'FLIP KICK',
+           wp:{ lean:0.1, fT:0.5, fS:-0.6, bT:-0.4, bS:-1.1 }, ap:{ lean:0.0, fT:2.5, fS:2.6, bT:-0.3, bS:-0.9, fU:-0.4, fL:0.2, bU:-0.6, bL:0.1 } },
+  // down + punch: drop to the floor and slide under, feet first — takes the legs
+  slide: { wind:0.06, act:0.30, total:0.5, tip:8, dmg:9, kb:[160,-760], rag:true, vel:[720,0], noStep:true, low:true, ghost:true, nm:'SLIDE',
+           wp:{ lean:-0.4, fT:1.0, fS:0.6, bT:0.8, bS:-1.0 }, ap:{ lean:-1.15, head:0.4, fT:1.5, fS:1.5, bT:1.05, bS:-1.6, fU:-1.6, fL:-1.0, bU:-1.9, bL:-1.4 } },
+  // forward + punch: launch the whole body, fist first
+  superman:{ wind:0.09, act:0.26, total:0.48, tip:4, dmg:11, kb:[620,-320], rag:true, vel:[760,-380], noStep:true, ghost:true, nm:'SUPERMAN PUNCH',
+           wp:{ lean:-0.1, fU:0.2, fL:-0.6, fT:0.6, fS:-0.5 }, ap:{ lean:1.25, head:-0.6, fU:1.57+1.25*0, fL:1.57, bU:-1.0, bL:-0.6, fT:-1.0, fS:-1.3, bT:-1.3, bS:-1.6 } },
+  // back + punch: a full spin, the back of the fist comes round
+  backfist:{ wind:0.10, act:0.12, total:0.44, tip:4, dmg:10, kb:[440,-240], rag:true, spinTurn:true, nm:'SPIN FIST',
+           wp:{ lean:-0.1, fU:-0.6, fL:0.2, bU:0.9, bL:2.5 }, ap:{ lean:0.2, fU:1.6, fL:1.65, bU:-0.4, bL:0.3 } },
+  akick: { wind:0.06, act:0.10, total:0.26, tip:8, dmg:8, kb:[430,-260], rag:true, air:true, wp:{ fT:1.0, fS:-0.4, lean:0.1 }, ap:{ fT:1.6, fS:1.62, lean:-0.3, bT:0.3, bS:-0.5 } },
+  apunch:{ wind:0.06, act:0.10, total:0.30, tip:4, dmg:8, kb:[220,760], rag:true, air:true, wp:{ fU:2.4, fL:2.8, lean:-0.1 }, ap:{ lean:0.55, fU:1.0, fL:0.85, bU:-0.6, bL:0.0 } },
+  // in the air, down + kick: a diagonal lightning dive
+  dive:  { wind:0.07, act:2.0, total:2.0, tip:8, dmg:12, kb:[460,-420], rag:true, air:true, vel:[720,980], grav:0, untilLand:true, noStep:true, ghost:true, bolt:true, nm:'LIGHTNING DIVE',
+           wp:{ lean:-0.2, fT:1.8, fS:0.2, bT:0.4, bS:-0.6 }, ap:{ lean:-0.35, fT:0.85, fS:0.95, bT:1.6, bS:0.4, fU:2.4, fL:2.9, bU:2.0, bL:2.6 } },
+  // in the air, down + punch: fall like a rock and crack the floor
+  slam:  { wind:0.10, act:2.0, total:2.0, tip:4, dmg:8, kb:[200,-720], rag:true, air:true, vel:[0,1500], grav:0, untilLand:true, noStep:true, ghost:true, onLand:'quake', nm:'GROUND SLAM',
+           wp:{ lean:-0.2, fU:2.9, fL:3.1, bU:2.8, bL:3.0, fT:1.2, fS:0.2, bT:1.0, bS:0.0 }, ap:{ lean:0.3, fU:0.6, fL:0.4, bU:0.5, bL:0.3, fT:0.9, fS:-0.2, bT:0.5, bS:-0.6 } },
+  // block + punch up close: grab, roll back and throw them over your head
+  grab:  { wind:0.08, act:0.10, total:0.6, tip:4, dmg:13, kb:[0,0], grab:true, unblock:true, nm:'SUPLEX',
+           wp:{ lean:0.3, fU:1.3, fL:1.4, bU:1.2, bL:1.3 }, ap:{ lean:0.35, fU:1.5, fL:1.6, bU:1.45, bL:1.5 } }
 };
 const AR_PUNCH = ['jab','cross','upper'];
+const AR_LIST = [
+  ['J J J', 'Jab, cross, uppercut (launches)'], ['U', 'Head kick'], ['Forward + U', 'Flying knee'], ['Back + U', 'Flip kick (launches)'],
+  ['Down + U  /  N', 'Launcher kick'], ['Forward + J', 'Superman punch'], ['Back + J', 'Spin fist'], ['Down + J', 'Slide under their legs'],
+  ['Air: U / J', 'Air kick / downward punch'], ['Air: Down + U', 'Lightning dive kick'], ['Air: Down + J', 'Ground slam'],
+  ['Jump at the cage', 'Wall jump'], ['K + J (close)', 'Suplex throw'], ['F (meter full)', 'LIGHTNING FURY finisher'] ];
 const arSign = v => v < 0 ? -1 : 1;
 const arShade = (hex, k) => { const n = parseInt(hex.slice(1), 16), f = v => Math.round(Math.max(0, Math.min(255, v*k)));
   return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`; };
+const arEase = q => q*q*(3 - 2*q);
 
 function arFighter(x, face, col, name, isAI){
-  const F = { x, y:0, vx:0, vy:0, face, col, name, ai:isAI ? { cd:0.8, q:[], blockT:0, plan:0, jumpT:0 } : null,
-    hp:100, maxHp:100, onG:true, jumps:2, state:'ctrl', atk:null, chainN:0, chainT:9, blocking:false, hurtT:0, dashT:0, dashCd:0,
-    inv:0, pose:Object.assign({}, AR_POSE.guard), walk:0, pts:[], prev:[], rag:null, comboN:0, comboT:0, airK:0, trail:[] };
+  const F = { x, y:0, vx:0, vy:0, face, col, name, ai:isAI ? { cd:0.8, q:[], blockT:0, jumpT:0, seen:null } : null,
+    hp:100, maxHp:100, sp:0, onG:true, jumps:2, state:'ctrl', atk:null, chainN:0, chainT:9, blocking:false, hurtT:0, dashT:0, dashCd:0,
+    inv:0, rot:0, pose:Object.assign({}, AR_POSE.guard), walk:0, pts:[], prev:[], rag:null, comboN:0, comboT:0, airK:0, trail:[], ghosts:[], ghostT:0, hold:false };
   for (let i=0;i<11;i++){ F.pts.push([x, -50]); F.prev.push([x, -50]); }
   arFK(F); return F;
 }
-/* forward kinematics: pose angles (0 = straight down, + = toward the facing side) to joint points */
+/* forward kinematics: pose angles (0 = straight down, + = toward the facing side) to joint points, then the whole-body turn */
 function arFK(F){
-  const P = F.pose, f = F.face, pt = F.pts;
+  const P = F.pose, pt = F.pts;
+  const f = F.face*((F.atk && F.atk.d.spinTurn && F.atk.t < F.atk.d.wind*0.75) ? -1 : 1);   // the spin fist turns its back first
   const hF = ARB.thigh*Math.cos(P.fT) + ARB.shin*Math.cos(P.fS), hB = ARB.thigh*Math.cos(P.bT) + ARB.shin*Math.cos(P.bS);
-  const px = F.x, py = F.y - Math.max(hF, hB, 20);              // the lower foot stands on the ground
+  const px = F.x, py = F.y - (F.onG && !F.rot ? Math.max(hF, hB, 14) : 46);   // on the ground the lower foot stands on it
   const at = (a, L, o) => [o[0] + Math.sin(a)*L*f, o[1] + Math.cos(a)*L];
   const pel = [px, py], neck = [px + Math.sin(P.lean)*ARB.torso*f, py - Math.cos(P.lean)*ARB.torso];
   const head = [neck[0] + Math.sin(P.lean + P.head)*ARB.neckHead*f, neck[1] - Math.cos(P.lean + P.head)*ARB.neckHead];
@@ -14017,18 +14071,20 @@ function arFK(F){
   const eB = at(P.bU + P.lean*0.5, ARB.uArm, neck), hBp = at(P.bL + P.lean*0.5, ARB.lArm, eB);
   const kF = at(P.fT, ARB.thigh, pel), fF = at(P.fS, ARB.shin, kF), kB = at(P.bT, ARB.thigh, pel), fB = at(P.bS, ARB.shin, kB);
   const out = [head, neck, pel, eF, hFp, eB, hBp, kF, fF, kB, fB];
-  for (let i=0;i<11;i++){ pt[i][0] = out[i][0]; pt[i][1] = out[i][1]; }
+  const r = F.rot*f, c = Math.cos(r), s = Math.sin(r), cy = py - 22;    // turn the body round its middle
+  for (let i=0;i<11;i++){ let x = out[i][0], y = out[i][1];
+    if (r){ const dx = x - px, dy = y - cy; x = px + dx*c - dy*s; y = cy + dx*s + dy*c; }
+    pt[i][0] = x; pt[i][1] = y; }
 }
 /* the pose this fighter wants right now (smoothed toward it every frame) */
 function arTargetPose(F){
   const T = Object.assign({}, AR_POSE.guard), A = F.atk;
   if (F.state === 'won') return Object.assign(T, AR_POSE.win);
+  if (F.sup) return Object.assign(T, F.sup.pose || AR_POSE.guard);
   if (F.hurtT > 0) return Object.assign(T, AR_POSE.hurt);
-  if (A){ const d = A.d; Object.assign(T, F.onG ? {} : AR_POSE.air);
-    if (A.t < d.wind) Object.assign(T, d.wp); else if (A.t < d.wind + d.act + 0.06) Object.assign(T, d.wp, d.ap); else Object.assign(T, d.wp, d.ap);
-    return T; }
+  if (A){ const d = A.d; Object.assign(T, F.onG ? {} : AR_POSE.air, d.wp); if (A.t >= d.wind) Object.assign(T, d.ap); return T; }
   if (F.dashT > 0) return Object.assign(T, AR_POSE.dash);
-  if (!F.onG) return Object.assign(T, F.vy < 0 ? AR_POSE.air : AR_POSE.fall);
+  if (!F.onG) return Object.assign(T, F.flipT > 0 ? AR_POSE.tuck : F.vy < 0 ? AR_POSE.air : AR_POSE.fall);
   if (F.blocking) return Object.assign(T, AR_POSE.block);
   const sp = Math.abs(F.vx);
   if (sp > 40){   // run cycle: legs swing, knees fold on the way back, arms swing opposite
@@ -14037,69 +14093,115 @@ function arTargetPose(F){
     T.fT = 0.1 + legA; T.fS = T.fT - Math.max(0, Math.cos(ph))*1.2*m - 0.1;
     T.bT = 0.1 + legB; T.bS = T.bT - Math.max(0, Math.cos(ph + Math.PI))*1.2*m - 0.1;
     T.lean = 0.12 + 0.22*m; T.fU = 0.55 - Math.sin(ph)*0.5*m; T.bU = 0.25 + Math.sin(ph)*0.5*m;
-  } else {        // fighting stance: a light bounce in the knees
-    const b = Math.sin(AR.t*7)*0.07; T.fS -= b; T.bS -= b*1.4; T.fT += b*0.3;
-  }
+  } else { const b = Math.sin(AR.t*7)*0.07; T.fS -= b; T.bS -= b*1.4; T.fT += b*0.3; }   // fighting stance: a light bounce
   return T;
 }
 function arStartMove(F, key, O){
   const d = AR_MOVES[key]; if (!d) return;
-  F.atk = { key, d, t:0, hit:false }; F.trail = [];
-  sfx(d.tip === 8 ? 'whoosh' : 'swish');
+  F.atk = { key, d, t:0, hit:false, launched:false }; F.trail = [];
+  sfx(d.tip >= 7 ? 'whoosh' : 'swish');
+  if (d.noStep) return;
   // step in to the distance this strike reaches, so the hand or foot really lands
-  const gap = O ? Math.abs(arRootX(O) - F.x) : 999, ideal = d.tip === 8 ? (key === 'launch' ? 40 : 50) : 38;
+  const gap = O ? Math.abs(arRootX(O) - F.x) : 999, ideal = d.tip >= 7 ? (key === 'launch' ? 40 : 50) : (key === 'grab' ? 30 : 38);
   if (gap < 170) F.vx = F.face*Math.max(-120, Math.min(F.onG ? 720 : 420, (gap - ideal)/(d.wind + d.act*0.5)));
   else if (F.onG) F.vx = F.face*(key === 'hkick' ? 160 : key === 'launch' ? 60 : 120);
 }
 /* input: I = { h:{held}, p:{pressed} } — the same for the player and the AI */
 function arControl(F, O, I, dt){
-  if (F.state !== 'ctrl') return;
+  if (F.state !== 'ctrl' || F.sup) return;
   if (F.hurtT > 0){ F.hurtT -= dt; return; }
   const h = I.h, p = I.p, mv = (h.right ? 1 : 0) - (h.left ? 1 : 0);
   if (F.dashCd > 0) F.dashCd -= dt;
   if (F.chainT < 9) F.chainT += dt;
+  if (F.flipT > 0) F.flipT -= dt;
   F.blocking = !!h.block && F.onG && !F.atk && F.dashT <= 0;
   if (!F.atk && F.onG && F.dashT <= 0) F.face = arSign(arRootX(O) - F.x);
+  const fwd = mv !== 0 && mv === F.face, back = mv !== 0 && mv === -F.face;
   if (F.dashT > 0){ F.dashT -= dt; if (!F.onG) F.vy = Math.min(F.vy, 60); }
   else if (!F.atk && !F.blocking){ const want = mv*370; F.vx += (want - F.vx)*Math.min(1, dt*(F.onG ? 14 : 4)); }
   else if (F.onG && !(F.atk && F.atk.t < F.atk.d.wind + F.atk.d.act)) F.vx += (0 - F.vx)*Math.min(1, dt*10);   // keep the step-in until the strike lands
-  if (p.jump && F.jumps > 0 && !F.blocking && !F.atk){ F.vy = F.onG ? -980 : -860; F.jumps--; F.onG = false; F.airK = 0; sfx('swish'); arDust(F.x, 0, 4); }
+  // the finisher
+  if (p.astra && F.sp >= 100 && !F.atk && Math.abs(arRootX(O) - F.x) < 420 && O.state !== 'ko'){ arSuperStart(F, O); return; }
+  // jumping, double jumps (with a tucked somersault), wall jumps off the cage
+  if (p.jump && !F.blocking && !F.atk){
+    const wall = !F.onG && Math.abs(F.x) > AR.W - 60 ? arSign(F.x) : 0;
+    if (wall && F.wallSide !== wall){ F.wallSide = wall; F.vx = -wall*720; F.vy = -900; F.face = -wall; F.jumps = 1; F.airK = 0; F.flipT = 0.35;
+      sfx('swish'); arText(F.x - wall*30, F.y - 120, 'WALL JUMP', '#9FE8FF'); arDust(wall*AR.W, F.y - 60, 4); }
+    else if (F.jumps > 0){ const first = F.onG; F.vy = first ? -980 : -880; F.jumps--; F.onG = false; F.airK = 0; if (!first) F.flipT = 0.32; sfx('swish'); if (first) arDust(F.x, 0, 4); }
+  }
   if (p.dash && F.dashCd <= 0 && !F.atk){ F.dashT = 0.18; F.dashCd = 0.55; const dir = mv || F.face; F.face = dir; F.vx = dir*980; if (!F.onG) F.vy = Math.min(F.vy, -80); sfx('dash'); }
   const wantAtk = p.attack || p.kick || p.launch;
-  if (wantAtk && (!F.atk || F.atk.t > F.atk.d.wind + F.atk.d.act + 0.03) && !F.blocking){
-    let key;
-    if (!F.onG){ if (F.airK >= 3) key = null; else { key = p.attack ? 'apunch' : 'akick'; F.airK++; } }
+  if (wantAtk && (!F.atk || (F.atk.t > F.atk.d.wind + F.atk.d.act + 0.03 && !F.atk.d.untilLand)) && (!F.blocking || p.attack)){
+    let key = null;
+    if (!F.onG){
+      if (h.down && p.kick) key = 'dive'; else if (h.down && p.attack) key = 'slam';
+      else if (F.airK < 3){ key = p.attack ? 'apunch' : 'akick'; F.airK++; }
+    } else if (p.attack && h.block) key = 'grab';
     else if (p.launch || (p.kick && h.down)) key = 'launch';
-    else if (p.kick) key = 'hkick';
+    else if (p.kick) key = fwd ? 'fknee' : back ? 'flip' : 'hkick';
+    else if (h.down) key = 'slide';
+    else if (fwd && F.chainT > 0.45) key = 'superman';
+    else if (back) key = 'backfist';
     else { F.chainN = F.chainT < 0.45 ? (F.chainN + 1) % AR_PUNCH.length : 0; key = AR_PUNCH[F.chainN]; }
-    F.chainT = 0;
+    F.chainT = 0; F.blocking = false;
     if (key) arStartMove(F, key, O);
   }
 }
-const arRootX = F => F.state === 'ctrl' ? F.x : F.pts[2][0];
-function arPhysics(F, dt){
+const arRootX = F => (F.state === 'ctrl' || F.state === 'won') ? F.x : F.pts[2][0];
+function arPhysics(F, O, dt){
   if (F.state === 'rag' || F.state === 'ko'){ arRagStep(F, dt); return; }
+  if (F.sup){ arSuperStep(F, O, dt); arGhost(F, dt, true); return; }
   if (F.state === 'getup'){ F.getT += dt; if (F.getT >= 0.45){ F.state = 'ctrl'; F.inv = 0.25; } }
   if (F.inv > 0) F.inv -= dt;
-  const g = (F.atk && F.atk.d.air && F.atk.t < F.atk.d.wind + F.atk.d.act) ? 0.35 : 1;   // a short hang while kicking in the air
+  const A = F.atk, d = A && A.d, striking = A && A.t >= d.wind && A.t < d.wind + d.act;
+  if (A && !A.launched && A.t >= d.wind){ A.launched = true;   // the body takes off with the strike
+    if (d.vel){ F.vx = F.face*d.vel[0]; if (d.vel[1]) { F.vy = d.vel[1]; if (d.vel[1] < 0) F.onG = false; } }
+    if (d.bolt) F.boltFrom = [F.pts[8][0], F.pts[8][1]]; }
+  const g = (A && d.grav !== undefined && striking) ? d.grav : (A && d.air && striking) ? 0.35 : 1;
   F.vy += AR.GRAV*g*dt; F.x += F.vx*dt; F.y += F.vy*dt;
-  if (F.y >= 0){ if (!F.onG && F.vy > 500) arDust(F.x, 0, 5); F.y = 0; F.vy = 0; F.onG = true; F.jumps = 2; F.airK = 0; } else F.onG = false;
+  if (A && A.key === 'slide' && striking) F.vx *= Math.pow(0.12, dt);   // a slide slows down along the floor
+  const wasAir = !F.onG;
+  if (F.y >= 0){ if (wasAir && F.vy > 500) arDust(F.x, 0, 5); F.y = 0; F.vy = 0; F.onG = true; F.jumps = 2; F.airK = 0; F.wallSide = 0;
+    if (A && d.untilLand && A.t >= d.wind){ if (d.onLand === 'quake') arQuake(F, O); else { arDust(F.x, 0, 7); F.vx *= 0.3; } F.atk = null; }
+  } else F.onG = false;
   if (F.y < AR.CEIL + 120){ F.y = AR.CEIL + 120; F.vy = Math.max(0, F.vy); }
-  F.x = Math.max(-AR.W + 24, Math.min(AR.W - 24, F.x));
+  if (Math.abs(F.x) > AR.W - 24){ F.x = arSign(F.x)*(AR.W - 24); if (F.atk && F.atk.d.untilLand) F.vx = 0; }
   if (F.onG && F.dashT <= 0 && !F.atk && Math.abs(F.vx) > 40) F.walk += dt*Math.abs(F.vx)*0.034;
-  if (F.atk){ F.atk.t += dt; if (F.atk.t >= F.atk.d.total) F.atk = null; }
+  if (F.atk){ F.atk.t += dt; if (F.atk.t >= F.atk.d.total && !F.atk.d.untilLand) F.atk = null; }
+  // whole-body turn: flips during their strike, a quick tuck on a double jump
+  if (F.atk && F.atk.d.rot){ const q = Math.min(1, Math.max(0, (F.atk.t - F.atk.d.wind)/F.atk.d.act)); F.rot = F.atk.d.rot[0] + (F.atk.d.rot[1] - F.atk.d.rot[0])*arEase(q); }
+  else if (F.flipT > 0 && !F.onG) F.rot = -6.283*arEase(1 - F.flipT/0.34);
+  else F.rot = 0;
+  if (F.onG && !F.atk) F.rot = 0;
   // pose: ease every angle toward the target, fast while striking
   const T = arTargetPose(F), k = Math.min(1, dt*((F.atk && F.atk.t >= F.atk.d.wind) ? 38 : F.atk ? 26 : 16));
   for (const key of AR_KEYS) F.pose[key] += (T[key] - F.pose[key])*k;
   if (F.state === 'getup'){
-    arFK(F); const q = Math.min(1, F.getT/0.45), e = q*q*(3 - 2*q);
+    arFK(F); const e = arEase(Math.min(1, F.getT/0.45));
     for (let i=0;i<11;i++){ F.pts[i][0] = F.ragFrom[i][0] + (F.pts[i][0] - F.ragFrom[i][0])*e; F.pts[i][1] = F.ragFrom[i][1] + (F.pts[i][1] - F.ragFrom[i][1])*e; }
   } else arFK(F);
-  if (F.atk && F.atk.t >= F.atk.d.wind - 0.02 && F.atk.t <= F.atk.d.wind + F.atk.d.act + 0.04){ const tp = F.pts[F.atk.d.tip]; F.trail.push([tp[0], tp[1], 0.16]); }
+  if (F.atk && F.atk.t >= F.atk.d.wind - 0.02 && F.atk.t <= F.atk.d.wind + Math.min(F.atk.d.act, 0.45) + 0.04){ const tp = F.pts[F.atk.d.tip]; F.trail.push([tp[0], tp[1], 0.16]); }
+  arGhost(F, dt, (F.atk && F.atk.d.ghost && F.atk.t >= F.atk.d.wind) || F.dashT > 0 || F.flipT > 0);
+}
+function arGhost(F, dt, on){
+  F.ghostT -= dt;
+  if (on && F.ghostT <= 0){ F.ghostT = 0.035; F.ghosts.push({ p:F.pts.map(q => [q[0], q[1]]), a:0.4 }); if (F.ghosts.length > 7) F.ghosts.shift(); }
+  for (const g of F.ghosts) g.a -= dt*1.6; F.ghosts = F.ghosts.filter(g => g.a > 0);
+}
+/* ground slam: a shockwave along the floor */
+function arQuake(F, O){
+  AR.shake = Math.max(AR.shake, 12); sfx('boom'); arRing(F.x, 0, 190, '#FFE7A8'); arDust(F.x, 0, 14);
+  const dx = arRootX(O) - F.x;
+  if (Math.abs(dx) > 190 || O.state === 'ko' || O.inv > 0) return;
+  const dir = arSign(dx);
+  if (O.state === 'rag'){ if (O.pts[2][1] > -60){ for (let i=0;i<11;i++){ O.prev[i][1] += 760*AR.STEP; O.prev[i][0] -= dir*180*AR.STEP; } O.rag.t = Math.min(O.rag.t, 0.3); O.hp = Math.max(0, O.hp - 6); arText(O.pts[2][0], -150, 'BOUNCE!', '#FFE7A8'); } return; }
+  if (!O.onG) return;
+  O.hp = Math.max(0, O.hp - 8); F.sp = Math.min(100, F.sp + 10); arToRag(O, dir*200, -760, dir*200);
+  arText(O.x, -150, 'GROUND SLAM', '#FFE7A8'); if (O.hp <= 0) O.state = 'ko';
 }
 /* ---------- ragdoll ---------- */
 function arToRag(F, vx, vy, spin){
-  F.state = F.hp <= 0 ? 'ko' : 'rag'; F.atk = null; F.blocking = false; F.hurtT = 0;
+  F.state = F.hp <= 0 ? 'ko' : 'rag'; F.atk = null; F.blocking = false; F.hurtT = 0; F.rot = 0; F.sup = null;
   F.rag = { t:0, still:0 };
   const dt = AR.STEP;
   for (let i=0;i<11;i++){
@@ -14109,10 +14211,10 @@ function arToRag(F, vx, vy, spin){
 }
 function arRagStep(F, dt){
   const R = F.rag; R.t += dt;
-  const n = Math.max(1, Math.round(dt/AR.STEP)), h = dt/n, g = AR.GRAV*h*h;
+  const n = Math.max(1, Math.round(dt/AR.STEP)), h = dt/n, g = F.hold ? 0 : AR.GRAV*h*h, damp = F.hold ? 0.9 : 0.998;
   for (let s=0; s<n; s++){
     for (let i=0;i<11;i++){
-      const p = F.pts[i], q = F.prev[i], vx = (p[0] - q[0])*0.998, vy = (p[1] - q[1])*0.998;
+      const p = F.pts[i], q = F.prev[i], vx = (p[0] - q[0])*damp, vy = (p[1] - q[1])*damp;
       q[0] = p[0]; q[1] = p[1]; p[0] += vx; p[1] += vy + g;
     }
     for (let it=0; it<5; it++){
@@ -14123,19 +14225,18 @@ function arRagStep(F, dt){
       }
       for (let i=0;i<11;i++){ const p = F.pts[i], q = F.prev[i], r = i === 0 ? ARB.headR : 5;
         if (p[1] > -r){ const vy = p[1] - q[1], vx = p[0] - q[0]; p[1] = -r; q[1] = p[1] + vy*0.35; q[0] = p[0] - vx*0.8;   // floor: bounce a little, slide with friction
-          if (vy > 9 && i === 2) arDust(p[0], 0, 4); }
+          if (vy > 9 && i === 2) arDust(p[0], 0, 4); if (vy > 14 && i === 2 && F.slamOnLand){ F.slamOnLand = false; AR.shake = Math.max(AR.shake, 10); sfx('boom'); arRing(p[0], 0, 120, '#FFFFFF'); } }
         if (p[0] < -AR.W + r){ const vx = p[0] - q[0]; p[0] = -AR.W + r; q[0] = p[0] + vx*0.55; if (vx < -8 && i === 2) arWallHit(F, -1); }   // the cage throws them back
         if (p[0] >  AR.W - r){ const vx = p[0] - q[0]; p[0] =  AR.W - r; q[0] = p[0] + vx*0.55; if (vx >  8 && i === 2) arWallHit(F, 1); }
         if (p[1] < AR.CEIL + r){ p[1] = AR.CEIL + r; q[1] = p[1]; }
       }
     }
   }
-  // settled on the floor? get up (a knocked-out fighter stays down)
   let sp = 0; for (let i=0;i<11;i++) sp += Math.abs(F.pts[i][0] - F.prev[i][0]) + Math.abs(F.pts[i][1] - F.prev[i][1]);
   R.still = (sp < 2.2*(dt*120) && F.pts[2][1] > -40) ? R.still + dt : 0;
-  if (F.state === 'rag' && R.t > 0.5 && (R.still > 0.18 || R.t > 2.6)){
+  if (F.state === 'rag' && !F.hold && R.t > 0.5 && (R.still > 0.18 || R.t > 2.6)){
     F.state = 'getup'; F.getT = 0; F.ragFrom = F.pts.map(p => [p[0], p[1]]);
-    F.x = Math.max(-AR.W + 30, Math.min(AR.W - 30, F.pts[2][0])); F.y = 0; F.vx = 0; F.vy = 0; F.onG = true; F.jumps = 2;
+    F.x = Math.max(-AR.W + 30, Math.min(AR.W - 30, F.pts[2][0])); F.y = 0; F.vx = 0; F.vy = 0; F.onG = true; F.jumps = 2; F.rot = 0;
     F.pose = Object.assign({}, AR_POSE.guard); sfx('swish');
   }
 }
@@ -14147,31 +14248,38 @@ function arWallHit(F, side){
 /* ---------- hits ---------- */
 const arDistSeg = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l = dx*dx + dy*dy || 1, t = Math.max(0, Math.min(1, ((px - ax)*dx + (py - ay)*dy)/l));
   return Math.hypot(px - (ax + dx*t), py - (ay + dy*t)); };
-function arTouches(tip, O){
-  const p = O.pts;
-  if (Math.hypot(tip[0] - p[0][0], tip[1] - p[0][1]) < ARB.headR + 7) return true;
-  if (arDistSeg(tip[0], tip[1], p[1][0], p[1][1], p[2][0], p[2][1]) < 13) return true;
-  if (arDistSeg(tip[0], tip[1], p[2][0], p[2][1], p[7][0], p[7][1]) < 11) return true;
-  if (arDistSeg(tip[0], tip[1], p[2][0], p[2][1], p[9][0], p[9][1]) < 11) return true;
+function arTouches(tip, O, pad){
+  const p = O.pts, e = pad || 0;
+  if (Math.hypot(tip[0] - p[0][0], tip[1] - p[0][1]) < ARB.headR + 7 + e) return true;
+  if (arDistSeg(tip[0], tip[1], p[1][0], p[1][1], p[2][0], p[2][1]) < 13 + e) return true;
+  for (const [a, b] of [[2,7],[7,8],[2,9],[9,10]]) if (arDistSeg(tip[0], tip[1], p[a][0], p[a][1], p[b][0], p[b][1]) < 10 + e) return true;
   return false;
 }
 function arHits(F, O){
-  const A = F.atk; if (!A || A.hit) return;
+  const A = F.atk; if (!A || A.hit || F.sup) return;
   if (A.t < A.d.wind || A.t > A.d.wind + A.d.act) return;
-  if (O.state === 'ko' || O.state === 'getup' || O.inv > 0) return;
-  const tip = F.pts[A.d.tip]; if (!arTouches(tip, O)) return;
-  A.hit = true; const d = A.d, dir = F.face;
-  // blocked: standing guard, facing the attacker
-  if (O.state === 'ctrl' && O.blocking && arSign(F.x - O.x) === O.face){
+  if (O.state === 'ko' || O.state === 'getup' || O.inv > 0 || O.sup) return;
+  const d = A.d, tip = F.pts[d.tip];
+  if (!arTouches(tip, O, d.grab ? 10 : d.untilLand ? 6 : 0)) return;
+  if (d.grab && (O.state !== 'ctrl' || !O.onG)) return;
+  A.hit = true; const dir = F.face;
+  // blocked: a standing guard facing the attacker stops everything except lows, throws and the finisher
+  if (O.state === 'ctrl' && O.blocking && !d.low && !d.unblock && arSign(F.x - O.x) === O.face){
     O.vx = dir*260; F.vx = -dir*140; arSpark(tip[0], tip[1], '#9FD3FF', 1); sfx('parry'); arText(O.x, -130, 'BLOCK', '#9FD3FF');
-    if (O.ai) O.ai.cd = Math.min(O.ai.cd, 0.05);   // they hit back at once
+    O.sp = Math.min(100, O.sp + 4); if (O.ai) O.ai.cd = Math.min(O.ai.cd, 0.05);   // they hit back at once
+    if (d.untilLand){ F.vy = -500; F.vx = -dir*300; F.atk = null; }
     return;
   }
+  if (d.grab){ arSuplex(F, O); return; }
   const juggle = O.state === 'rag';
   O.hp = Math.max(0, O.hp - d.dmg*(juggle ? 0.8 : 1));
+  F.sp = Math.min(100, F.sp + 7); O.sp = Math.min(100, O.sp + 4);
   F.comboN = F.comboT > 0 ? F.comboN + 1 : 1; F.comboT = 1.0;
-  arSpark(tip[0], tip[1], d.tip === 8 ? '#FFFFFF' : '#FFF1C2', d.rag ? 1.4 : 0.9);
-  sfx(d.tip === 8 ? 'kick' : 'punch'); if (d.rag) AR.shake = Math.max(AR.shake, 5);
+  arSpark(tip[0], tip[1], d.tip >= 7 ? '#FFFFFF' : '#FFF1C2', d.rag ? 1.4 : 0.9);
+  sfx(d.tip >= 7 ? 'kick' : 'punch'); if (d.rag) AR.shake = Math.max(AR.shake, 5);
+  if (d.nm) arText(tip[0], tip[1] - 50, d.nm, d.bolt ? '#9FE8FF' : '#FFE14D');
+  if (d.bolt){ arBolt(tip[0], AR.CEIL, tip[0], tip[1], '#9FE8FF'); F.vy = -620; F.vx = -dir*200; F.atk = null; F.flipT = 0.34; }   // bounce off the hit with a flip
+  if (d.slow && !juggle) AR.slow = Math.max(AR.slow, d.slow);
   if (O.hp <= 0){   // knock-out: a big send-off and slow motion
     arToRag(O, dir*(Math.abs(d.kb[0]) + 300), Math.min(d.kb[1], -620), dir*260); AR.slow = 1.1; sfx('boom'); return;
   }
@@ -14181,39 +14289,109 @@ function arHits(F, O){
     O.rag.t = Math.min(O.rag.t, 0.3); O.rag.still = 0;
     return;
   }
-  if (d.rag || !O.onG){ arToRag(O, dir*d.kb[0], d.kb[1], dir*(d.tip === 8 ? 240 : 140)); return; }
+  if (d.rag || !O.onG){ arToRag(O, dir*d.kb[0], d.kb[1], dir*(d.tip >= 7 ? 240 : 140)); return; }
   O.hurtT = 0.28; O.atk = null; O.vx = dir*d.kb[0]; O.blocking = false;
+}
+/* the suplex: lift them over your head, roll back, slam them into the floor behind */
+function arSuplex(F, O){
+  O.hp = Math.max(0, O.hp - 13); F.sp = Math.min(100, F.sp + 10);
+  arText(F.x, -170, 'SUPLEX!', '#FFB347'); sfx('kick');
+  O.x = F.x; arToRag(O, -F.face*380, -980, -F.face*420); O.slamOnLand = true;
+  F.vy = -420; F.onG = false; F.vx = -F.face*120; F.flipT = 0.34; F.atk = null;
+  AR.slow = Math.max(AR.slow, 0.35);
+}
+/* ---------- LIGHTNING FURY: the finisher ---------- */
+function arSuperStart(F, O){
+  F.sp = 0; F.atk = null; F.blocking = false; F.sup = { t:0, n:0, stage:0, pose:null };
+  const ox = arRootX(O);
+  // pin the target in the air for the barrage
+  if (O.state !== 'rag'){ arToRag(O, 0, -260, 0); }
+  O.hold = true; O.rag.t = 0;
+  arBolt(F.x, AR.CEIL, F.x, F.y - 60, '#9FE8FF');
+  F.x = ox - F.face*58; F.y = Math.min(0, O.pts[2][1] + 46); F.onG = F.y >= 0;
+  callout('FURY!', '#9FE8FF', 1.0, 'Lightning fury', 'LIGHTNING FURY');
+  AR.slow = 0.25; AR.shake = 6; sfx('boom');
+}
+function arSuperStep(F, O, dt){
+  const S = F.sup; S.t += dt;
+  const ox = O.pts[2][0], oy = O.pts[2][1];
+  const strikes = [['jab',4], ['cross',6], ['hkick',8], ['fknee',7], ['cross',6], ['jab',4]];
+  if (S.stage === 0){   // a barrage of six blows, each landing for real
+    F.x += ((ox - F.face*54) - F.x)*Math.min(1, dt*12); F.y += (Math.min(0, oy + 46) - F.y)*Math.min(1, dt*12); F.onG = F.y >= -1;
+    const i = Math.floor(S.t/0.11);
+    if (i < strikes.length){ const mv = AR_MOVES[strikes[i][0]]; S.pose = Object.assign({}, AR_POSE.guard, mv.wp, (S.t % 0.11) > 0.04 ? mv.ap : {});
+      if (i >= S.n && (S.t % 0.11) > 0.05){ S.n = i + 1; const tp = F.pts[strikes[i][1]];
+        O.hp = Math.max(1, O.hp - 3.5); arSpark(tp[0], tp[1], '#9FE8FF', 1.1); sfx(strikes[i][1] >= 7 ? 'kick' : 'punch'); AR.shake = Math.max(AR.shake, 4);
+        F.comboN = (F.comboT > 0 ? F.comboN : 0) + 1; F.comboT = 1.2;
+        for (let k=0;k<11;k++){ O.prev[k][0] -= F.face*30*AR.STEP; } } }
+    else { S.stage = 1; S.t = 0; S.pose = Object.assign({}, AR_POSE.guard, AR_MOVES.upper.ap);   // the uppercut sends them sky high
+      O.hold = false; for (let k=0;k<11;k++){ O.prev[k][1] = O.pts[k][1] + 1500*AR.STEP; O.prev[k][0] = O.pts[k][0] - F.face*80*AR.STEP; }
+      O.hp = Math.max(1, O.hp - 4); arText(ox, oy - 80, 'UP!', '#9FE8FF'); sfx('kick'); F.vy = -1350; F.vx = F.face*60; F.onG = false; }
+  } else if (S.stage === 1){   // chase them up
+    F.vy += AR.GRAV*0.8*dt; F.x += F.vx*dt; F.y += F.vy*dt; S.pose = Object.assign({}, AR_POSE.tuck); F.rot = -6.283*Math.min(1, S.t/0.45);
+    if (S.t > 0.5 || F.vy > 0){ S.stage = 2; S.t = 0; F.rot = 0; F.face = arSign(ox - F.x) || F.face;
+      const tx = ox, ty = oy, dx = tx - F.x, dy = ty - F.y, L = Math.hypot(dx, dy) || 1; F.vx = dx/L*1900; F.vy = dy/L*1900; S.from = [F.x, F.y - 40]; }
+  } else if (S.stage === 2){   // the lightning dive
+    S.pose = Object.assign({}, AR_POSE.guard, AR_MOVES.dive.ap); F.x += F.vx*dt; F.y += F.vy*dt;
+    const tp = F.pts[8];
+    if (Math.hypot(tp[0] - ox, tp[1] - oy) < 46 || S.t > 0.35 || F.y >= 0){
+      S.stage = 3; S.t = 0; arBolt(ox, AR.CEIL, ox, oy, '#FFFFFF'); arBolt(S.from[0], S.from[1], ox, oy, '#9FE8FF');
+      O.hp = Math.max(0, O.hp - 10); const dir = F.face;
+      for (let k=0;k<11;k++){ O.prev[k][1] = O.pts[k][1] - 1700*AR.STEP; O.prev[k][0] = O.pts[k][0] - dir*260*AR.STEP; }
+      O.slamOnLand = true; if (O.hp <= 0) O.state = 'ko';
+      AR.shake = 16; AR.slow = 0.6; sfx('boom'); arText(ox, oy - 90, 'LIGHTNING FURY!', '#9FE8FF');
+      F.vx = -dir*260; F.vy = -520; }
+  } else {   // land
+    F.vy += AR.GRAV*dt; F.x += F.vx*dt; F.y += F.vy*dt; S.pose = Object.assign({}, AR_POSE.air);
+    if (F.y >= 0){ F.y = 0; F.vy = 0; F.vx = 0; F.onG = true; F.sup = null; F.rot = 0; arDust(F.x, 0, 6); }
+  }
+  F.x = Math.max(-AR.W + 24, Math.min(AR.W - 24, F.x)); if (F.y > 0) F.y = 0;
+  if (F.sup && S.stage !== 1) F.rot = 0;
+  const T = arTargetPose(F), k = Math.min(1, dt*36); for (const key of AR_KEYS) F.pose[key] += (T[key] - F.pose[key])*k;
+  arFK(F);
 }
 /* ---------- effects ---------- */
 function arSpark(x, y, col, s){ AR.fx.push({ k:'spark', x, y, col, s, t:0, d:0.18, a:Math.random()*3 }); }
 function arDust(x, y, n){ for (let i=0;i<n;i++) AR.fx.push({ k:'dust', x:x + (Math.random()-0.5)*30, y:y - 3, vx:(Math.random()-0.5)*160, vy:-Math.random()*90, t:0, d:0.45, r:5 + Math.random()*6 }); }
-function arText(x, y, txt, col){ AR.fx.push({ k:'txt', x, y, txt, col, t:0, d:0.8 }); }
+function arText(x, y, txt, col){ AR.fx.push({ k:'txt', x, y, txt, col, t:0, d:0.9 }); }
+function arRing(x, y, r, col){ AR.fx.push({ k:'ring', x, y, r, col, t:0, d:0.35 }); }
+function arBolt(x1, y1, x2, y2, col){ AR.fx.push({ k:'bolt', x1, y1, x2, y2, col, t:0, d:0.32 }); }
 /* ---------- AI ---------- */
 function arAI(F, O, dt){
   const A = F.ai, I = { h:{}, p:{} }, sk = AR.skill;
-  if (F.state !== 'ctrl' || AR.phase !== 'fight') return I;
+  if (F.state !== 'ctrl' || F.sup || AR.phase !== 'fight') return I;
   A.cd -= dt; A.blockT -= dt; A.jumpT -= dt;
   const ox = arRootX(O), dx = ox - F.x, dist = Math.abs(dx), toward = dx > 0 ? 'right' : 'left', away = dx > 0 ? 'left' : 'right';
+  const press = (cmd) => {   // 'fwd+kick', 'down+attack', 'back+kick', 'grab', 'super', 'jump', 'airdive', ...
+    const [a, b] = cmd.includes('+') ? cmd.split('+') : [null, cmd];
+    if (a === 'fwd') I.h[toward] = true; if (a === 'back') I.h[away] = true; if (a === 'down') I.h.down = true;
+    if (b === 'grab'){ I.h.block = true; I.p.attack = true; } else if (b === 'super') I.p.astra = true; else I.p[b] = true; };
+  if (F.sp >= 100 && dist < 300 && O.state !== 'ko' && Math.random() < 0.05*sk){ press('super'); return I; }
   if (O.state === 'rag'){   // chase the body and keep the juggle going
     const py = O.pts[2][1];
     if (dist > 70) I.h[toward] = true;
     if (py < -70 && dist < 160 && F.onG && A.jumpT <= 0 && Math.random() < 0.08*sk){ I.p.jump = true; A.jumpT = 0.6; }
     if (!F.onG && dist < 95 && Math.abs(py - F.pts[2][1]) < 110 && A.cd <= 0){ I.p.kick = true; A.cd = 0.22; }
-    else if (F.onG && dist < 80 && py > -150 && py < -30 && A.cd <= 0){ I.p[Math.random() < 0.5 ? 'launch' : 'attack'] = true; A.cd = 0.35; }
+    else if (!F.onG && F.pts[2][1] < py - 80 && dist < 160 && A.cd <= 0){ press('down+kick'); A.cd = 0.5; }
+    else if (F.onG && dist < 80 && py > -150 && py < -30 && A.cd <= 0){ press(Math.random() < 0.5 ? 'launch' : 'attack'); A.cd = 0.35; }
     return I;
   }
   if (O.state !== 'ctrl'){ if (dist < 160) I.h[away] = true; return I; }
-  // defend: see the strike coming and raise the guard
-  if (O.atk && O.atk !== A.seen && O.atk.t < O.atk.d.wind && dist < 150){ A.seen = O.atk; if (Math.random() < 0.42*sk) A.blockT = 0.35; }   // one decision per incoming strike
+  // defend: see the strike coming and decide once whether to guard it
+  if (O.atk && O.atk !== A.seen && O.atk.t < O.atk.d.wind && dist < 160){ A.seen = O.atk; if (!O.atk.d.low && Math.random() < 0.42*sk) A.blockT = 0.35; }
   if (A.blockT > 0){ I.h.block = true; return I; }
-  if (A.q.length){ if (!F.atk || F.atk.t > F.atk.d.wind + F.atk.d.act + 0.04){ I.p[A.q.shift()] = true; } return I; }
+  if (A.q.length){ if (!F.atk || F.atk.t > F.atk.d.wind + F.atk.d.act + 0.04){ press(A.q.shift()); } return I; }
+  if (!F.onG){ if (dist < 200 && F.vy > -200 && A.cd <= 0 && Math.random() < 0.3){ press(Math.random() < 0.6 ? 'down+kick' : 'down+attack'); A.cd = 0.6; } return I; }
   if (dist > 150){
     I.h[toward] = true;
     if (dist > 320 && Math.random() < 0.012*sk && F.dashCd <= 0) I.p.dash = true;
-    if (dist < 330 && dist > 200 && F.onG && Math.random() < 0.01*sk){ I.p.jump = true; A.q = ['kick']; }
-  } else if (dist < 55){ I.h[away] = true; }
+    if (dist < 330 && dist > 180 && Math.random() < 0.012*sk){ A.q = [Math.random() < 0.5 ? 'fwd+kick' : 'fwd+attack']; }
+    else if (dist < 360 && dist > 160 && Math.random() < 0.008*sk){ I.p.jump = true; A.cd = 0.15; }
+  } else if (dist < 55){ if (O.blocking && Math.random() < 0.3*sk) A.q = ['grab']; else I.h[away] = true; }
   else if (A.cd <= 0){
-    const plans = [['attack','attack','attack'], ['attack','attack','kick'], ['kick'], ['launch'], ['attack','launch'], ['attack','attack']];
+    const plans = [['attack','attack','attack'], ['attack','attack','kick'], ['kick'], ['launch'], ['attack','launch'], ['back+kick'], ['down+attack'],
+                   ['attack','back+attack'], ['fwd+kick'], ['attack','attack','back+kick']];
+    if (O.blocking) plans.push(['grab'], ['down+attack']);
     A.q = plans[(Math.random()*plans.length)|0].slice(); A.cd = (0.55 + Math.random()*0.7)/sk;
   } else if (Math.random() < 0.02) I.h[Math.random() < 0.5 ? toward : away] = true;   // footsies
   return I;
@@ -14224,37 +14402,41 @@ function startArena(){
   resetCommon(); G.E = [];
   document.body.classList.add('arena', 'fistmode');
   AR.wins = [0, 0]; AR.round = 0; AR.skill = 0.75;
+  const hint = $('arHint'); if (hint) hint.innerHTML = '<b>MOVES</b>' + AR_LIST.map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join('');
+  const sb = $('arSuperBtn'); if (sb && !sb.bound){ sb.bound = true; sb.addEventListener('pointerdown', ev => { ev.preventDefault(); pressed.astra = true; }); }
   arNewRound();
   setScreen(null); G.running = true;
 }
 function arNewRound(){
   AR.round++; AR.t = 0; AR.phase = 'intro'; AR.phaseT = 0; AR.fx = []; AR.shake = 0; AR.slow = 0; AR.ts = 1;
+  const keep1 = AR.p1 ? AR.p1.sp : 0, keep2 = AR.p2 ? AR.p2.sp : 0;
   AR.p1 = arFighter(-200, 1, '#4FA8FF', 'You', false);
   AR.p2 = arFighter(200, -1, '#FF7A1A', 'Rival', true);
+  if (AR.round > 1){ AR.p1.sp = keep1; AR.p2.sp = keep2; }   // the meter carries over between rounds
   AR.cam = { x:0, y:-150, z:1 };
   AR.skill = 0.7 + 0.12*(AR.round - 1) + 0.1*AR.wins[0];
   callout(`ROUND ${AR.round}`, '#FBEFE0', 0.9, `Round ${AR.round}`, 'Duelist Arena');
+  const hint = $('arHint'); if (hint){ hint.classList.toggle('on', AR.round === 1); AR.hintT = AR.round === 1 ? 7 : 0; }
   arHud();
 }
 function arStep(dt){
   AR.phaseT += dt;
   if (AR.slow > 0){ AR.slow -= dt; AR.ts = 0.3; } else AR.ts = 1;
+  if (AR.hintT > 0){ AR.hintT -= dt; if (AR.hintT <= 0){ const hint = $('arHint'); if (hint) hint.classList.remove('on'); } }
   const d = dt*AR.ts; AR.t += d;
   const P1 = AR.p1, P2 = AR.p2;
   if (AR.phase === 'intro' && AR.phaseT > 1.2){ AR.phase = 'fight'; callout('FIGHT!', '#FFB347', 0.8, 'Fight!'); }
   const I1 = AR.phase === 'fight' ? { h:held, p:pressed } : { h:{}, p:{} };
   const I2 = arAI(P2, P1, d);
   arControl(P1, P2, I1, d); arControl(P2, P1, I2, d);
-  arPhysics(P1, d); arPhysics(P2, d);
-  // bodies don't pass through each other
-  if (P1.state === 'ctrl' && P2.state === 'ctrl' && Math.abs(P1.x - P2.x) < 34 && Math.abs(P1.y - P2.y) < 70){
+  arPhysics(P1, P2, d); arPhysics(P2, P1, d);
+  if (P1.state === 'ctrl' && P2.state === 'ctrl' && !P1.sup && !P2.sup && Math.abs(P1.x - P2.x) < 34 && Math.abs(P1.y - P2.y) < 70){   // bodies don't pass through
     const m = (P1.x + P2.x)/2, s = arSign(P1.x - P2.x); P1.x = m + s*17; P2.x = m - s*17; }
   if (AR.phase === 'fight'){ arHits(P1, P2); arHits(P2, P1); }
   for (const F of [P1, P2]){ if (F.comboT > 0) F.comboT -= d; for (const q of F.trail) q[2] -= d; F.trail = F.trail.filter(q => q[2] > 0); }
   for (const e of AR.fx){ e.t += d; if (e.k === 'dust'){ e.x += e.vx*d; e.y += e.vy*d; e.vy += 200*d; } }
   AR.fx = AR.fx.filter(e => e.t < e.d);
   if (AR.shake > 0) AR.shake = Math.max(0, AR.shake - dt*30);
-  // the round ends with a knockout
   if (AR.phase === 'fight' && (P1.state === 'ko' || P2.state === 'ko')){
     AR.phase = 'ko'; AR.phaseT = 0; const won = P2.state === 'ko' ? 0 : 1; AR.wins[won]++;
     const w = won === 0 ? P1 : P2; w.atk = null; w.blocking = false;
@@ -14262,8 +14444,8 @@ function arStep(dt){
   }
   if (AR.phase === 'ko'){
     const w = AR.p1.state === 'ko' ? AR.p2 : AR.p1;
-    if (w.state === 'ctrl' && w.onG && AR.phaseT > 0.8) w.state = 'won';
-    if (AR.phaseT > 3.2){ if (AR.wins[0] >= 2 || AR.wins[1] >= 2) arEnd(); else arNewRound(); }
+    if (w.state === 'ctrl' && w.onG && !w.sup && AR.phaseT > 0.8) w.state = 'won';
+    if (AR.phaseT > 3.4){ if (AR.wins[0] >= 2 || AR.wins[1] >= 2) arEnd(); else arNewRound(); }
   }
   arCamera(dt); arHud();
 }
@@ -14271,7 +14453,7 @@ function arCamera(dt){
   const a = AR.p1.pts[2], b = AR.p2.pts[2], C = AR.cam;
   const cx = (a[0] + b[0])/2, cy = Math.min(-150, (a[1] + b[1])/2 - 40);
   const span = Math.abs(a[0] - b[0]) + 320, hspan = Math.abs(a[1] - b[1]) + 380;
-  const z = Math.max(0.55, Math.min(1.3, Math.min(VW*0.95/span, VH*0.95/hspan)));
+  const z = Math.max(0.5, Math.min(1.3, Math.min(VW*0.95/span, VH*0.95/hspan)));
   const k = Math.min(1, dt*4); C.x += (cx - C.x)*k; C.y += (cy - C.y)*k; C.z += (z - C.z)*k;
   const halfW = VW/2/C.z; C.x = Math.max(-AR.W - 60 + halfW, Math.min(AR.W + 60 - halfW, C.x));
   if (halfW > AR.W + 60) C.x = 0;
@@ -14281,18 +14463,21 @@ function arHud(){
   el.classList.toggle('on', G.mode === 'arena' && G.running);
   const P1 = AR.p1, P2 = AR.p2; if (!P1) return;
   $('arHp1').style.width = (P1.hp/P1.maxHp*100) + '%'; $('arHp2').style.width = (P2.hp/P2.maxHp*100) + '%';
+  $('arSp1').style.width = P1.sp + '%'; $('arSp2').style.width = P2.sp + '%';
+  $('arSp1').parentNode.classList.toggle('full', P1.sp >= 100); $('arSp2').parentNode.classList.toggle('full', P2.sp >= 100);
   $('arPips1').textContent = '●'.repeat(AR.wins[0]) + '○'.repeat(2 - AR.wins[0]);
   $('arPips2').textContent = '○'.repeat(2 - AR.wins[1]) + '●'.repeat(AR.wins[1]);
   $('arRound').textContent = `ROUND ${AR.round}`;
-  const c1 = P1.comboT > 0 && P1.comboN > 1 ? `${P1.comboN} HITS` : '', c2 = P2.comboT > 0 && P2.comboN > 1 ? `${P2.comboN} HITS` : '';
-  $('arCombo1').textContent = c1; $('arCombo2').textContent = c2;
+  $('arCombo1').textContent = P1.comboT > 0 && P1.comboN > 1 ? `${P1.comboN} HITS` : '';
+  $('arCombo2').textContent = P2.comboT > 0 && P2.comboN > 1 ? `${P2.comboN} HITS` : '';
+  const sb = $('arSuperBtn'); if (sb) sb.classList.toggle('ready', P1.sp >= 100);
 }
 function arEnd(){
   const win = AR.wins[0] > AR.wins[1];
   G.running = false; $('arenaHud').classList.remove('on');
   if (win){ addCoins(200); SV.arena = SV.arena || { wins:0 }; SV.arena.wins++; save(); }
   $('resTitle').textContent = win ? 'You win the duel' : 'The rival wins';
-  $('resText').textContent = `Rounds ${AR.wins[0]} : ${AR.wins[1]}. ` + (win ? 'Clean work. Try again: the rival fights harder every round.' : 'Block when they wind up, then punish. Kick them into the cage and keep the juggle going.');
+  $('resText').textContent = `Rounds ${AR.wins[0]} : ${AR.wins[1]}. ` + (win ? 'The rival fights harder every round. Try the flip kick into a lightning dive.' : 'Block when they wind up, slide under a guard, throw a turtle, and save your meter for Lightning Fury (F).');
   $('coinBreak').innerHTML = win ? `Duel won <b>+200</b> coins` : '';
   $('resNext').style.display = 'none';
   setScreen('result');
@@ -14307,62 +14492,73 @@ function arMesh(){
 }
 function arRender(){
   const C = AR.cam, z = C.z, sh = AR.shake, sx = sh ? (Math.random()-0.5)*sh : 0, sy = sh ? (Math.random()-0.5)*sh : 0;
-  // sky and the city behind, in screen space with a little parallax
   ctx.setTransform(S, 0, 0, S, 0, 0);
   const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, '#5B6278'); g.addColorStop(0.6, '#8A8FA0'); g.addColorStop(1, '#3A3C46');
   ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-  const T = (wx, wy) => [VW/2 + (wx - C.x)*z + sx, VH*0.6 + (wy - C.y)*z + sy];
+  const floorY = VH*0.6 + (0 - C.y)*z + sy;
   ctx.fillStyle = 'rgba(70,74,90,0.75)';
   for (let i=-8;i<=8;i++){ const bx = VW/2 + (i*170 - C.x*0.25)*z*0.7, bh = 90 + ((i*53) % 70 + 70) % 70 + (i % 3 === 0 ? 120 : 0);
-    const by = T(0, 0)[1] - 210*z; ctx.fillRect(bx, by - bh*z*0.7, 120*z*0.7, bh*z*0.7 + 400); if (i % 4 === 0) ctx.fillRect(bx + 30*z, by - (bh + 160)*z*0.7, 16*z, 160*z*0.7); }
-  // world
+    const by = floorY - 210*z; ctx.fillRect(bx, by - bh*z*0.7, 120*z*0.7, bh*z*0.7 + 400); if (i % 4 === 0) ctx.fillRect(bx + 30*z, by - (bh + 160)*z*0.7, 16*z, 160*z*0.7); }
   ctx.setTransform(S*z, 0, 0, S*z, S*(VW/2 - C.x*z + sx), S*(VH*0.6 - C.y*z + sy));
   const W = AR.W;
-  ctx.fillStyle = arMesh(); ctx.fillRect(-W - 200, -330, 2*W + 400, 330);                      // the chain-link fence behind
+  ctx.fillStyle = arMesh(); ctx.fillRect(-W - 200, -330, 2*W + 400, 330);
   ctx.strokeStyle = '#2A2C34'; ctx.lineWidth = 7;
   for (let x = -W; x <= W; x += 160){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, -340); ctx.stroke(); }
   ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-W - 200, -330); ctx.lineTo(W + 200, -330); ctx.stroke();
-  ctx.fillStyle = '#2B2D35'; ctx.fillRect(-W - 400, 0, 2*W + 800, 400);                       // floor
+  ctx.fillStyle = '#2B2D35'; ctx.fillRect(-W - 400, 0, 2*W + 800, 400);
   ctx.fillStyle = '#3B3E48'; ctx.fillRect(-W - 400, 0, 2*W + 800, 6);
   ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
   for (let x = -W - 400; x < W + 400; x += 90){ ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x - 40, 120); ctx.stroke(); }
-  // the cage walls at both ends
   for (const s of [-1, 1]){ const x = s*W;
     ctx.fillStyle = 'rgba(25,26,32,0.85)'; ctx.fillRect(x + (s > 0 ? 0 : -26), AR.CEIL, 26, -AR.CEIL);
     ctx.fillStyle = arMesh(); ctx.fillRect(x + (s > 0 ? 26 : -200), AR.CEIL, 174, -AR.CEIL); }
-  // shadows
   for (const F of [AR.p1, AR.p2]){ const px = F.pts[2][0], h = Math.max(0, -F.pts[2][1] - 40), k = Math.max(0.25, 1 - h/400);
     ctx.globalAlpha = 0.35*k; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(px, 3, 34*k + 8, 6, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
-  // strike trails
-  for (const F of [AR.p1, AR.p2]){ if (F.trail.length < 2) continue;
+  // afterimages, trails
+  for (const F of [AR.p1, AR.p2]){
+    for (const gh of F.ghosts) arDrawFighter(F, gh.p, gh.a, arShade(F.col, 1.25));
+    if (F.trail.length < 2) continue;
     ctx.lineCap = 'round'; for (let i=1;i<F.trail.length;i++){ const a = F.trail[i-1], b = F.trail[i];
-      ctx.globalAlpha = Math.max(0, b[2]/0.16)*0.55; ctx.strokeStyle = arShade(F.col, 1.5); ctx.lineWidth = 9*(i/F.trail.length);
+      ctx.globalAlpha = Math.max(0, b[2]/0.16)*0.55; ctx.strokeStyle = arShade(F.col, 1.5); ctx.lineWidth = 10*(i/F.trail.length);
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); } ctx.globalAlpha = 1; }
-  // fighters: the far limbs a shade darker, then the body, then the near limbs
   const order = AR.p1.atk && !AR.p2.atk ? [AR.p2, AR.p1] : [AR.p1, AR.p2];
-  for (const F of order) arDrawFighter(F);
-  // effects
+  for (const F of order) arDrawFighter(F, F.pts, 1, null);
+  for (const F of [AR.p1, AR.p2]){   // a crackle of electricity round a fighter with a full meter
+    if (F.sp >= 100 && F.state === 'ctrl' && Math.random() < 0.5){ const p = F.pts[1]; arJag(p[0] + (Math.random()-0.5)*50, p[1] - 30, p[0] + (Math.random()-0.5)*50, p[1] + 50, '#9FE8FF', 0.7); } }
   for (const e of AR.fx){ const q = e.t/e.d;
     if (e.k === 'spark'){ ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.a); ctx.globalAlpha = 1 - q; ctx.strokeStyle = e.col; ctx.lineWidth = 3; ctx.lineCap = 'round';
       const r = (10 + 26*q)*e.s; for (let i=0;i<6;i++){ const an = i*Math.PI/3; ctx.beginPath(); ctx.moveTo(Math.cos(an)*r*0.35, Math.sin(an)*r*0.35); ctx.lineTo(Math.cos(an)*r, Math.sin(an)*r); ctx.stroke(); }
       ctx.restore(); }
     else if (e.k === 'dust'){ ctx.globalAlpha = 0.35*(1 - q); ctx.fillStyle = '#B9B6B0'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r*(1 + q), 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
-    else if (e.k === 'txt'){ ctx.globalAlpha = 1 - q; ctx.font = '600 30px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(e.txt, e.x + 2, e.y - q*30 + 2); ctx.fillStyle = e.col; ctx.fillText(e.txt, e.x, e.y - q*30); ctx.globalAlpha = 1; }
+    else if (e.k === 'ring'){ ctx.globalAlpha = 0.8*(1 - q); ctx.strokeStyle = e.col; ctx.lineWidth = 6*(1 - q) + 1; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r*arEase(q) + 10, (e.r*arEase(q) + 10)*0.18, 0, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    else if (e.k === 'bolt'){ arJag(e.x1, e.y1, e.x2, e.y2, e.col, 1 - q); }
+    else if (e.k === 'txt'){ ctx.globalAlpha = 1 - q*q; ctx.font = '600 30px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(e.txt, e.x + 2, e.y - q*30 + 2); ctx.fillStyle = e.col; ctx.fillText(e.txt, e.x, e.y - q*30); ctx.globalAlpha = 1; }
   }
   ctx.setTransform(S, 0, 0, S, 0, 0);
   if (AR.ts < 1){ ctx.fillStyle = 'rgba(10,14,30,0.18)'; ctx.fillRect(0, 0, VW, VH); }
 }
-function arDrawFighter(F){
-  const p = F.pts, col = F.col, dark = arShade(col, 0.72), W = 13;
-  const flash = F.state === 'ctrl' && F.hurtT > 0.2;
+/* a jagged lightning line with a soft glow */
+function arJag(x1, y1, x2, y2, col, a){
+  const n = Math.max(4, Math.round(Math.hypot(x2 - x1, y2 - y1)/40)), pts = [[x1, y1]];
+  for (let i=1;i<n;i++){ const t = i/n; pts.push([x1 + (x2 - x1)*t + (Math.random()-0.5)*26, y1 + (y2 - y1)*t + (Math.random()-0.5)*10]); }
+  pts.push([x2, y2]);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const [w, al, c] of [[12, 0.25*a, col], [4, 0.9*a, col], [1.6, a, '#FFFFFF']]){
+    ctx.globalAlpha = al; ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+function arDrawFighter(F, p, alpha, tint){
+  const col = tint || F.col, dark = tint || arShade(F.col, 0.72), W = 13;
+  const flash = !tint && F.state === 'ctrl' && F.hurtT > 0.2;
+  ctx.globalAlpha = alpha; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const limb = (a, b, c, w, cl) => { ctx.strokeStyle = cl; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(p[a][0], p[a][1]); ctx.lineTo(p[b][0], p[b][1]); ctx.lineTo(p[c][0], p[c][1]); ctx.stroke(); };
-  limb(1, 5, 6, W, dark); limb(2, 9, 10, W + 0.5, dark);                 // far arm, far leg
+  limb(1, 5, 6, W, dark); limb(2, 9, 10, W + 0.5, dark);
   const body = flash ? '#FFFFFF' : col;
   ctx.strokeStyle = body; ctx.lineWidth = W + 2.5; ctx.beginPath(); ctx.moveTo(p[1][0], p[1][1]); ctx.lineTo(p[2][0], p[2][1]); ctx.stroke();
   ctx.fillStyle = body; ctx.beginPath(); ctx.arc(p[0][0], p[0][1], ARB.headR, 0, 6.283); ctx.fill();
-  limb(2, 7, 8, W + 0.5, body); limb(1, 3, 4, W, body);                  // near leg, near arm
-  if (F.state === 'ctrl' && F.blocking){ const a0 = F.face > 0 ? 0 : Math.PI; ctx.strokeStyle = 'rgba(160,215,255,0.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p[1][0] + F.face*14, p[1][1] - 4, 26, a0 - 1.2, a0 + 1.2); ctx.stroke(); }
+  limb(2, 7, 8, W + 0.5, body); limb(1, 3, 4, W, body);
+  if (!tint && F.state === 'ctrl' && F.blocking){ const a0 = F.face > 0 ? 0 : Math.PI; ctx.strokeStyle = 'rgba(160,215,255,0.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p[1][0] + F.face*14, p[1][1] - 4, 26, a0 - 1.2, a0 + 1.2); ctx.stroke(); }
+  ctx.globalAlpha = 1;
 }
 
 requestAnimationFrame(frame);
