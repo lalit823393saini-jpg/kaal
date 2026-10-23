@@ -1071,7 +1071,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
    CANVAS
    ========================================================= */
 const cv = document.getElementById('c');
-const mainCtx = cv.getContext('2d');
+const mainCtx = cv.getContext('2d', { alpha:false });   // the game paints every pixel itself: an opaque canvas is cheaper for the browser to show
 let ctx = mainCtx;                       // swapped temporarily when drawing the Dojo preview
 let VH = 540, OFFY = 0; const GROUND = 450, M = 30, AGGRO = 10 * M; // 1 metre = 30 px
 // On phones the camera zooms in a little and lifts the ground to ~66% of the screen, leaving the bottom for the buttons
@@ -1084,8 +1084,11 @@ let G_ref = null;   // set once G exists
 function viewCompactWanted(){ return VIEW.size === 'compact' && !!(G_ref && G_ref.P); }
 let LOWFX = false;   // 'Effects: light' setting — fewer particles and a lower render resolution
 let govLvl = 0;      // automatic quality: how far the render resolution has been lowered (see govTick)
+const GOV_RQ = [1, 0.8, 0.65, 0.52, 0.42];
 function resize(){
-  DPR = Math.max(0.5, Math.min(LOWFX ? 1.25 : 2, window.devicePixelRatio || 1)*[1, 0.85, 0.72, 0.6, 0.5][govLvl || 0]);
+  let fxMax = false; try { fxMax = SV.set.fx === 'max'; } catch(_){}   // (resize can run before the save is loaded)
+  const capD = LOWFX ? 1 : fxMax ? 2 : 1.5;   // beyond 1.5x the extra pixels cost a lot and show little
+  DPR = Math.max(0.4, Math.min(capD, window.devicePixelRatio || 1)*GOV_RQ[govLvl || 0]);
   const touchLayout = document.body.classList.contains('touch') || matchMedia('(pointer:coarse)').matches;
   // In forced-landscape mode the game is rotated 90 degrees, so width and height swap
   const rot = document.body.classList.contains('rot');
@@ -2821,7 +2824,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  govCapped = false; govPending = null; govAcc = 0; govN = 0;   // a new run: measure again
+  govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.dragons = []; G.serpents = [];
   if (G.mode !== 'levels') G.dojo = false;
   G.fistsOut = !!(G.dojo || (SV.eq.fistsOut && hasFists()));
@@ -6211,15 +6214,22 @@ function drawShadow(e){
   ctx.beginPath(); ctx.ellipse(e.x, gy+3, (18 + 8*sz)*k + 4, 4.5*sz, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
 }
 
+const SKY_STRIP = new Map();
+function skyStrip(TH){
+  const key = TH.sky.join('|'), H0 = Math.round(GROUND + OFFY + 20); let c = SKY_STRIP.get(key);
+  if (c && c.height === Math.max(2, H0)) return c;
+  c = document.createElement('canvas'); c.width = 2; c.height = Math.max(2, H0); const x = c.getContext('2d');
+  const y0 = OFFY + 10, g = x.createLinearGradient(0, y0, 0, y0 + GROUND);   // the same stops as before, measured from the top of the world
+  g.addColorStop(0, TH.sky[0]); g.addColorStop(0.45, TH.sky[1]); g.addColorStop(0.8, TH.sky[2]); g.addColorStop(1, TH.sky[3]);
+  x.fillStyle = g; x.fillRect(0, 0, 2, c.height); if (SKY_STRIP.size > 24) SKY_STRIP.clear(); SKY_STRIP.set(key, c); return c;
+}
 function drawBG(){
   const TH = THEMES[G.theme] || THEMES.bamboo;
-  const g = ctx.createLinearGradient(0,0,0,GROUND);
-  g.addColorStop(0,TH.sky[0]); g.addColorStop(0.45,TH.sky[1]); g.addColorStop(0.8,TH.sky[2]); g.addColorStop(1,TH.sky[3]);
-  ctx.fillStyle=g; ctx.fillRect(0,-OFFY-10,VW,GROUND+OFFY+20);
+  ctx.drawImage(skyStrip(TH), 0, -OFFY - 10, VW, GROUND + OFFY + 20);   // the sky: a cached strip, stretched across
   const su = TH.sun, sx = VW*su.x - G.camX*0.03, sy = su.y;
   if (TH.stars) drawSkyExtras(TH, sx, sy);
   // a wide, soft halo around the sun or moon
-  if (!LOWFX){ const hg = ctx.createRadialGradient(sx,sy,su.r*0.8,sx,sy,su.r*3.2); hg.addColorStop(0, su.glow); hg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = hg; ctx.fillRect(sx-su.r*3.2, sy-su.r*3.2, su.r*6.4, su.r*6.4); }
+  if (!LOWFX){ const ga = ctx.globalAlpha; ctx.drawImage(glowSprite(su.glow), sx - su.r*3.2, sy - su.r*3.2, su.r*6.4, su.r*6.4); ctx.globalAlpha = ga; }
   ctx.fillStyle=su.glow; ctx.beginPath(); ctx.arc(sx,sy,su.r*1.55,0,Math.PI*2); ctx.fill();
   ctx.fillStyle=su.col; ctx.beginPath(); ctx.arc(sx,sy,su.r,0,Math.PI*2); ctx.fill();
   if (!TH.stars) drawSkyExtras(TH, sx, sy);
@@ -6542,6 +6552,20 @@ function shade(hex, k){
   v = '#' + ((1 << 24) | (f(r) << 16) | (f(g) << 8) | f(b)).toString(16).slice(1); SHADE_C.set(key, v); return v;
 }
 
+/* enemy swords are drawn once into a small image (per sword look, length, size, colour and screen scale) and then only
+   placed, turned and stretched each frame: drawing every detailed katana from scratch every frame was the heaviest part
+   of an ordinary fight on machines without a fast graphics chip */
+const SWORD_SPR = new Map();
+function swordSprite(id, sw, L, u, glow, mono, sc){
+  const Lq = Math.max(6, Math.round(L/4)*4), key = id + '|' + Lq + '|' + u.toFixed(2) + '|' + (glow || '') + '|' + (mono || '') + '|' + sc;
+  let c = SWORD_SPR.get(key); if (c) return c;
+  if (SWORD_SPR.size > 240) SWORD_SPR.clear();
+  const padL = 16*u, padR = 12*u, hh = 18*u;
+  c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil((Lq + padL + padR)*sc)); c.height = Math.max(1, Math.ceil(hh*2*sc));
+  const x = c.getContext('2d'); x.scale(sc, sc); x.translate(padL, hh); x.lineCap = 'round'; x.lineJoin = 'round';
+  drawSwordShape(x, id, sw, Lq, u, 0, 5*u, { mono, glow, wa:-0.4, f:1 });
+  c.ox = padL; c.oy = hh; c.Lq = Lq; c.sc = sc; SWORD_SPR.set(key, c); return c;
+}
 function drawBlade(sg, e, pose, tint){
   const sw = e.sword || {};
   if (sw.astra && ASTRA_ART[sw.astra]){ drawAstra(sg, e, tint); return; }
@@ -6552,7 +6576,11 @@ function drawBlade(sg, e, pose, tint){
     const id = swordArtId(e);
     const red = !e.isPlayer && pose && pose.red ? (isUnblockable(e) ? '#FF2A2A' : '#FF6A3D') : null;
     ctx.save(); ctx.translate(sg[0], sg[1]); ctx.rotate(Math.atan2(dy, dx)); ctx.scale(1, f);
-    drawSwordShape(ctx, id, sw, Lt, u, G.time || astraNow(), hand, { mono: tint || null, glow: red, wa:Math.atan2(dy, dx), f });
+    if (!e.isPlayer && ctx === mainCtx){   // enemies: the cached picture of their sword
+      const m = ctx.getTransform(), sc = clamp(Math.round(Math.hypot(m.a, m.b)*2)/2, 0.5, 4);
+      const spr = swordSprite(id, sw, Lt, u, red, tint || (e.flash > 0 ? '#fff' : null), sc);
+      ctx.scale(Lt/spr.Lq, 1); ctx.drawImage(spr, -spr.ox, -spr.oy, spr.width/sc, spr.height/sc);
+    } else drawSwordShape(ctx, id, sw, Lt, u, G.time || astraNow(), hand, { mono: tint || null, glow: red, wa:Math.atan2(dy, dx), f });
     ctx.restore();
     // the fist wrapped round the handle, drawn over it so the sword sits in the hand
     if (sg[7] === 'sheathed') return;   // resting in the scabbard: no hand on it
@@ -7153,16 +7181,25 @@ function drawStick(e, alpha, tint){
     ctx.globalAlpha = 1; if (jx) ctx.restore();
     return hd;
   }
-  if (rim && ctx === mainCtx){
+  if (rim && ctx === mainCtx){   // the rim light: all limbs of one width in one stroke, all round parts in one fill
     ctx.strokeStyle = rim; ctx.fillStyle = rim;
     bodyShapes(e, segs, rim, 1.8);
+    const dots = new Path2D(), lines = new Map();
     for (const sg of segs){
-      if (sg[5]==='head' || sg[5]==='fist'){ ctx.beginPath(); ctx.arc(sg[0],sg[1],sg[6]+1.6,0,Math.PI*2); ctx.fill(); continue; }
+      if (sg[5]==='head' || sg[5]==='fist'){ dots.moveTo(sg[0] + sg[6] + 1.6, sg[1]); dots.arc(sg[0],sg[1],sg[6]+1.6,0,Math.PI*2); continue; }
       if (sg[5]==='bow' || sg[5]==='blade') continue;
-      ctx.lineWidth = (sg[4]||2)*(sg[5] ? 1 : LW) + 3; ctx.beginPath(); ctx.moveTo(sg[0],sg[1]); ctx.lineTo(sg[2],sg[3]); ctx.stroke();
+      const lw = Math.round(((sg[4]||2)*(sg[5] ? 1 : LW) + 3)*4)/4; let p = lines.get(lw); if (!p){ p = new Path2D(); lines.set(lw, p); }
+      p.moveTo(sg[0],sg[1]); p.lineTo(sg[2],sg[3]);
     }
+    for (const [lw, p] of lines){ ctx.lineWidth = lw; ctx.stroke(p); }
+    ctx.fill(dots);
   }
   bodyShapes(e, segs, body, 0);
+  { const lines = new Map();   // the plain limbs of the body, batched by width (drawn before the hands, head and blade, as before)
+    for (const sg of segs){ const t = sg[5];
+      if (t || sg[7]==='sheathed') continue;
+      const lw = Math.round(sg[4]*LW*4)/4; let p = lines.get(lw); if (!p){ p = new Path2D(); lines.set(lw, p); } p.moveTo(sg[0],sg[1]); p.lineTo(sg[2],sg[3]); }
+    ctx.strokeStyle = body; for (const [lw, p] of lines){ ctx.lineWidth = lw; ctx.stroke(p); } }
   for (const sg of segs){
     if (sg[5]==='scab' || sg[7]==='sheathed') continue;
     if (sg[5]==='head'){ head = sg; ctx.fillStyle=body; ctx.beginPath(); ctx.arc(sg[0],sg[1],sg[6],0,Math.PI*2); ctx.fill(); continue; }
@@ -7176,6 +7213,7 @@ function drawStick(e, alpha, tint){
       continue;
     }
     if (sg[5]==='sheath'){ ctx.strokeStyle = tint || '#1a1216'; ctx.lineWidth = sg[4]; ctx.beginPath(); ctx.moveTo(sg[0],sg[1]); ctx.lineTo(sg[2],sg[3]); ctx.stroke(); if (!tint){ ctx.strokeStyle = (e.sword && e.sword.edge) || '#EAF7FF'; ctx.lineWidth = 1; ctx.globalAlpha = alpha*0.5; ctx.beginPath(); ctx.moveTo(sg[0],sg[1]); ctx.lineTo(sg[2],sg[3]); ctx.stroke(); ctx.globalAlpha = alpha; } continue; }
+    if (!sg[5]) continue;   // plain limbs were batched above
     ctx.strokeStyle = body; ctx.lineWidth = sg[4]*LW;
     ctx.beginPath(); ctx.moveTo(sg[0],sg[1]); ctx.lineTo(sg[2],sg[3]); ctx.stroke();
   }
@@ -11620,17 +11658,19 @@ function drawSerpents(){
 let last = performance.now();
 const hpFill = $('hpFill'), brFill = $('brFill'), info = $('info'), slowBadge = $('slowBadge'), hudCoins = $('hudCoins');
 let perfAcc = 0, perfN = 0, moodT = 0;
-const GOV_RQ = [1, 0.85, 0.72, 0.6, 0.5];
-let govAcc = 0, govN = 0, govGood = 0, govCapped = false, govPending = null;
+let govAcc = 0, govN = 0, govGood = 0, govCapped = false, govPending = null, govMiss = 0;
 function govTick(raw){
   govAcc += raw; govN++;
-  if (govAcc < 2) return;
+  if (govAcc < 1.5) return;
   const avg = govAcc/govN; govAcc = 0; govN = 0;
-  if (govPending){ if (avg > govPending.before*0.93){ govLvl = govPending.from; resize(); govCapped = true;   // resolution was not the problem: lighten the effects instead
-      if (!LOWFX && avg > 0.0215){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light (smoother)', 1.4); } } govPending = null; return; }
+  if (govPending){   // did the last step help? if twice it changed nothing, the screen is capped (or the cost is elsewhere)
+    if (avg > govPending.before*0.97){ if (++govMiss >= 2){ govLvl = govPending.from; resize(); govCapped = true;
+        if (!LOWFX && avg > 0.02){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light (smoother)', 1.4); } } }
+    else govMiss = 0;
+    govPending = null; return; }
   if (govCapped) return;
-  if (avg > 0.0215){ govGood = 0;
-    if (govLvl < GOV_RQ.length - 1){ govPending = { from:govLvl, before:avg }; govLvl++; resize(); toast(`Smoother: drawing at ${Math.round(GOV_RQ[govLvl]*100)}%`, 1.2); }
+  if (avg > 0.02){ govGood = 0;
+    if (govLvl < GOV_RQ.length - 1){ govPending = { from:govLvl, before:avg }; govLvl = Math.min(GOV_RQ.length - 1, govLvl + (avg > 0.04 ? 2 : 1)); resize(); toast(`Smoother: drawing at ${Math.round(GOV_RQ[govLvl]*100)}%`, 1.2); }   // very slow: two steps at once
     else if (!LOWFX){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light', 1.2); } }
   else if (avg < 0.0172 && govLvl > 0){ if (++govGood >= 4){ govGood = 0; govLvl--; resize(); } }
   else govGood = 0;
@@ -12430,11 +12470,20 @@ function metalGrad(c, x0, y0, x1, y1, m){
   g.addColorStop(0, m[2]); g.addColorStop(0.35, m[1]); g.addColorStop(0.5, m[0]); g.addColorStop(0.68, m[1]); g.addColorStop(1, m[2]);
   return g;
 }
+/* a soft glow is drawn from a small pre-made image per colour: building a radial gradient for every eye, spark and halo
+   every frame was one of the heaviest things on machines that draw in software */
+const GLOW_SPR = new Map();
+function glowSprite(col){
+  let c = GLOW_SPR.get(col); if (c) return c;
+  if (GLOW_SPR.size > 96) GLOW_SPR.clear();
+  c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64); GLOW_SPR.set(col, c); return c;
+}
 function glowDot(c, x, y, r, col, a){
-  const g = c.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+  if (!(r > 0.5) || !Number.isFinite(x) || !Number.isFinite(y) || !(a > 0)) return;
   const ga = c.globalAlpha; c.globalAlpha = ga * a; c.globalCompositeOperation = 'lighter';
-  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill();
+  c.drawImage(glowSprite(col), x - r, y - r, 2*r, 2*r);
   c.globalAlpha = ga; c.globalCompositeOperation = 'source-over';
 }
 function zigzag(c, x0, y0, x1, y1, jit, n, seed){
