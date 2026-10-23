@@ -1440,7 +1440,7 @@ const FORM_CHOREO = {
   tide2:{ t:'keys', k:[[0,0.6,0.3,10,0.3],[0.15,0.7,0.4,12,0.4,6,0.8],[0.85,0.7,0.4,12,0.4,6,6.28],[1,0.4,0.2,8,0.3]] },   // Rolling Current: a forward roll along the ground
   tide3:{ t:'keys', k:[[0,0.3,-0.5,6,0],[0.15,0.25,-0.25,7,0.05],[1,0.25,-0.25,7,0.05]], still:true, ripple:true },     // Still Water: perfectly still, blade level, ripples
   tide4:{ t:'circleDraw', n:1.5, d:-1 },                                 // Whirlpool: the blade draws a turning circle, then pushes it out
-  tide5:{ t:'multiThrust', every:0.12 },                                 // Thousand Rain: thrusts from every height, feet planted
+  tide5:{ t:'flux' },                                                   // Thousand Rain: spinning like a top, blade flat out, faster every turn
   /* Ember: Northern Shaolin. Wide, explosive, leaping, whirling */
   ember1:{ t:'keys', k:[[0,1.2,1.5,12,0.3],[0.12,1.3,1.6,14,0.35],[0.32,-2.0,-2.5,0,-0.2,22],[1,-1.8,-2.3,2,-0.1,0]] },          // Rising Flame: down low, then an exploding rising cut
   ember2:{ t:'frontFlip', n:1 },                                         // Burning Wheel: a forward wheel of fire
@@ -1583,6 +1583,10 @@ function choreo0(C, F){
       if (C.sway) o.lean += Math.sin(t*9)*0.14;
       if (C.still) o.lift += Math.sin(t*3)*1.2;
       o.ripple = !!C.ripple; o.windRing = !!C.arcs; break; }
+    case 'flux':           // the turn comes from the form itself (F.ph), so the body and the dragon stay in step
+      if (F.fin){ o.a = 0.1; o.b = 0.05; o.lean = 0.65; o.crouch = 10; o.w = 1; }
+      else { o.spin = F.ph || 0; o.a = 0.05; o.b = 0; o.lean = 0.15; o.crouch = 4; o.w = 0.85*ramp(t, 0, 0.08); o.lift = Math.abs(Math.sin((F.ph || 0)*0.5))*4; }
+      break;
     case 'flowEight':      // two loops of a figure of eight, the arm rising while the blade falls and back
       o.a = 0.1 + 0.55*Math.sin(TAU*n*q); o.b = -0.4 + 1.7*Math.sin(TAU*n*q + 0.9); o.lean = 0.3 + 0.06*Math.sin(TAU*n*q); o.crouch = 5 + 2*Math.sin(TAU*n*q*2);
       o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.9, 1)); break;
@@ -1700,7 +1704,7 @@ function inkBanner(sid){
 /* the blade tip leaves a ribbon of painted water: a tapered brush stroke with a dark outline, a white crest and foam curls */
 function inkTick(P){
   const F = P.form, IK = F && INK[F.sid];
-  if (!IK || F.wait || P.dead){ return; }
+  if (!IK || F.wait || P.dead || F.id === 'tide5'){ return; }
   const tip = formBladeTip(P), R = P.inkRib || (P.inkRib = []), last = R[R.length - 1];
   if (!last || Math.hypot(tip[0] - last.x, tip[1] - last.y) > 3.5){
     R.push({ x:tip[0], y:tip[1], t:G.time, sid:F.sid });
@@ -1708,7 +1712,45 @@ function inkTick(P){
       G.parts.push({ x:tip[0], y:tip[1], vx:vx*0.4 + rnd(-60, 60), vy:vy*0.4 - rnd(20, 120), life:0.5, max:0.5, col:Math.random() < 0.5 ? IK.foam : IK.light, size:2.2, real:true, g:1.1 }); }
     if (R.length > 90) R.shift(); }
 }
+/* the water dragon of Thousand Rain: an ink body along its trail, and a head at the front */
+function drawInkDragon(P){
+  const R = P.dragon; if (!R || R.length < 3) return;
+  const IK = INK.tide, now = G.time, life = 0.7;
+  while (R.length && now - R[0].t > life) R.shift();
+  const n = R.length; if (n < 3) return;
+  const C = [], W = [];
+  for (let i=0;i<n;i++){ const a = R[Math.max(0, i - 1)], b = R[Math.min(n - 1, i + 1)]; let tx = b.x - a.x, ty = b.y - a.y; const tl = Math.hypot(tx, ty) || 1;
+    let nx = -ty/tl, ny = tx/tl; if (ny > 0){ nx = -nx; ny = -ny; } C.push([nx, ny]);
+    const u = i/(n - 1), age = clamp(1 - (now - R[i].t)/life, 0, 1); W.push(R[i].w*Math.pow(u, 0.6)*(0.4 + 0.6*age) + 0.5); }   // thin tail, thick toward the head
+  const poly = (k, off) => { ctx.beginPath();
+    for (let i=0;i<n;i++){ const p = R[i], c = C[i], w = W[i]*k; const x = p.x + c[0]*(w + off), y = p.y + c[1]*(w + off); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    for (let i=n-1;i>=0;i--){ const p = R[i], c = C[i], w = W[i]*k*0.7; ctx.lineTo(p.x - c[0]*(w + off*0.3), p.y - c[1]*(w + off*0.3)); } ctx.closePath(); };
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.92; ctx.fillStyle = IK.out; poly(1.3, 1.5); ctx.fill();
+  ctx.globalAlpha = 0.95; ctx.fillStyle = IK.body; poly(1.0, 0); ctx.fill();
+  ctx.globalAlpha = 0.7; ctx.fillStyle = IK.light; poly(0.5, 2); ctx.fill();
+  ctx.globalAlpha = 0.95; ctx.strokeStyle = IK.foam; ctx.lineWidth = 2;   // a crest of foam, and fins along the back
+  ctx.beginPath(); for (let i=0;i<n;i++){ const p = R[i], c = C[i], w = W[i]; const x = p.x + c[0]*(w - 1), y = p.y + c[1]*(w - 1); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  ctx.fillStyle = IK.out; for (let i=6;i<n-4;i+=5){ const p = R[i], c = C[i], w = W[i]; if (w < 5) continue;
+    const bx = p.x + c[0]*w, by = p.y + c[1]*w, d = R[Math.min(n - 1, i + 2)], dx = d.x - p.x, dy = d.y - p.y, dl = Math.hypot(dx, dy) || 1;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + c[0]*w*0.9 - dx/dl*w*0.6, by + c[1]*w*0.9 - dy/dl*w*0.6); ctx.lineTo(bx - dx/dl*w*1.1, by - dy/dl*w*1.1); ctx.fill(); }
+  // the head
+  const H = R[n - 1], Q = R[Math.max(0, n - 4)], ang = Math.atan2(H.y - Q.y, H.x - Q.x), sc = 0.7 + W[n - 1]/14;
+  ctx.translate(H.x, H.y); ctx.rotate(ang); if (Math.cos(ang) < 0) ctx.scale(1, -1); ctx.scale(sc, sc);
+  ctx.globalAlpha = 1; ctx.lineWidth = 2;
+  ctx.strokeStyle = IK.foam; ctx.beginPath(); ctx.moveTo(-6, -8); ctx.quadraticCurveTo(-16, -20, -26, -16); ctx.stroke();            // horn
+  ctx.beginPath(); ctx.moveTo(-2, -9); ctx.quadraticCurveTo(-10, -24, -20, -24); ctx.stroke();
+  ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(14, 3); ctx.bezierCurveTo(4, 14, -14, 4, -30, 12 + Math.sin(now*14)*4); ctx.stroke();   // whiskers
+  ctx.beginPath(); ctx.moveTo(12, -2); ctx.bezierCurveTo(2, -12, -16, -4, -32, -8 + Math.sin(now*12)*4); ctx.stroke();
+  ctx.fillStyle = IK.out; ctx.beginPath(); ctx.moveTo(22, -2); ctx.quadraticCurveTo(8, -14, -12, -9); ctx.lineTo(-14, 6); ctx.quadraticCurveTo(4, 10, 20, 6); ctx.closePath(); ctx.fill();   // skull, dark ink
+  ctx.fillStyle = IK.body; ctx.beginPath(); ctx.moveTo(20, -2); ctx.quadraticCurveTo(8, -11, -10, -7); ctx.lineTo(-10, 2); ctx.quadraticCurveTo(4, 2, 20, -2); ctx.fill();   // upper jaw
+  ctx.beginPath(); ctx.moveTo(18, 4); ctx.quadraticCurveTo(6, 6, -8, 4); ctx.lineTo(-8, 7); ctx.quadraticCurveTo(6, 10, 16, 8); ctx.fill();   // lower jaw, open
+  ctx.fillStyle = IK.foam; for (let t=0;t<4;t++){ ctx.beginPath(); ctx.moveTo(16 - t*5, 0); ctx.lineTo(14 - t*5, 3); ctx.lineTo(12 - t*5, 0); ctx.fill(); }   // teeth
+  ctx.beginPath(); ctx.arc(2, -5, 2.6, 0, 6.283); ctx.fill(); ctx.fillStyle = '#0A1A33'; ctx.beginPath(); ctx.arc(2.6, -5, 1.2, 0, 6.283); ctx.fill();   // the eye
+  ctx.restore();
+}
 function drawInkRibbon(P){
+  drawInkDragon(P);
   const R = P.inkRib; if (!R || R.length < 3) return;
   const now = G.time, sid = R[R.length - 1].sid, IK = INK[sid]; if (!IK) return;
   while (R.length && now - R[0].t > IK.life) R.shift();
@@ -4065,7 +4107,7 @@ function tryForm(i){
    ========================================================= */
 /* what each form does, shown the first time it is used */
 const FORM_DESC = {
-  tide1:'A short forward rush with four quick water cuts. Good for closing distance.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones.', tide4:'Throws a whirlpool that drags enemies in and cuts them for 3 s.', tide5:'Ten rapid thrusts that jump between every enemy within 8 m. The last one knocks them down.',
+  tide1:'A short forward rush with four quick water cuts. Good for closing distance.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones.', tide4:'Throws a whirlpool that drags enemies in and cuts them for 3 s.', tide5:'Spin forward in a storm of cuts while a dragon of water coils round you. Every turn is faster, wider and harder. Hold the key to keep spinning (it burns breath): the longer it runs, the deadlier the final strike.',
   ember1:'Rising uppercut that launches enemies into the air and sets them burning.', ember2:'A burning wheel: spin forward in the air, leaving fire on the ground.', ember3:'Wind up, then a huge explosion in front of you with heavy knockback. The ground burns.', ember4:'A dragon of fire leaves your blade and swims through the air. Its strength follows your breath: on a full breath it burns up to 50 enemies, from 70 up to 32, below 70 up to 18. Bosses take a heavy hit.', ember5:'Four pillars of fire erupt in a line ahead of you, each one launching whoever stands in it.',
   storm1:'Flash Step: teleport 9 m forward, striking everyone on the way.', storm2:'Chain Bolt: teleport from enemy to enemy, up to four in a row.', storm3:'Leap up, then slam down as lightning. Everyone near the landing is hit.', storm4:'Static Field: for 4 s lightning jumps from you to anyone who comes close.', storm5:"Heaven's Judgement: bolts rain on every enemy on screen, then one great strike.",
   gale1:'A piercing blade of wind. It cuts arrows out of the air on its way.', gale2:'Cyclone: enemies around you are dragged in and lifted off the ground.', gale3:'Sky Rend: a leaping slash that carries you up and across.', gale4:'Updraft: launch everyone nearby and float for a moment while they fall.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
@@ -4096,15 +4138,38 @@ const FORMS = {
       G.haz.push({kind:'vortex', x, y:GROUND-50, r:80, pull:200, life:3.2, tick:0, dmg:16*FM(), every:0.3});
       emit(x, GROUND-14, {n:12, col:STYLE_FX.tide.cols, spd:220, size:3, life:0.6, kind:'drop', g:1.2, vy:-140});   // the water lands and starts to turn
       sfx('tide'); vib(35); }, update(P){ P.vx *= 0.85; } },
-  tide5:{ dur:1.2, pose:'thrust', start(P,F){ F.tick = 0; F.n = 0; P.inv = 1.3; },
-    update(P,dt,F){ P.vx *= 0.9; F.tick -= dt;
-      if (F.tick <= 0 && F.n < 10){ F.tick = 0.1; F.n++;
-        const foes = G.E.filter(e=>!e.dead && Math.abs(e.x-P.x) < 230);
-        const e = foes[F.n % Math.max(1,foes.length)];
-        if (e){ P.face = sign(e.x-P.x) || P.face; damageEnemy(e, 25*FM(), {kb:40, src:'form', dir:P.face, knockdown: F.n===10 ? 1.2 : 0});
-          G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.25, col:'#9AD8FF' }); styleImpact('tide', e.x, e.y-36*e.size, false); }
-        else areaHit(P.x+P.face*60, P.y-35, 80, 60, 25*FM(), {kb:40, src:'form'}, new Set());
-        sfx('swish'); } } },
+  // Thousand Rain: a spinning, travelling storm of cuts. Every full turn spins faster, reaches wider and hits harder,
+  // and a dragon of water coils round you, growing with each turn. Hold the key to keep it going: the longer, the deadlier.
+  tide5:{ dur:1.6, pose:'spin', start(P,F){ F.rot = 0; F.ph = 0; F.tick = 0; F.hit = new Set(); F.fin = false; P.inv = 0.35; P.dragon = []; sfx('tide'); },
+    update(P,dt,F){
+      if (F.fin){ P.vx *= Math.pow(0.05, dt); return; }
+      const keep = held.form4 && F.dur < 3.4 && P.breath > 4;
+      if (keep && F.dur - F.t < 0.3){ F.dur = Math.min(3.4, F.dur + dt); P.breath = Math.max(0, P.breath - 22*dt); }   // holding on burns breath
+      const rps = Math.min(4.4, 2.2 + F.rot*0.3);
+      F.ph += rps*dt*TAU;
+      if (F.ph >= TAU*(F.rot + 1)){ F.rot++; F.hit = new Set(); sfx('swish');   // a new turn: everyone can be cut again, harder
+        if (F.rot >= 2) pop(P.x, P.y - 112, `Flow ×${F.rot}`, '#9AD8FF');
+        ringFx(P.x, P.y - 30, 70 + 14*Math.min(10, F.rot), '#9AD8FF', true); }
+      const mv = (held.right ? 1 : 0) - (held.left ? 1 : 0); if (mv) P.face = mv;
+      P.vx = lerp(P.vx, (mv || P.face)*(150 + 14*Math.min(8, F.rot)), Math.min(1, dt*5));
+      const k = Math.min(10, F.rot);
+      F.tick -= dt; if (F.tick <= 0){ F.tick = 0.07;
+        areaHit(P.x, P.y - 35, 85 + 14*k, 70 + 6*k, (12 + 7*k)*FM(), { kb:100 + 28*k, kbAway:true, src:'form', launch:k >= 3 ? 180 + 30*k : 0 }, F.hit); }
+      // the dragon's head circles you, wider and higher every turn; its body is the trail it leaves
+      const R = 52 + 9*Math.min(8, k), a1 = F.ph, a0 = F.lastPh != null ? F.lastPh : a1, steps = Math.max(1, Math.ceil((a1 - a0)/0.12));
+      for (let j=1;j<=steps;j++){   // fill in the arc between frames so the body curves smoothly even at full speed
+        const a = a0 + (a1 - a0)*j/steps, hx = P.x + Math.cos(a)*R, hy = P.y - 46 - Math.sin(a)*R*0.32 - Math.sin(a*0.5)*10 - Math.min(8, k)*2.5;
+        P.dragon.push({ x:hx, y:hy, t:G.time - dt*(1 - j/steps), w:7 + 2.2*Math.min(8, k) }); }
+      F.lastPh = a1; while (P.dragon.length > 260) P.dragon.shift();
+      if (F.dur - F.t < 0.22 && !keep){   // the end: the dragon strikes forward with everything the turns built up
+        F.fin = true; const hit = new Set();
+        areaHit(P.x + P.face*130, P.y - 40, 150 + 12*k, 95, (30 + 12*k)*FM(), { kb:380 + 30*k, src:'form', dir:P.face, launch:300, knockdown:1.0 }, hit);
+        const last = P.dragon[P.dragon.length - 1] || { x:P.x, y:P.y - 50 }, tx = P.x + P.face*(240 + 10*k), ty = P.y - 40;
+        for (let j=1;j<=12;j++){ const u = j/12; P.dragon.push({ x:lerp(last.x, tx, u), y:lerp(last.y, ty, u) - Math.sin(Math.PI*u)*30, t:G.time + u*0.05, w:9 + 2.6*Math.min(8, k) }); }
+        for (let j=0;j<3;j++) styleImpact('tide', tx - P.face*j*50, P.y - 40, true);
+        ringFx(tx, P.y - 4, 150 + 12*k, '#9AD8FF', true); G.shake = Math.max(G.shake, 10 + k); flash('#CFEFFF', 0.3); zoomPunch(1.06); sfx('boom'); sfx('tide');
+        if (k >= 2) pop(tx, P.y - 120, `${k} turns!`, '#E8F7FF');
+      } } },
   /* ---- Ember ---- */
   ember1:{ dur:0.4, pose:'up', start(P){ if (P.onG) P.vy = -380; },
     update(P,dt,F){ if (F.t >= 0.08 && !F.hitOnce){ F.hitOnce = true;
@@ -5346,7 +5411,7 @@ const FORM_MAP = {
   tide4:{ c:'bind',   v:{ keys:[ { pre:0.6, h:[8,-18], th:-0.6, phi:0.6, lean:0, cr:4, pr:-2, legs:FC_LEG.ready, off:[-6,-8] },
                                  { t:0, h:[20,-14], th:0.45, phi:0.9, lean:0.35, cr:7, pr:5, legs:FC_LEG.step, off:[-10,-6], imp:true } ]
                                .concat(fcStir(0.04, 0.4, 12, [19,-13])) } },
-  tide5:{ c:'blink',  v:{ dt:0.1, n:() => 10, seq:['kesa','gyaku'], phiOf:() => 0.95, sc:0.92, cr:7 } },
+  tide5:{ c:'whirl',  v:{ turns:6, y:-18, r:14, ry:-3, phi:1.38, cr:4, lean:0.2, t1:0.95, legs:FC_LEG.ready }, walk:true },
   /* Ember: explosive, rising, circular fire */
   ember1:{ c:'rising',   v:{ imp:0.08, phi:0.3, top:[12,-31], thTop:-1.6 } },
   ember2:{ c:'whirl',    v:{ wheel:true, roll:Math.PI*2, t1:0.5 } },
@@ -5501,7 +5566,7 @@ Object.assign(FORM_MAP, {
     { t:0.38, h:[17,-12], th:-6.28, phi:1.15, lean:0.3,  cr:8,  pr:5, legs:TIDE_LEG.a } ] } },
   // Fifth: Thousand Rain. Ten falling and rising diagonals on the 0.1 s beat, feet trading on every cut,
   // the cut plane swinging between steep and flat so the rain comes from every side.
-  tide5:{ c:'blink', spline:true, v:{ dt:0.1, n:() => 10, seq:['kesa','gyaku'], phiOf:(k) => [0.95, 0.5, 0.75, 1.05][k % 4], sc:0.92, cr:7, legsOf:(k) => k % 2 ? TIDE_LEG.b : TIDE_LEG.a } }
+  tide5:{ c:'whirl', v:{ turns:6, y:-18, r:14, ry:-3, phi:1.38, cr:4, lean:0.2, t1:0.95, legs:FC_LEG.ready }, walk:true }
 });
 
 const FC_CACHE = new Map();
