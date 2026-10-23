@@ -171,6 +171,13 @@ p.lead{max-width:34em;font-size:18px;line-height:1.45;opacity:.92}
 /* technique banner: style name, a brush stroke with the form name, and the form number */
 #formName{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity .3s;text-align:center;max-width:96cqw;--fc:#4FB3FF}
 #formName.on{opacity:1;animation:fnIn .5s cubic-bezier(.2,1.5,.4,1) both}
+#formName.ink .fb{background:none!important;color:#F7F3EA;text-shadow:0 0 1px #0A2A5C,0 2px 0 #0A2A5C;font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',Georgia,serif;font-style:italic;letter-spacing:.02em;padding:10px 56px 8px}
+#formName.ink .fb::before{content:'';position:absolute;inset:-4px -6px;z-index:-1;background:#0B1424;opacity:.92;
+  clip-path:polygon(2% 38%,6% 12%,15% 18%,24% 6%,38% 14%,52% 4%,66% 12%,79% 5%,91% 15%,98% 30%,100% 58%,95% 84%,84% 92%,70% 86%,56% 96%,41% 88%,27% 95%,14% 86%,4% 90%,0% 66%)}
+#formName.ink .fb::after{content:'';position:absolute;left:4%;right:3%;bottom:-3px;height:3px;z-index:-1;background:var(--fc);opacity:.85;clip-path:polygon(0 60%,30% 0,62% 50%,100% 10%,98% 100%,0 100%)}
+#formName.ink .fs{font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',Georgia,serif;letter-spacing:.3em;text-transform:uppercase}
+#formName .seal{display:none}
+#formName.ink .seal{display:block;position:absolute;right:-14px;top:-14px;width:34px;height:34px;line-height:34px;font-size:22px;color:#FFF3E6;background:#B3242B;border:2px solid #7A1218;border-radius:3px;transform:rotate(-6deg);font-family:'Hiragino Mincho ProN','Yu Mincho','Noto Serif JP',serif;box-shadow:0 2px 0 rgba(0,0,0,.4)}
 #formName .fs{display:block;font-weight:600;font-size:clamp(13px,1.8cqw,18px);letter-spacing:.14em;color:var(--fc);text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.8);margin-bottom:2px}
 #formName .fb{position:relative;isolation:isolate;display:inline-block;padding:7px 36px 2px;font-family:Teko,Impact,sans-serif;font-weight:600;font-size:clamp(30px,5.6cqw,62px);line-height:1;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.55);white-space:nowrap}
 #formName .fb::before{content:"";position:absolute;inset:0 -8px;z-index:-1;background:linear-gradient(90deg,transparent 0,var(--fc) 10%,var(--fc) 85%,transparent 100%);opacity:.9;transform:skewX(-14deg);
@@ -1681,8 +1688,60 @@ function formBladeTip(P){ const sg = stickSegments(P), bl = sg.find(q => q[5] ==
 function jagLine(x1, y1, x2, y2, col, a){
   const n = Math.max(3, Math.round(Math.hypot(x2 - x1, y2 - y1)/12)); ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x1, y1);
   for (let i=1;i<n;i++){ const t = i/n; ctx.lineTo(x1 + (x2 - x1)*t + rnd(-5, 5), y1 + (y2 - y1)*t + rnd(-5, 5)); } ctx.lineTo(x2, y2); ctx.stroke(); }
+/* ===== INK: a painted, ukiyo-e look for the breathing styles (in the tradition of old Japanese woodblock prints) =====
+   out = the dark brush outline, body = the colour, light = the inner glow, foam = the white crest and its curls */
+const INK = {
+  tide:{ out:'#0A2A5C', body:'#2C7BD6', light:'#8FD8FF', foam:'#F4FBFF', life:0.55, w:15, curls:true, seal:'潮' }
+};
+function inkBanner(sid){
+  const IK = INK[sid]; formNameEl.classList.toggle('ink', !!IK);
+  if (IK){ const seal = document.createElement('span'); seal.className = 'seal'; seal.textContent = IK.seal; (formNameEl.children[1] || formNameEl).appendChild(seal); }   // the seal sits on the corner of the name, like a painter's stamp
+}
+/* the blade tip leaves a ribbon of painted water: a tapered brush stroke with a dark outline, a white crest and foam curls */
+function inkTick(P){
+  const F = P.form, IK = F && INK[F.sid];
+  if (!IK || F.wait || P.dead){ return; }
+  const tip = formBladeTip(P), R = P.inkRib || (P.inkRib = []), last = R[R.length - 1];
+  if (!last || Math.hypot(tip[0] - last.x, tip[1] - last.y) > 3.5){
+    R.push({ x:tip[0], y:tip[1], t:G.time, sid:F.sid });
+    if (last && FXL() > 0 && Math.random() < 0.35){ const vx = (tip[0] - last.x)*14, vy = (tip[1] - last.y)*14;   // spray flung off the stroke
+      G.parts.push({ x:tip[0], y:tip[1], vx:vx*0.4 + rnd(-60, 60), vy:vy*0.4 - rnd(20, 120), life:0.5, max:0.5, col:Math.random() < 0.5 ? IK.foam : IK.light, size:2.2, real:true, g:1.1 }); }
+    if (R.length > 90) R.shift(); }
+}
+function drawInkRibbon(P){
+  const R = P.inkRib; if (!R || R.length < 3) return;
+  const now = G.time, sid = R[R.length - 1].sid, IK = INK[sid]; if (!IK) return;
+  while (R.length && now - R[0].t > IK.life) R.shift();
+  const n = R.length; if (n < 3) return;
+  const L = [], Rt = [], C = [], W = [];
+  for (let i=0;i<n;i++){
+    const p = R[i], a = R[Math.max(0, i - 1)], b = R[Math.min(n - 1, i + 1)];
+    let tx = b.x - a.x, ty = b.y - a.y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    let nx = -ty, ny = tx; if (ny > 0){ nx = -nx; ny = -ny; }                                   // the crest faces up
+    const u = i/(n - 1), age = clamp(1 - (now - p.t)/IK.life, 0, 1);
+    const w = IK.w*Math.pow(Math.sin(Math.PI*Math.min(1, u*1.08)), 0.75)*(0.35 + 0.65*age) + 0.6;
+    W.push(w); C.push([nx, ny]); L.push([p.x + nx*w, p.y + ny*w]); Rt.push([p.x - nx*w*0.55, p.y - ny*w*0.55]);
+  }
+  const poly = (k, off) => { ctx.beginPath();
+    for (let i=0;i<n;i++){ const p = R[i], c = C[i], w = W[i]*k; const x = p.x + c[0]*(w + off), y = p.y + c[1]*(w + off); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    for (let i=n-1;i>=0;i--){ const p = R[i], c = C[i], w = W[i]*k*0.55; ctx.lineTo(p.x - c[0]*(w - off*0.3), p.y - c[1]*(w - off*0.3)); }
+    ctx.closePath(); };
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.92; ctx.fillStyle = IK.out;  poly(1.28, 1.2); ctx.fill();    // the brush outline
+  ctx.globalAlpha = 0.95; ctx.fillStyle = IK.body; poly(1.0, 0);   ctx.fill();    // the water
+  ctx.globalAlpha = 0.75; ctx.fillStyle = IK.light; poly(0.55, 2); ctx.fill();    // light through the wave
+  ctx.globalAlpha = 0.95; ctx.strokeStyle = IK.foam; ctx.lineWidth = 2.2; ctx.beginPath();   // the white crest along the top
+  for (let i=0;i<n;i++){ const x = L[i][0] - C[i][0]*1.5, y = L[i][1] - C[i][1]*1.5; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  if (IK.curls) for (let i=3;i<n-2;i+=4){ const w = W[i]; if (w < 6) continue;   // foam curling over at the crest, like an old print's wave
+    const cx = L[i][0] + C[i][0]*w*0.15, cy = L[i][1] + C[i][1]*w*0.15, r = w*0.42, a0 = Math.atan2(C[i][1], C[i][0]);
+    ctx.lineWidth = 1.7; ctx.beginPath(); ctx.arc(cx, cy, r, a0 - 0.4, a0 + 3.4); ctx.stroke();
+    ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx + Math.cos(a0 + 3.4)*r*0.45, cy + Math.sin(a0 + 3.4)*r*0.45, r*0.45, a0 + 3.4, a0 + 6.2); ctx.stroke();
+    ctx.fillStyle = IK.foam; ctx.beginPath(); ctx.arc(cx + Math.cos(a0 - 0.4)*r, cy + Math.sin(a0 - 0.4)*r, 1.6, 0, 6.283); ctx.fill(); }
+  ctx.restore();
+}
 /* every frame: the somersault and the lift go onto the player for drawing */
 function formChoreoTick(P){
+  inkTick(P);
   if (P.flip) return;   // the air backflip owns the turn
   const C = P.form && FORM_CHOREO[P.form.id];
   if (!C){ if (P.choreoOn){ P.flipA = 0; P.formLift = 0; P.spinPhi = 0; P.choreoOn = false; P.crackle = false; P.windRing = false; } return; }
@@ -3015,6 +3074,7 @@ function styleAura(sid, P){
 }
 /* the style's splash when a form hits something */
 function styleImpact(sid, x, y, big){
+  const IK = INK[sid]; if (IK && FXL() > 0) emit(x, y, { n:big ? 16 : 8, col:[IK.out, IK.body, IK.foam], spd:big ? 380 : 240, size:3.2, life:0.55, kind:'drop', g:1.2 });   // ink splashes
   const fx = STYLE_FX[sid]; if (!fx) return;
   const n = big ? 20 : 9;
   switch (sid){
@@ -3988,10 +4048,10 @@ function tryForm(i){
   P.formKey = (P.formKey || 0) + 1;
   P.form = F;
   // "total concentration": the world holds still for a moment, then the form starts
-  const cineDur = LOWFX ? 0.14 : 0.24;
+  const cineDur = LOWFX ? 0.14 : (INK[sid] ? 0.42 : 0.24);   // the ink styles hold the breath a little longer
   G.cine = { t:cineDur, max:cineDur, col:st.col, sid, F };
   G.ribbonSeq++;
-  showBanner(st.name, st.forms[i][0], `${ORD[i]} Form`, st.col);
+  showBanner(st.name, st.forms[i][0], `${ORD[i]} Form`, st.col); inkBanner(sid);
   sfx('breath'); sfx(sid, 0.1); vib(25); vox('kiai', 0.05);
   emit(P.x + P.face*6, P.y-60, {n:5, col:'rgba(255,255,255,0.75)', spd:30, size:6, life:0.7, kind:'mist', g:-0.2, vx:P.face*70});
   styleImpact(sid, P.x, P.y-40, false);
@@ -8107,7 +8167,7 @@ function renderScene(){
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
     drawParts(true);
-    drawRibbons(); drawTrail(); if (P && !P.dead) drawBladeWaterBand(P);
+    drawRibbons(); drawTrail(); if (P && !P.dead) drawBladeWaterBand(P); if (P) drawInkRibbon(P);
     if (G.clone) drawStick(G.clone, 0.6, '#3E86C8');
     if (G.veh && !P.ride) drawVehicle(G.veh, false);
     if (!P.dead && (P.thrust || 0) > 0.03) drawBoosterFlames(P);   // flames behind the body
@@ -11800,7 +11860,7 @@ function step(dt){
     G.cine.t -= dt; pdt = 0; wdt = 0;
     if (G.cine.t <= 0){
       const F = G.cine.F; G.cine = null; G.cineOut = 0.25;
-      if (P.form === F){ F.wait = false; FORMS[F.id].start && FORMS[F.id].start(P, F); zoomPunch(1.05); }
+      if (P.form === F){ F.wait = false; FORMS[F.id].start && FORMS[F.id].start(P, F); zoomPunch(1.05); if (INK[F.sid] && !LOWFX && !G.mo) startMo('form', 0.32, 0.5); }   // a breath of slow motion as an ink form breaks out
     }
   }
   G.zoomK = 1 + (G.zoomK - 1) * Math.exp(-dt*6);
