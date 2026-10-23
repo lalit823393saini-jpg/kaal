@@ -836,6 +836,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <button class="big" id="setSound">Sound: on</button>
     <button class="big" id="setVib">Vibration: on</button>
     <button class="big" id="setFx">Effects: full</button>
+    <button class="big" id="setRes">Resolution: auto</button>
     <button class="big" id="setShake">Screen shake: on</button>
     <button class="big" id="setMusic">Music: on</button>
     <button class="big" id="setVoice">Voices: on</button>
@@ -1091,11 +1092,13 @@ let G_ref = null;   // set once G exists
 function viewCompactWanted(){ return VIEW.size === 'compact' && !!(G_ref && G_ref.P); }
 let LOWFX = false;   // 'Effects: light' setting — fewer particles and a lower render resolution
 let govLvl = 0;      // automatic quality: how far the render resolution has been lowered (see govTick)
-const GOV_RQ = [1, 0.8, 0.65, 0.52, 0.42];
+const GOV_RQ = [1, 0.88, 0.78];   // never lower than this: below ~75% the picture turns visibly blurry
 function resize(){
   let fxMax = false; try { fxMax = SV.set.fx === 'max'; } catch(_){}   // (resize can run before the save is loaded)
   const capD = LOWFX ? 1 : fxMax ? 2 : 1.5;   // beyond 1.5x the extra pixels cost a lot and show little
-  DPR = Math.max(0.4, Math.min(capD, window.devicePixelRatio || 1)*GOV_RQ[govLvl || 0]);
+  let sharp = false; try { sharp = SV.set.res === 'sharp'; } catch(_){}
+  const base = Math.min(capD, window.devicePixelRatio || 1);
+  DPR = Math.max(Math.min(0.75, base), base*(sharp ? 1 : GOV_RQ[govLvl || 0]));
   const touchLayout = document.body.classList.contains('touch') || matchMedia('(pointer:coarse)').matches;
   // In forced-landscape mode the game is rotated 90 degrees, so width and height swap
   const rot = document.body.classList.contains('rot');
@@ -11799,13 +11802,13 @@ function govTick(raw){
   const avg = govAcc/govN; govAcc = 0; govN = 0;
   if (govPending){   // did the last step help? if twice it changed nothing, the screen is capped (or the cost is elsewhere)
     if (avg > govPending.before*0.97){ if (++govMiss >= 2){ govLvl = govPending.from; resize(); govCapped = true;
-        if (!LOWFX && avg > 0.02){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light (smoother)', 1.4); } } }
+      } }
     else govMiss = 0;
     govPending = null; return; }
   if (govCapped) return;
-  if (avg > 0.02){ govGood = 0;
-    if (govLvl < GOV_RQ.length - 1){ govPending = { from:govLvl, before:avg }; govLvl = Math.min(GOV_RQ.length - 1, govLvl + (avg > 0.04 ? 2 : 1)); resize(); toast(`Smoother: drawing at ${Math.round(GOV_RQ[govLvl]*100)}%`, 1.2); }   // very slow: two steps at once
-    else if (!LOWFX){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light', 1.2); } }
+  if (avg > 0.02){ govGood = 0;   // lighter effects first (they do not blur anything), then a little resolution
+    if (!LOWFX){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light (smoother)', 1.4); }
+    else if (SV.set.res !== 'sharp' && govLvl < GOV_RQ.length - 1){ govPending = { from:govLvl, before:avg }; govLvl++; resize(); } }
   else if (avg < 0.0172 && govLvl > 0){ if (++govGood >= 4){ govGood = 0; govLvl--; resize(); } }
   else govGood = 0;
 }
@@ -14495,6 +14498,7 @@ function syncSettings(){
   $('setSound').textContent = snd; $('pSound').textContent = snd;
   $('setVib').textContent = 'Vibration: ' + (SV.set.vib ? 'on' : 'off');
   $('setFx').textContent = 'Effects: ' + (SV.set.fx === 'light' ? 'light' : SV.set.fx === 'max' ? 'max' : 'full');
+  $('setRes').textContent = 'Resolution: ' + (SV.set.res === 'sharp' ? 'always sharp' : 'auto');
   $('setShake').textContent = 'Screen shake: ' + (SV.set.shake ? 'on' : 'off');
   const mu = 'Music: ' + (SV.set.music ? 'on' : 'off'); $('setMusic').textContent = mu; $('pMusic').textContent = mu;
   $('setVoice').textContent = 'Voices: ' + (SV.set.voice !== false ? 'on' : 'off');
@@ -14505,6 +14509,7 @@ $('setVoice').onclick = () => { SV.set.voice = SV.set.voice === false; save(); a
 $('setSound').onclick = $('pSound').onclick = () => { SV.set.sound = !SV.set.sound; save(); audioInit(); syncSettings(); };
 $('setMusic').onclick = $('pMusic').onclick = () => { SV.set.music = !SV.set.music; save(); audioInit(); musicEnsure(); syncSettings(); };
 $('setVib').onclick = () => { SV.set.vib = !SV.set.vib; save(); syncSettings(); if (SV.set.vib) vib(30); };
+$('setRes').onclick = () => { SV.set.res = SV.set.res === 'sharp' ? 'auto' : 'sharp'; if (SV.set.res === 'sharp') govLvl = 0; save(); resize(); syncSettings(); };
 $('setFx').onclick = () => { SV.set.fx = SV.set.fx === 'light' ? 'full' : SV.set.fx === 'full' ? 'max' : 'light'; LOWFX = SV.set.fx === 'light'; save(); resize(); syncSettings(); };
 $('setShake').onclick = () => { SV.set.shake = !SV.set.shake; save(); syncSettings(); };
 syncSettings();
