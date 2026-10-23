@@ -4107,7 +4107,7 @@ function tryForm(i){
    ========================================================= */
 /* what each form does, shown the first time it is used */
 const FORM_DESC = {
-  tide1:'A short forward rush with four quick water cuts. Good for closing distance.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones.', tide4:'Throws a whirlpool that drags enemies in and cuts them for 3 s.', tide5:'Spin forward in a storm of cuts while a dragon of water coils round you. Every turn is faster, wider and harder. Hold the key to keep spinning (it burns breath): the longer it runs, the deadlier the final strike.',
+  tide1:'A short forward rush with four quick water cuts. Good for closing distance.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones.', tide4:'Throws a whirlpool that drags enemies in and cuts them for 3 s.', tide5:'Spin forward while the blade sprays water bullets to both sides. Every turn spins faster and fires faster, harder and more. Hold the key to keep spinning (it burns breath); when you let go, a last fan of heavy bullets flies forward.',
   ember1:'Rising uppercut that launches enemies into the air and sets them burning.', ember2:'A burning wheel: spin forward in the air, leaving fire on the ground.', ember3:'Wind up, then a huge explosion in front of you with heavy knockback. The ground burns.', ember4:'A dragon of fire leaves your blade and swims through the air. Its strength follows your breath: on a full breath it burns up to 50 enemies, from 70 up to 32, below 70 up to 18. Bosses take a heavy hit.', ember5:'Four pillars of fire erupt in a line ahead of you, each one launching whoever stands in it.',
   storm1:'Flash Step: teleport 9 m forward, striking everyone on the way.', storm2:'Chain Bolt: teleport from enemy to enemy, up to four in a row.', storm3:'Leap up, then slam down as lightning. Everyone near the landing is hit.', storm4:'Static Field: for 4 s lightning jumps from you to anyone who comes close.', storm5:"Heaven's Judgement: bolts rain on every enemy on screen, then one great strike.",
   gale1:'A piercing blade of wind. It cuts arrows out of the air on its way.', gale2:'Cyclone: enemies around you are dragged in and lifted off the ground.', gale3:'Sky Rend: a leaping slash that carries you up and across.', gale4:'Updraft: launch everyone nearby and float for a moment while they fall.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
@@ -4138,9 +4138,9 @@ const FORMS = {
       G.haz.push({kind:'vortex', x, y:GROUND-50, r:80, pull:200, life:3.2, tick:0, dmg:16*FM(), every:0.3});
       emit(x, GROUND-14, {n:12, col:STYLE_FX.tide.cols, spd:220, size:3, life:0.6, kind:'drop', g:1.2, vy:-140});   // the water lands and starts to turn
       sfx('tide'); vib(35); }, update(P){ P.vx *= 0.85; } },
-  // Thousand Rain: a spinning, travelling storm of cuts. Every full turn spins faster, reaches wider and hits harder,
-  // and a dragon of water coils round you, growing with each turn. Hold the key to keep it going: the longer, the deadlier.
-  tide5:{ dur:1.6, pose:'spin', start(P,F){ F.rot = 0; F.ph = 0; F.tick = 0; F.hit = new Set(); F.fin = false; P.inv = 0.35; P.dragon = []; sfx('tide'); },
+  // Thousand Rain: a spinning, travelling storm. The spinning blade sprays water bullets to both sides, and every full turn
+  // spins faster and fires faster, harder and more. Hold the key to keep it going: the longer, the deadlier the last volley.
+  tide5:{ dur:1.6, pose:'spin', start(P,F){ F.rot = 0; F.ph = 0; F.tick = 0; F.shotT = 0; F.hit = new Set(); F.fin = false; P.inv = 0.35; sfx('tide'); },
     update(P,dt,F){
       if (F.fin){ P.vx *= Math.pow(0.05, dt); return; }
       const keep = held.form4 && F.dur < 3.4 && P.breath > 4;
@@ -4153,22 +4153,23 @@ const FORMS = {
       const mv = (held.right ? 1 : 0) - (held.left ? 1 : 0); if (mv) P.face = mv;
       P.vx = lerp(P.vx, (mv || P.face)*(150 + 14*Math.min(8, F.rot)), Math.min(1, dt*5));
       const k = Math.min(10, F.rot);
-      F.tick -= dt; if (F.tick <= 0){ F.tick = 0.07;
-        areaHit(P.x, P.y - 35, 85 + 14*k, 70 + 6*k, (12 + 7*k)*FM(), { kb:100 + 28*k, kbAway:true, src:'form', launch:k >= 3 ? 180 + 30*k : 0 }, F.hit); }
-      // the dragon's head circles you, wider and higher every turn; its body is the trail it leaves
-      const R = 52 + 9*Math.min(8, k), a1 = F.ph, a0 = F.lastPh != null ? F.lastPh : a1, steps = Math.max(1, Math.ceil((a1 - a0)/0.12));
-      for (let j=1;j<=steps;j++){   // fill in the arc between frames so the body curves smoothly even at full speed
-        const a = a0 + (a1 - a0)*j/steps, hx = P.x + Math.cos(a)*R, hy = P.y - 46 - Math.sin(a)*R*0.32 - Math.sin(a*0.5)*10 - Math.min(8, k)*2.5;
-        P.dragon.push({ x:hx, y:hy, t:G.time - dt*(1 - j/steps), w:7 + 2.2*Math.min(8, k) }); }
-      F.lastPh = a1; while (P.dragon.length > 260) P.dragon.shift();
+      F.tick -= dt; if (F.tick <= 0){ F.tick = 0.07;   // the blade itself still cuts anyone close
+        areaHit(P.x, P.y - 35, 70 + 6*k, 65, (8 + 4*k)*FM(), { kb:80 + 18*k, kbAway:true, src:'form', launch:k >= 3 ? 160 + 20*k : 0 }, F.hit); }
+      // water bullets fly off the spinning blade, to whichever side it is passing: faster, harder and more of them every turn
+      F.shotT = (F.shotT || 0) - dt;
+      if (F.shotT <= 0){ F.shotT = Math.max(0.04, 0.09 - 0.006*k);
+        const tip = formBladeTip(P), side = Math.cos(F.ph) >= 0 ? P.face : -P.face, n = 1 + Math.floor(k/3);
+        for (let j=0;j<n;j++){ const a = rnd(-0.32, 0.22), sp = 880 + 45*k;
+          G.proj.push({ kind:'water', x:tip[0], y:tip[1], vx:side*Math.cos(a)*sp, vy:Math.sin(a)*sp, g:220, dmg:(8 + 3*k)*FM(), pierce:k >= 4 ? 2 : 1, hit:new Set(), life:0.75, col:'#2C7BD6', kb:60 + 10*k, r:5 + 0.3*k }); }
+        if (Math.random() < 0.35) sfx('swish'); }
       if (F.dur - F.t < 0.22 && !keep){   // the end: the dragon strikes forward with everything the turns built up
-        F.fin = true; const hit = new Set();
-        areaHit(P.x + P.face*130, P.y - 40, 150 + 12*k, 95, (30 + 12*k)*FM(), { kb:380 + 30*k, src:'form', dir:P.face, launch:300, knockdown:1.0 }, hit);
-        const last = P.dragon[P.dragon.length - 1] || { x:P.x, y:P.y - 50 }, tx = P.x + P.face*(240 + 10*k), ty = P.y - 40;
-        for (let j=1;j<=12;j++){ const u = j/12; P.dragon.push({ x:lerp(last.x, tx, u), y:lerp(last.y, ty, u) - Math.sin(Math.PI*u)*30, t:G.time + u*0.05, w:9 + 2.6*Math.min(8, k) }); }
-        for (let j=0;j<3;j++) styleImpact('tide', tx - P.face*j*50, P.y - 40, true);
-        ringFx(tx, P.y - 4, 150 + 12*k, '#9AD8FF', true); G.shake = Math.max(G.shake, 10 + k); flash('#CFEFFF', 0.3); zoomPunch(1.06); sfx('boom'); sfx('tide');
-        if (k >= 2) pop(tx, P.y - 120, `${k} turns!`, '#E8F7FF');
+        F.fin = true;   // the last of the rain: a fan of heavy water bullets thrown forward with everything the turns built up
+        const tip = formBladeTip(P), n = 12 + 2*k;
+        for (let j=0;j<n;j++){ const a = -0.42 + 0.7*j/(n - 1) + rnd(-0.03, 0.03), sp = 1050 + 40*k;
+          G.proj.push({ kind:'water', x:tip[0], y:tip[1], vx:P.face*Math.cos(a)*sp, vy:Math.sin(a)*sp, g:180, dmg:(14 + 4*k)*FM(), pierce:2 + Math.floor(k/4), hit:new Set(), life:0.9, col:'#2C7BD6', kb:180 + 20*k, r:6.2 + 0.35*k }); }
+        styleImpact('tide', tip[0] + P.face*30, tip[1], true);
+        ringFx(tip[0], tip[1], 90 + 8*k, '#9AD8FF'); G.shake = Math.max(G.shake, 6 + k*0.6); flash('#CFEFFF', 0.25); zoomPunch(1.05); sfx('boom'); sfx('tide');
+        if (k >= 2) pop(P.x + P.face*60, P.y - 120, `${k} turns!`, '#E8F7FF');
       } } },
   /* ---- Ember ---- */
   ember1:{ dur:0.4, pose:'up', start(P){ if (P.onG) P.vy = -380; },
@@ -7871,6 +7872,14 @@ function drawProj(){
       ctx.globalCompositeOperation='lighter'; ctx.strokeStyle = '#FFB25A'; ctx.globalAlpha = 0.5; ctx.lineWidth = 4; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(0,0); ctx.stroke();
       ctx.globalAlpha = 1; ctx.strokeStyle = '#FFF6D0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(3,0); ctx.stroke();
       ctx.globalCompositeOperation='source-over'; ctx.restore();
+    } else if (p.kind==='water'){   // a brush-ink water drop, pointed the way it flies
+      const r = p.r || 4, a = Math.atan2(p.vy, p.vx);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(a);
+      ctx.globalAlpha = 0.45; ctx.strokeStyle = '#8FD8FF'; ctx.lineWidth = r*0.9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-r*5, 0); ctx.lineTo(-r, 0); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = '#0A2A5C'; ctx.beginPath(); ctx.moveTo(r*1.9, 0); ctx.quadraticCurveTo(r*0.2, -r*1.5, -r*1.3, 0); ctx.quadraticCurveTo(r*0.2, r*1.5, r*1.9, 0); ctx.fill();
+      ctx.fillStyle = '#2C7BD6'; ctx.beginPath(); ctx.moveTo(r*1.5, 0); ctx.quadraticCurveTo(r*0.2, -r*1.05, -r*0.9, 0); ctx.quadraticCurveTo(r*0.2, r*1.05, r*1.5, 0); ctx.fill();
+      ctx.fillStyle = '#F4FBFF'; ctx.beginPath(); ctx.arc(r*0.35, -r*0.35, r*0.32, 0, 6.283); ctx.fill();
+      ctx.restore();
     } else if (p.kind==='venom'){
       ctx.fillStyle = p.col; ctx.beginPath(); ctx.ellipse(p.x, p.y, 5, 8, Math.atan2(p.vy, p.vx)+1.57, 0, 6.283); ctx.fill();
     } else {
@@ -12012,7 +12021,8 @@ function step(dt){
     }
     if (p.kind==='bullet' && p.y > GROUND-2){ p.life = 0; if (p.boom) shellBoom(p, p.x, GROUND-10); else burst(p.x, GROUND, 5, '#3a2a28', 160, 2); }
     if (p.boom && pdt > 0 && Math.random() < 0.9) emit(p.x, p.y, {n:1, col:['#FF7A2A','#FFE14D','#444'], spd:40, size:4, life:0.4, kind:'ember', g:-0.2});
-    if (p.y > GROUND-8 && p.kind!=='kunai' && p.kind!=='bullet'){
+    if (p.kind==='water' && p.y > GROUND-4){ p.life = 0; if (FXL() > 0) emit(p.x, GROUND - 3, { n:5, col:['#2C7BD6','#8FD8FF','#F4FBFF'], spd:150, size:2.6, life:0.4, kind:'drop', g:1.4, vy:-120 }); }
+    if (p.y > GROUND-8 && p.kind!=='kunai' && p.kind!=='bullet' && p.kind!=='water'){
       if (p.splash){ p.life = 0; G.haz.push({kind:'venom', x:p.x, y:GROUND, r:34, life:3.2, tick:0, dmg:4*FM(), every:0.45}); styleImpact('serpent', p.x, GROUND-8, false); sfx('swish'); }
       else { p.vy = 0; p.y = GROUND-8; } }
     for (const e of G.E){
@@ -12023,6 +12033,7 @@ function step(dt){
         if (p.kind==='bullet'){ G.P.breath = Math.min(G.ST.breathMax, G.P.breath + 2); if (hasAbil('bloodEdge') && G.P.hp < G.P.maxHp) G.P.hp = Math.min(G.P.maxHp, G.P.hp + 1);
           if (p.boom){ p.life = 0; p.pierce = 0; shellBoom(p, e.x, e.y-36*e.size); break; }
           if (p.chain){ let k = 0; for (const o of nearestEnemies(e.x, 260)){ if (o === e || o.vanish) continue; if (k++ >= p.chain) break; bolt(e.x, e.y-36*e.size, o.x, o.y-36*o.size); damageEnemy(o, p.dmg*0.6, {kb:80, src:'proj', quiet:true, stun:0.25, dir:sign(o.x-e.x)||1}); emit(o.x, o.y-36*o.size, {n:6, col:STYLE_FX.storm.cols, spd:360, size:2.5, life:0.3, kind:'spark', g:0}); } if (k) sfx('zap'); } }
+        if (p.kind==='water'){ if (FXL() > 0) emit(p.x, p.y, { n:4, col:['#0A2A5C','#2C7BD6','#F4FBFF'], spd:180, size:2.6, life:0.35, kind:'drop', g:1.2 }); }
         damageEnemy(e, p.dmg, {kb:p.kb || (p.kind==='kunai'?60:160), src:(p.kind==='kunai'||p.kind==='bullet')?'proj':'form', dir:sign(p.vx), burn:p.burn||0, freeze:p.freeze||0, poison:p.poison||0, heavy:!!p.big || !!p.gunHeavy, launch:p.big?380:0, guardBreak:!!p.guardBreak, breakArmor:p.breakArmor||0, unblockable:!!p.gunHeavy});
       }
     }
