@@ -1402,6 +1402,133 @@ function wallSplat(e){
   pop(e.x - side*20, e.y - 92*e.size, 'Wall splat!', '#FFB347'); sfx('kick'); G.shake = Math.max(G.shake, 4);
   emit(side < 0 ? 26 : G.worldW - 26, e.y - 40*e.size, { n:10, col:['rgba(200,180,160,0.6)','rgba(120,100,90,0.5)'], spd:180, size:7, life:0.45, kind:'mist', g:-0.1, real:false });
 }
+
+/* ===== FORM CHOREOGRAPHY: every breathing form gets its own body motion and its own way of turning the sword =====
+   Visual only: the damage, reach and timing of each form are untouched.
+   Angles (as in getPose): 0 = straight forward, negative = up, positive = down; a = sword arm, b = blade.
+   rot = a whole-body somersault (+ forward, - backward); lift = the body rises off the ground while it turns. */
+const TAU = Math.PI*2;
+const FC_EASE = q => q*q*(3 - 2*q);
+const FORM_CHOREO = {
+  tide1:{ t:'flurryTwirl', d:1 },  tide2:{ t:'twirlFront', n:3, d:1 }, tide3:{ t:'stanceWheel', d:1 }, tide4:{ t:'castTwirl', n:2, d:1 }, tide5:{ t:'twirlThrust', n:2, d:-1 },
+  ember1:{ t:'risingSpiral', d:1 }, ember2:{ t:'frontFlip', n:1 }, ember3:{ t:'slamFlip' }, ember4:{ t:'twirlOver', n:1.5, d:1 }, ember5:{ t:'castTwirl', n:3, d:-1 },
+  storm1:{ t:'thrustDash' }, storm2:{ t:'twirlThrust', n:1, d:1 }, storm3:{ t:'phaseSlam', d:-1 }, storm4:{ t:'backFlip', n:1 }, storm5:{ t:'doubleFlip', d:1 },
+  gale1:{ t:'frontFlip', n:1 }, gale2:{ t:'cartwheel', n:2, d:1 }, gale3:{ t:'backFlip', n:1 }, gale4:{ t:'risingSpiral', d:-1 }, gale5:{ t:'twirlFront', n:4, d:-1 },
+  crescent1:{ t:'backFlip', n:1 }, crescent2:{ t:'frontFlip', n:1 }, crescent3:{ t:'castTwirl', n:1, d:1 }, crescent4:{ t:'doubleFlip', d:-1 }, crescent5:{ t:'twirlOver', n:2, d:-1 },
+  stone1:{ t:'twirlOver', n:1, d:1 }, stone2:{ t:'slamFlip' }, stone3:{ t:'twirlFront', n:1, d:1 }, stone4:{ t:'twirlOver', n:2, d:1 }, stone5:{ t:'phaseSlam', d:1 },
+  frost1:{ t:'twirlFront', n:2, d:-1 }, frost2:{ t:'castTwirl', n:2, d:-1 }, frost3:{ t:'backFlip', n:1 }, frost4:{ t:'cartwheel', n:1, d:-1 }, frost5:{ t:'slamFlip' },
+  shadow1:{ t:'backFlip', n:1 }, shadow2:{ t:'thrustDash' }, shadow3:{ t:'frontFlip', n:2 }, shadow4:{ t:'doubleFlip', d:1 }, shadow5:{ t:'twirlThrust', n:3, d:1 },
+  blood1:{ t:'twirlOver', n:1, d:-1 }, blood2:{ t:'flurryTwirl', d:-1 }, blood3:{ t:'slamFlip' }, blood4:{ t:'twirlFront', n:3, d:1 }, blood5:{ t:'sunWheel', n:2 },
+  sun1:{ t:'flurryTwirl', d:1 }, sun2:{ t:'risingSpiral', d:1 }, sun3:{ t:'sunWheel', n:1 }, sun4:{ t:'castTwirl', n:2, d:1 }, sun5:{ t:'sunWheel', n:3 },
+  serpent1:{ t:'serpentWave', w:2 }, serpent2:{ t:'serpentWave', w:3 }, serpent3:{ t:'twirlFront', n:3, d:-1 }, serpent4:{ t:'risingSpiral', d:-1 }, serpent5:{ t:'serpentWave', w:5 },
+  kaal1:{ t:'thrustDash' }, kaal2:{ t:'doubleFlip', d:-1 }, kaal3:{ t:'castTwirl', n:4, d:1 }, kaal4:{ t:'backFlip', n:1 }, kaal5:{ t:'kaalStorm' }
+};
+/* the pose for this instant of a form: { a, b, lean, crouch, rot, lift } */
+function choreo(C, F){
+  const dur = (FORMS[F.id] && FORMS[F.id].dur) || 0.5, t = F.t, q = clamp(t/dur, 0, 1), d = C.d || 1, n = C.n || 1;
+  const o = { a:0.6, b:-0.85, lean:0, crouch:0, rot:0, lift:0, w:0 };
+  const ramp = (x, a0, a1) => clamp((x - a0)/Math.max(1e-4, a1 - a0), 0, 1);
+  const twirl = (base, turns, qq) => base + d*TAU*turns*qq;           // the blade turning round the hand
+  switch (C.t){
+    case 'twirlOver':      // arm up, the blade wheels over the head, then comes down
+      if (q < 0.7){ const p = q/0.7; o.a = -1.55 + Math.sin(p*18)*0.12; o.b = twirl(-1.57, n, p); o.lean = -0.12; o.crouch = 2; }
+      else { const p = FC_EASE((q - 0.7)/0.3); o.a = lerp(-1.55, 1.15, p); o.b = lerp(-1.6, 1.45, p); o.lean = 0.45*p; o.crouch = 8*p; }
+      o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.66, 0.78)); break;
+    case 'twirlFront':     // a wheel of steel in front of the chest
+      o.a = 0.15 + Math.sin(q*TAU*n)*0.25; o.b = twirl(-0.4, n, FC_EASE(q)); o.lean = 0.3; o.crouch = 4; o.w = ramp(q, 0, 0.1)*(1 - ramp(q, 0.88, 1)); break;
+    case 'twirlThrust':    // wheel it, then drive it straight through
+      if (q < 0.55){ const p = q/0.55; o.a = 0.1 + Math.sin(p*TAU*n)*0.2; o.b = twirl(-0.4, n, p); o.lean = 0.15; o.crouch = 3; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.55)/0.15)); o.a = lerp(0.3, 0, p); o.b = lerp(-0.4, 0, p); o.lean = lerp(0.15, 0.75, p); o.crouch = 8; }
+      o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.48, 0.58)); break;
+    case 'thrustDash':     // cocked back over the shoulder, then a straight lightning thrust
+      if (q < 0.25){ const p = q/0.25; o.a = lerp(0.6, -2.5, p); o.b = lerp(-0.85, -2.9, p); o.lean = -0.25*p; o.crouch = 5*p; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.25)/0.12)); o.a = lerp(-2.5, 0, p); o.b = lerp(-2.9, 0, p); o.lean = 0.8; o.crouch = 9; o.rot = 0.18*p; }
+      break;
+    case 'frontFlip':      // a forward somersault with the blade held out: the flip itself is the cut
+      o.rot = TAU*n*FC_EASE(q); o.lift = Math.sin(Math.PI*q)*46; o.a = 0.35; o.b = 0.15; o.crouch = 3*(1 - q); break;
+    case 'backFlip':       // over backwards, the blade sweeping up through the front
+      o.rot = -TAU*n*FC_EASE(q); o.lift = Math.sin(Math.PI*q)*52; o.a = -0.9; o.b = -1.2; break;
+    case 'doubleFlip':     // two turns in the air, the blade spinning overhead the whole time
+      o.rot = -d*2*TAU*FC_EASE(q); o.lift = Math.sin(Math.PI*q)*70; o.a = -1.9; o.b = twirl(-2.4, 3, q); o.w = ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break;
+    case 'cartwheel':      // turning sideways like a wheel, arms and blade straight out
+      o.rot = d*TAU*n*q; o.lift = Math.sin(Math.PI*q)*30 + 12; o.a = -0.25; o.b = -0.2; o.lean = 0; break;
+    case 'sunWheel':       // a burning wheel: body and blade turn together
+      o.rot = TAU*n*q; o.lift = 18 + Math.sin(Math.PI*q)*30; o.a = -0.1; o.b = twirl(-0.1, n, q); o.w = ramp(q, 0, 0.1)*(1 - ramp(q, 0.9, 1)); break;
+    case 'risingSpiral':   // crouch with the blade low, then corkscrew up with it pointing at the sky
+      if (q < 0.28){ const p = q/0.28; o.a = 1.2; o.b = 1.5; o.crouch = 8*p; }
+      else { const p = (q - 0.28)/0.72; o.rot = -d*TAU*FC_EASE(p); o.lift = Math.sin(Math.PI*p)*60; o.a = -2.0; o.b = twirl(-2.6, 2, p); }
+      o.w = ramp(q, 0.22, 0.32)*(1 - ramp(q, 0.88, 1)); break;
+    case 'slamFlip':       // a front flip with the sword overhead, then straight down into the ground
+      if (q < 0.6){ const p = q/0.6; o.rot = TAU*FC_EASE(p); o.lift = Math.sin(Math.PI*p)*58; o.a = -2.6; o.b = -3.0; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.6)/0.12)); o.a = lerp(-2.6, 1.3, p); o.b = lerp(-3.0, 1.6, p); o.crouch = 9*p; o.lean = 0.4*p; }
+      o.w = 0.8*ramp(q, 0, 0.1)*(1 - ramp(q, 0.55, 0.65)); break;
+    case 'phaseSlam':      // forms that rise and then crash: wheel and flip on the way up, slam on the way down
+      if (F.phase === 'up'){ o.rot = -d*TAU*((t*1.6) % 1); o.lift = 10; o.a = -2.4; o.b = twirl(-2.8, 3, Math.min(1, t)); o.w = ramp(t, 0, 0.08); }
+      else { o.a = 1.3; o.b = 1.6; o.crouch = 7; o.lean = 0.35; o.w = 0; }
+      break;
+    case 'castTwirl':      // the blade spun overhead like a staff, then pointed at the target as the power goes out
+      if (q < 0.62){ const p = q/0.62; o.a = -1.35 + Math.sin(p*14)*0.1; o.b = twirl(-1.55, n, FC_EASE(p)); o.lean = -0.05; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.62)/0.2)); o.a = lerp(-1.35, -0.25, p); o.b = lerp(-1.55, -0.15, p); o.lean = 0.3*p; o.crouch = 4*p; }
+      o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.6, 0.72)); break;
+    case 'stanceWheel':    // a counter stance that keeps the blade turning in front like a shield
+      o.a = 0.55; o.b = twirl(0.6, 2.5, q); o.crouch = 9; o.lean = 0.12; o.w = ramp(q, 0, 0.1); break;
+    case 'flurryTwirl':    // a storm of cuts, the blade spinning between them
+      o.a = Math.sin(t*30)*1.25 - 0.3; o.b = o.a - 0.3 + d*t*22; o.lean = 0.4; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break;
+    case 'serpentWave': {  // the blade slithers: arm and blade ripple out of step, like a snake
+      const w = C.w || 3; o.a = 0.15 + Math.sin(q*Math.PI*2*w)*0.55; o.b = o.a + Math.sin(q*Math.PI*2*w + 1.2)*1.2; o.lean = 0.35 + Math.sin(q*Math.PI*w)*0.1; o.crouch = 4; o.w = 0.7*ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break; }
+    case 'kaalStorm':      // the long finale: a flurry, a double flip, then one huge cut
+      if (q < 0.34){ const tt = t; o.a = Math.sin(tt*30)*1.25 - 0.3; o.b = o.a - 0.3 + tt*24; o.lean = 0.4; o.crouch = 3; o.w = 0.7*ramp(q, 0, 0.05); }
+      else if (q < 0.72){ const p = (q - 0.34)/0.38; o.rot = -2*TAU*FC_EASE(p); o.lift = Math.sin(Math.PI*p)*80; o.a = -1.9; o.b = -2.4 + TAU*3*p; o.w = 1; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.72)/0.12)); o.a = lerp(-2.6, 1.2, p); o.b = lerp(-3.0, 1.5, p); o.lean = 0.5*p; o.crouch = 9*p; o.w = 1 - ramp(q, 0.72, 0.8); }
+      break;
+  }
+  return o;
+}
+/* on top of the form's own clip: for the twirl parts, take the hand and the blade and turn the blade round the hand */
+function choreoOverlay(e, p){
+  const C = FORM_CHOREO[e.form.id]; if (!C) return;
+  const o = choreo(C, e.form), w = o.w; if (w <= 0.01) return;
+  const lv = clamp((e.vx || 0)*(e.face || 1), -200, 300)*0.0007, lean = p.lean != null ? p.lean : 0, cr = p.crouch || 0;
+  const sx = (lean + lv)*22 + (p.protr || 0), sy = -18 + 0.2*cr, R = (ARM_UP + ARM_LO - 0.6)*0.88;
+  const hand = [sx + Math.cos(o.a)*R, sy + Math.sin(o.a)*R];
+  p.mainT = p.mainT ? lerp2(p.mainT, hand, w) : hand;
+  let b0 = p.b != null ? p.b : o.b; while (o.b - b0 > Math.PI) b0 += TAU; while (b0 - o.b > Math.PI) b0 -= TAU;   // blend along the short way
+  p.b = lerp(b0, o.b, w); p.fs = lerp(p.fs != null ? p.fs : 1, 1, w);
+  if (p.offT && w > 0.5){ p.offW = (p.offW || 1)*(1 - (w - 0.5)*2); }   // the free hand lets go while the blade spins
+}
+/* every frame: the somersault and the lift go onto the player for drawing */
+function formChoreoTick(P){
+  if (P.flip) return;   // the air backflip owns the turn
+  const C = P.form && FORM_CHOREO[P.form.id];
+  if (!C){ if (P.choreoOn){ P.flipA = 0; P.formLift = 0; P.choreoOn = false; } return; }
+  const o = choreo(C, P.form); P.flipA = o.rot; P.formLift = o.lift; P.choreoOn = true;
+}
+/* the sword's path as glowing arcs (and the body's turn as a faint swoosh), like a staff spun in a fight */
+function drawFormTwirl(P){
+  const now = G.time;
+  P.twArcs = (P.twArcs || []).filter(a => now - a.at < 0.24);
+  if (P.form && FORM_CHOREO[P.form.id] && !P.dead){
+    const sg = stickSegments(P), bl = sg.find(q => q[5] === 'blade');
+    if (bl){
+      const cx = bl[0], cy = bl[1], ang = Math.atan2(bl[3] - cy, bl[2] - cx), L = Math.hypot(bl[2] - cx, bl[3] - cy);
+      if (P.twPrev != null && P.twForm === P.form){ let dA = ang - P.twPrev; while (dA > Math.PI) dA -= TAU; while (dA < -Math.PI) dA += TAU;
+        if (Math.abs(dA) > 0.14 && Math.abs(dA) < 2.6) P.twArcs.push({ cx, cy, r:L, a0:P.twPrev, a1:P.twPrev + dA, at:now, k:'blade' }); }
+      P.twPrev = ang; P.twForm = P.form;
+      if (P.flipPrev != null && Math.abs(P.flipA - P.flipPrev) > 0.12){ const hy = P.y - 28 - (P.formLift || 0), r0 = -Math.PI/2 + P.flipPrev*P.face, r1 = -Math.PI/2 + P.flipA*P.face;
+        P.twArcs.push({ cx:P.x, cy:hy, r:44, a0:r0, a1:r1, at:now, k:'body' }); }
+      P.flipPrev = P.flipA;
+    }
+  } else { P.twPrev = null; P.flipPrev = null; }
+  if (!P.twArcs.length) return;
+  const sid = P.form ? P.form.id.replace(/\d+$/, '') : '', fx = STYLE_FX[sid], col = (fx && fx.cols[0]) || G.ST.trail || '#FFFFFF', edge = (fx && fx.edge) || '#FFFFFF';
+  ctx.save(); ctx.lineCap = 'round';
+  for (const A of P.twArcs){ const age = (now - A.at)/0.24, al = (1 - age), ccw = A.a1 < A.a0;
+    if (A.k === 'body'){ ctx.globalAlpha = 0.28*al; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(A.cx, A.cy, A.r, A.a0, A.a1, ccw); ctx.stroke(); continue; }
+    ctx.globalAlpha = 0.32*al; ctx.strokeStyle = col; ctx.lineWidth = 13*(1 - age*0.5); ctx.beginPath(); ctx.arc(A.cx, A.cy, A.r*0.9, A.a0, A.a1, ccw); ctx.stroke();   // the wide glow
+    ctx.globalAlpha = 0.75*al; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(A.cx, A.cy, A.r, A.a0, A.a1, ccw); ctx.stroke();                                         // the tip's line
+    ctx.globalAlpha = 0.9*al; ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(A.cx, A.cy, A.r, A.a0, A.a1, ccw); ctx.stroke(); }
+  ctx.restore();
+}
 /* ===== WEB SHOOTER (free mode): catch an enemy on a web line, then swing them as a weapon, throw them or slam them =====
    X tap = shoot · hold X = spin them round you (they smash everyone they touch) · let go while spinning = throw
    J while holding = slam them into the ground · K = let go */
@@ -3216,6 +3343,7 @@ function updatePlayer(dt){
   if (P.vthrow) updateVajraThrow(P, dt);
   if (P.gsum) updateGadaSummon(P, dt);
   webTick(P, dt);
+  formChoreoTick(P);
   if (pressed.switch && G.dojo && G.time - (P.dojoT || -9) > 1.5){ P.dojoT = G.time; toast('Dojo: no blades here', 0.8); }
   if (pressed.switch && hasFists() && !G.dojo && !P.form && P.dashT <= 0) switchWeapon();
   if (pressed.clone && hasAbil('clone') && P.cloneCd <= 0){
@@ -5207,8 +5335,9 @@ function getPose(e){
   const fists = !!(e.sword && e.sword.fist);
   if (e.isPlayer){
     if (e.form){
-      const F = e.form, t = F.t, def = FORMS[F.id];
-      switch (def.pose){
+      const F = e.form, t = F.t, def = FORMS[F.id], CH = FORM_CHOREO[F.id];
+      if (CH){ const o = choreo(CH, F); a = o.a; b = o.b; lean = o.lean; crouch = o.crouch; }   // the form's own choreography
+      else switch (def.pose){
         case 'spin':   a = -t*24; b = a-0.3; lean=0.3; crouch=4; break;
         case 'flurry': a = Math.sin(t*30)*1.5-0.3; b = a-0.3; lean=0.4; crouch=3; break;
         case 'up':     { const p=clamp(t/0.14,0,1); a=lerp(1.2,-2.0,p); b=lerp(1.5,-2.6,p); crouch=4*(1-p); } break;
@@ -5342,7 +5471,7 @@ function getPose(e){
   if (!e.isPlayer && e.react) hitReactPose(e, P_);
   if (e.webHeld){ P_.roll = e.webRoll || 0; P_.lean = 0; P_.a = -2.2; P_.a2 = -1.9; P_.b = -2.6; P_.b2 = -2.1; P_.ext = P_.ext2 = 1; P_.crouch = 0; }
   if (e.isPlayer && e.atk && e.atk.d.kick && e.atk.d.aim && e.onG !== false){ P_.legs = [0, 0, -0.24, 0.42]; P_.legW = 1; }   // supporting knee soft under the kick
-  if (e.isPlayer && e.form && formClipWeapon(e) && FORM_MAP[e.form.id]) formClipPose(e, P_);   // Stage 2: breathing forms
+  if (e.isPlayer && e.form && formClipWeapon(e) && FORM_MAP[e.form.id]){ formClipPose(e, P_); choreoOverlay(e, P_); }   // Stage 2: breathing forms, plus their twirls
   else if (e.isPlayer && e.atk && !e.form && clipWeapon(e)) attackClipPose(e, P_);
   else if (e.isPlayer && (e.formOut || e.clipOut) && !e.atk && !e.form && !e.sheath){   // just after a clip attack or form: ease from its last pose into this one
     const O = e.formOut || e.clipOut, k = easeIO(clamp(O.t/O.dur, 0, 1)), cur = poseHandOf(P_);
@@ -5388,8 +5517,10 @@ function kickLeg(ik, aim, ph, p){
 }
 function stickSegments(e){
   const segs = stickSegmentsRaw(e), a = (e.isPlayer ? (e.flyLean || 0) + (e.flipA || 0) : 0) + (segs.roll || 0);   // + a form's somersault (visual only)
+  const lift = e.isPlayer ? (e.formLift || 0) : 0;   // a form's flip rises off the ground (drawing only)
+  if (lift) for (const sg of segs){ sg[1] -= lift; sg[3] -= lift; }
   if (Math.abs(a) < 0.002) return segs;
-  const s = e.size || 1, px = e.x, py = e.y - 28*s, r = a*(e.face || 1), c = Math.cos(r), sn = Math.sin(r);
+  const s = e.size || 1, px = e.x, py = e.y - 28*s - lift, r = a*(e.face || 1), c = Math.cos(r), sn = Math.sin(r);
   const rot = (x, y) => { const dx = x - px, dy = y - py; return [px + dx*c - dy*sn, py + dx*sn + dy*c]; };
   for (const sg of segs){ const p0 = rot(sg[0], sg[1]), p1 = rot(sg[2], sg[3]); sg[0] = p0[0]; sg[1] = p0[1]; sg[2] = p1[0]; sg[3] = p1[1]; }
   return segs;
@@ -7733,6 +7864,7 @@ function renderScene(){
       if (P.ride) ctx.restore();
       if (!P.ride){ drawAstraHeld(P); if (P.gsum) drawGadaSummon(P); }
       if (P.wg) drawWebLine(P);
+      drawFormTwirl(P);
       if (P.blockT >= 0 && P.blockT < G.ST.parry){ ctx.strokeStyle='rgba(255,231,168,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(P.x+P.face*18,P.y-46,16,0,Math.PI*2); ctx.stroke(); }
     }
     if (G.mode === 'world' && G.world) drawWorldFront();
