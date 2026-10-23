@@ -1409,11 +1409,25 @@ function wallSplat(e){
    rot = a whole-body somersault (+ forward, - backward); lift = the body rises off the ground while it turns. */
 const TAU = Math.PI*2;
 const FC_EASE = q => q*q*(3 - 2*q);
+/* Tempest's flourish: [time, hand (hip frame), blade angle, crouch, lean, body turn, linear blade] */
+const FLOURISH = [
+  [0.00, [6, -12],  -0.3,  4, 0.10, 0],
+  [0.10, [7, -36],  -2.9,  3, -0.10, 0],          // up overhead, blade lying back
+  [0.22, [18, -10],  0.9,  7, 0.35, 0],           // a diagonal down across the front
+  [0.30, [12, -4],   2.2,  7, 0.30, 0],           // follow-through low and behind
+  [0.38, [-2, -30],  2.95, 4, -0.05, 0],          // round behind the shoulder, the blade behind the neck
+  [0.50, [18, -12],  6.9,  7, 0.30, 0],           // down the other diagonal
+  [0.56, [16, -20],  6.1,  4, 0.15, 0],           // wrists come together in front
+  [0.70, [16, -20],  6.1 + TAU*1.5, 4, 0.15, 0, 1],   // a wrist roll: the blade spins round the hands
+  [0.74, [6, -38],   3.25 + TAU*2, 3, -0.05, 0],  // up overhead for the turn
+  [0.86, [6, -38],   3.25 + TAU*2, 4, 0, TAU],    // a full turn on the spot
+  [0.93, [26, -12],  TAU*2 + 0.05, 14, 0.6, TAU], // a deep lunge, a flat cut
+  [1.00, [22, -13],  TAU*2 + 0.05, 12, 0.5, TAU] ];
 const FORM_CHOREO = {
   tide1:{ t:'flurryTwirl', d:1 },  tide2:{ t:'twirlFront', n:3, d:1 }, tide3:{ t:'stanceWheel', d:1 }, tide4:{ t:'castTwirl', n:2, d:1 }, tide5:{ t:'twirlThrust', n:2, d:-1 },
   ember1:{ t:'risingSpiral', d:1 }, ember2:{ t:'frontFlip', n:1 }, ember3:{ t:'slamFlip' }, ember4:{ t:'twirlOver', n:1.5, d:1 }, ember5:{ t:'castTwirl', n:3, d:-1 },
-  storm1:{ t:'thrustDash' }, storm2:{ t:'twirlThrust', n:1, d:1 }, storm3:{ t:'phaseSlam', d:-1 }, storm4:{ t:'backFlip', n:1 }, storm5:{ t:'doubleFlip', d:1 },
-  gale1:{ t:'frontFlip', n:1 }, gale2:{ t:'cartwheel', n:2, d:1 }, gale3:{ t:'backFlip', n:1 }, gale4:{ t:'risingSpiral', d:-1 }, gale5:{ t:'twirlFront', n:4, d:-1 },
+  storm1:{ t:'zanshin' }, storm2:{ t:'chainHop' }, storm3:{ t:'thunderFall' }, storm4:{ t:'absorb' }, storm5:{ t:'judgement' },
+  gale1:{ t:'windDraw' }, gale2:{ t:'cyclone', n:3, d:1 }, gale3:{ t:'spinCut', d:1 }, gale4:{ t:'drillUp', n:2.5 }, gale5:{ t:'flourish' },
   crescent1:{ t:'backFlip', n:1 }, crescent2:{ t:'frontFlip', n:1 }, crescent3:{ t:'castTwirl', n:1, d:1 }, crescent4:{ t:'doubleFlip', d:-1 }, crescent5:{ t:'twirlOver', n:2, d:-1 },
   stone1:{ t:'twirlOver', n:1, d:1 }, stone2:{ t:'slamFlip' }, stone3:{ t:'twirlFront', n:1, d:1 }, stone4:{ t:'twirlOver', n:2, d:1 }, stone5:{ t:'phaseSlam', d:1 },
   frost1:{ t:'twirlFront', n:2, d:-1 }, frost2:{ t:'castTwirl', n:2, d:-1 }, frost3:{ t:'backFlip', n:1 }, frost4:{ t:'cartwheel', n:1, d:-1 }, frost5:{ t:'slamFlip' },
@@ -1426,7 +1440,7 @@ const FORM_CHOREO = {
 /* the pose for this instant of a form: { a, b, lean, crouch, rot, lift } */
 function choreo(C, F){
   const dur = (FORMS[F.id] && FORMS[F.id].dur) || 0.5, t = F.t, q = clamp(t/dur, 0, 1), d = C.d || 1, n = C.n || 1;
-  const o = { a:0.6, b:-0.85, lean:0, crouch:0, rot:0, lift:0, w:0 };
+  const o = { a:0.6, b:-0.85, lean:0, crouch:0, rot:0, lift:0, w:0, spin:0 };
   const ramp = (x, a0, a1) => clamp((x - a0)/Math.max(1e-4, a1 - a0), 0, 1);
   const twirl = (base, turns, qq) => base + d*TAU*turns*qq;           // the blade turning round the hand
   switch (C.t){
@@ -1476,6 +1490,41 @@ function choreo(C, F){
       o.a = Math.sin(t*30)*1.25 - 0.3; o.b = o.a - 0.3 + d*t*22; o.lean = 0.4; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break;
     case 'serpentWave': {  // the blade slithers: arm and blade ripple out of step, like a snake
       const w = C.w || 3; o.a = 0.15 + Math.sin(q*Math.PI*2*w)*0.55; o.b = o.a + Math.sin(q*Math.PI*2*w + 1.2)*1.2; o.lean = 0.35 + Math.sin(q*Math.PI*w)*0.1; o.crouch = 4; o.w = 0.7*ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break; }
+    /* ---- Storm: straight, sudden, electric. No somersaults: lightning goes in lines ---- */
+    case 'zanshin':        // Flash Step: you are already through them, low and still, the blade out in front (the cut happened in the flash)
+      o.a = 0.35; o.b = 0.12; o.crouch = 12; o.lean = 0.6; o.w = 1 - ramp(q, 0.7, 1); o.crackle = q < 0.6; break;
+    case 'chainHop': {     // Chain Bolt: every jump arrives with a small hop and a half-turn, the clip gives each hop its own cut
+      const u = (t % 0.11)/0.11, k = Math.floor(t/0.11); o.lift = Math.sin(Math.PI*u)*34; o.rot = (k % 2 ? 1 : -1)*0.55*Math.sin(Math.PI*u); o.w = 0; o.crackle = true; break; }
+    case 'thunderFall':    // Thunder Fall: both hands raise the blade overhead while it crackles, then straight down (the clip plunges)
+      if (F.phase === 'up'){ o.a = -1.75; o.b = -2.0; o.lean = -0.1; o.w = ramp(t, 0, 0.06); o.two = true; o.crackle = true; } else o.w = 0;
+      break;
+    case 'absorb':         // Static Field: draw, point it at the sky, hold it there while the lightning is pulled in, then bring it down
+      if (t < 0.25){ const p = FC_EASE(t/0.25); o.a = lerp(0.6, -1.57, p); o.b = lerp(-0.85, -1.57, p); o.w = p; }
+      else if (t < 0.8){ o.a = -1.57 + Math.sin(t*40)*0.03; o.b = -1.57; o.crouch = 6; o.lean = -0.08; o.w = 1; o.crackle = true; o.two = true; }
+      else { const p = FC_EASE(Math.min(1, (t - 0.8)/0.12)); o.a = lerp(-1.57, 0.5, p); o.b = lerp(-1.57, 0.9, p); o.crouch = 9; o.lean = 0.3*p; o.w = 1 - ramp(t, 0.95, 1.1); }
+      break;
+    case 'judgement':      // Heaven's Judgement: blade to the sky going up and while hanging, pointed down on the drop
+      if (F.phase === 'down'){ o.a = 0.9; o.b = 1.57; o.lean = 0.1; o.w = 1; o.two = true; o.crackle = true; }
+      else { o.a = -1.57 + (F.phase === 'hang' ? Math.sin(t*44)*0.04 : 0); o.b = -1.57; o.w = ramp(t, 0, 0.08); o.two = true; o.crackle = F.phase === 'hang'; }
+      break;
+    /* ---- Gale: wind turns on the spot like a top, light on its feet, the blade flat and flowing ---- */
+    case 'windDraw':       // Wind Blade: a quick step and a flat draw cut (the clip), the coat of wind turning half round
+      o.spin = Math.PI*FC_EASE(q)*0.35; o.w = 0; break;
+    case 'cyclone':        // Cyclone: spinning on the spot like a top, the blade flat (the clip's whirl), round and round
+      o.spin = d*TAU*n*q; o.w = 0; o.windRing = true; break;
+    case 'spinCut':        // Sky Rend: one fast full turn, the three blades leave at the end of it
+      o.spin = d*TAU*FC_EASE(Math.min(1, q*1.25)); o.w = 0; o.windRing = q < 0.8; break;
+    case 'drillUp':        // Updraft: a corkscrew going up, the blade pointing at the sky like a drill
+      o.spin = TAU*n*q; o.a = -1.6; o.b = -1.57; o.w = ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); o.windRing = true; break;
+    case 'flourish': {     // Tempest: a katana flourish, as trained with a real sword: a figure of eight over the head and behind the shoulder,
+                           // a wrist roll in front, a full turn with the blade overhead, and a deep lunge with a flat cut
+      const K = FLOURISH; let j = 0; while (j < K.length - 2 && q > K[j+1][0]) j++;
+      const k0 = K[j], k1 = K[j+1], u = clamp((q - k0[0])/Math.max(1e-4, k1[0] - k0[0]), 0, 1), e = FC_EASE(u);
+      o.h = [lerp(k0[1][0], k1[1][0], e), lerp(k0[1][1], k1[1][1], e)];
+      o.b = k1[6] ? lerp(k0[2], k1[2], u) : lerp(k0[2], k1[2], e);
+      o.crouch = lerp(k0[3], k1[3], e); o.lean = lerp(k0[4], k1[4], e); o.spin = lerp(k0[5], k1[5], e);
+      o.w = 1 - ramp(q, 0.95, 1); o.two = true; o.windRing = Math.abs(k1[5] - k0[5]) > 0.1;
+      o.legs = q > 0.87 ? 'lunge' : 'horse'; break; }   // a wide stance for the figure-eight, a deep lunge for the last cut
     case 'kaalStorm':      // the long finale: a flurry, a double flip, then one huge cut
       if (q < 0.34){ const tt = t; o.a = Math.sin(tt*30)*1.25 - 0.3; o.b = o.a - 0.3 + tt*24; o.lean = 0.4; o.crouch = 3; o.w = 0.7*ramp(q, 0, 0.05); }
       else if (q < 0.72){ const p = (q - 0.34)/0.38; o.rot = -2*TAU*FC_EASE(p); o.lift = Math.sin(Math.PI*p)*80; o.a = -1.9; o.b = -2.4 + TAU*3*p; o.w = 1; }
@@ -1490,18 +1539,27 @@ function choreoOverlay(e, p){
   const o = choreo(C, e.form), w = o.w; if (w <= 0.01) return;
   const lv = clamp((e.vx || 0)*(e.face || 1), -200, 300)*0.0007, lean = p.lean != null ? p.lean : 0, cr = p.crouch || 0;
   const sx = (lean + lv)*22 + (p.protr || 0), sy = -18 + 0.2*cr, R = (ARM_UP + ARM_LO - 0.6)*0.88;
-  const hand = [sx + Math.cos(o.a)*R, sy + Math.sin(o.a)*R];
+  let hand = o.h ? o.h.slice() : [sx + Math.cos(o.a)*R, sy + Math.sin(o.a)*R];
+  { const dx = hand[0] - sx, dy = hand[1] - sy, D = Math.hypot(dx, dy), RR = ARM_UP + ARM_LO - 0.6; if (D > RR){ hand = [sx + dx*RR/D, sy + dy*RR/D]; } }
   p.mainT = p.mainT ? lerp2(p.mainT, hand, w) : hand;
+  if (o.h){ p.crouch = lerp(p.crouch || 0, o.crouch, w); p.lean = lerp(p.lean || 0, o.lean, w); }
+  if (o.legs && FC_LEG[o.legs] && e.onG !== false){ const L = FC_LEG[o.legs]; p.legs = p.legs ? p.legs.map((v, i) => lerp(v, L[i], w)) : L.slice(); p.legW = Math.max(p.legW || 0, w); }
   let b0 = p.b != null ? p.b : o.b; while (o.b - b0 > Math.PI) b0 += TAU; while (b0 - o.b > Math.PI) b0 -= TAU;   // blend along the short way
   p.b = lerp(b0, o.b, w); p.fs = lerp(p.fs != null ? p.fs : 1, 1, w);
-  if (p.offT && w > 0.5){ p.offW = (p.offW || 1)*(1 - (w - 0.5)*2); }   // the free hand lets go while the blade spins
+  if (o.two && !(e.sword && e.sword.dual)){ const g = [p.mainT[0] - Math.cos(p.b)*4, p.mainT[1] - Math.sin(p.b)*4]; p.offT = p.offT ? lerp2(p.offT, g, w) : g; p.offHand = 'grip'; p.offCurl = 0.95; p.offW = Math.max(p.offW || 0, w); }   // both hands on the hilt
+  else if (p.offT && w > 0.5){ p.offW = (p.offW || 1)*(1 - (w - 0.5)*2); }   // the free hand lets go while the blade spins
 }
+/* the tip of the player's blade in the world (for effects that gather at it) */
+function formBladeTip(P){ const sg = stickSegments(P), bl = sg.find(q => q[5] === 'blade'); return bl ? [bl[2], bl[3]] : [P.x + P.face*20, P.y - 90]; }
+function jagLine(x1, y1, x2, y2, col, a){
+  const n = Math.max(3, Math.round(Math.hypot(x2 - x1, y2 - y1)/12)); ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x1, y1);
+  for (let i=1;i<n;i++){ const t = i/n; ctx.lineTo(x1 + (x2 - x1)*t + rnd(-5, 5), y1 + (y2 - y1)*t + rnd(-5, 5)); } ctx.lineTo(x2, y2); ctx.stroke(); }
 /* every frame: the somersault and the lift go onto the player for drawing */
 function formChoreoTick(P){
   if (P.flip) return;   // the air backflip owns the turn
   const C = P.form && FORM_CHOREO[P.form.id];
-  if (!C){ if (P.choreoOn){ P.flipA = 0; P.formLift = 0; P.choreoOn = false; } return; }
-  const o = choreo(C, P.form); P.flipA = o.rot; P.formLift = o.lift; P.choreoOn = true;
+  if (!C){ if (P.choreoOn){ P.flipA = 0; P.formLift = 0; P.spinPhi = 0; P.choreoOn = false; P.crackle = false; P.windRing = false; } return; }
+  const o = choreo(C, P.form); P.flipA = o.rot; P.formLift = o.lift; P.spinPhi = o.spin || 0; P.crackle = !!o.crackle; P.windRing = !!o.windRing; P.choreoOn = true;
 }
 /* the sword's path as glowing arcs (and the body's turn as a faint swoosh), like a staff spun in a fight */
 function drawFormTwirl(P){
@@ -1519,6 +1577,17 @@ function drawFormTwirl(P){
       P.flipPrev = P.flipA;
     }
   } else { P.twPrev = null; P.flipPrev = null; }
+  // lightning crawling over the blade (Storm), a ring of wind round the waist (Gale)
+  if (P.form && (P.crackle || P.windRing)){
+    const sid0 = P.form.id.replace(/\d+$/, ''), fx0 = STYLE_FX[sid0], c0 = (fx0 && fx0.cols[0]) || '#FFFFFF';
+    ctx.save(); ctx.lineCap = 'round';
+    if (P.crackle){ const sg = stickSegments(P), bl = sg.find(q => q[5] === 'blade');
+      if (bl) for (let k=0;k<2;k++){ const t0 = Math.random()*0.6, t1 = t0 + 0.3 + Math.random()*0.1;
+        jagLine(bl[0] + (bl[2] - bl[0])*t0, bl[1] + (bl[3] - bl[1])*t0, bl[0] + (bl[2] - bl[0])*t1 + rnd(-8, 8), bl[1] + (bl[3] - bl[1])*t1 + rnd(-8, 8), k ? '#FFFFFF' : c0, 0.9); } }
+    if (P.windRing){ const hy = P.y - 34 - (P.formLift || 0), ph = (P.spinPhi || 0);
+      for (let k=0;k<3;k++){ const a0 = ph*1.2 + k*2.1; ctx.globalAlpha = 0.5 - k*0.12; ctx.strokeStyle = k ? '#FFFFFF' : c0; ctx.lineWidth = 3 - k*0.7;
+        ctx.beginPath(); ctx.ellipse(P.x, hy + k*10 - 10, 40 + k*8, 9 + k*2, 0, a0, a0 + 1.9); ctx.stroke(); } }
+    ctx.restore(); }
   if (!P.twArcs.length) return;
   const sid = P.form ? P.form.id.replace(/\d+$/, '') : '', fx = STYLE_FX[sid], col = (fx && fx.cols[0]) || G.ST.trail || '#FFFFFF', edge = (fx && fx.edge) || '#FFFFFF';
   ctx.save(); ctx.lineCap = 'round';
@@ -3880,16 +3949,40 @@ const FORMS = {
         areaHit(P.x, P.y-25, 230, 60, 70*FM(), {kb:300, kbAway:true, src:'form', stun:0.7}, F.set);
         bolt(P.x, P.y-10, P.x+230, P.y-20); bolt(P.x, P.y-10, P.x-230, P.y-20); ringFx(P.x, P.y, 230, '#FFE14D', true);
         burst(P.x, P.y-10, 30, '#FFE14D', 520, 4, true); G.shake = 14; G.hitstop = 0.08; cracks(P.x, 230, '#FFE14D'); sfx('boom'); sfx('storm'); flash('#FFF6B0',0.45); zoomPunch(1.08); vib(70); } } },
-  storm4:{ dur:0.35, pose:'cast', start(P){ P.staticT = 3.2; ringFx(P.x, P.y-40, 90, '#FFE14D'); sfx('zap'); vib(30); }, update(P){ P.vx *= 0.85; } },
-  storm5:{ dur:0.9, pose:'cast', start(P,F){ F.tick = 0; F.n = 0;
-      F.list = G.E.filter(e=>!e.dead).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x)).slice(0,6); P.inv = 0.9; },
-    update(P,dt,F){ P.vx *= 0.8; F.tick -= dt;
-      if (F.tick <= 0 && F.n < Math.max(1, F.list.length)){ F.tick = 0.12;
-        const e = F.list[F.n++]; if (!e || e.dead) return;
-        bolt(e.x + rnd(-20,20), 0, e.x, e.y-30*e.size); bolt(e.x, 0, e.x, e.y-10*e.size);
-        damageEnemy(e, 70*FM(), {kb:120, src:'form', stun:0.8, heavy:true, dir:sign(e.x-P.x)||1});
-        ringFx(e.x, e.y-20*e.size, 90, '#FFE14D', true); styleImpact('storm', e.x, e.y-36*e.size, true);
-        G.shake = Math.max(G.shake, 10); sfx('zap'); sfx('boom', 0.02); flash('#FFF6B0', 0.22); } } },
+  // Static Field: the blade goes up to the sky, the lightning all round is pulled into it, then it all goes out at once
+  storm4:{ dur:1.1, pose:'cast', start(P,F){ F.rel = false; P.inv = Math.max(P.inv, 1.15); sfx('zap'); },
+    update(P,dt,F){ P.vx *= 0.8;
+      const tip = formBladeTip(P);
+      if (F.t > 0.25 && F.t < 0.8){   // drawing it in: sparks and threads of lightning flow toward the raised blade
+        VFX(() => { for (let k=0;k<3;k++){ const a = rnd(0, Math.PI*2), r = rnd(170, 300), x = tip[0] + Math.cos(a)*r, y = tip[1] + Math.sin(a)*r*0.7, life = rnd(0.22, 0.34);
+          G.parts.push({ x, y, vx:(tip[0] - x)/life, vy:(tip[1] - y)/life, life, max:life, col:k ? '#FFE14D' : '#FFFFFF', size:2.5, real:true }); } });
+        F.bt = (F.bt || 0) - dt; if (F.bt <= 0){ F.bt = 0.07; const a = rnd(0, Math.PI*2), r = rnd(120, 240); bolt(tip[0] + Math.cos(a)*r, tip[1] + Math.sin(a)*r*0.6, tip[0], tip[1]); }
+        F.hum = (F.hum || 0) - dt; if (F.hum <= 0){ F.hum = 0.2; sfx('zap'); } }
+      if (!F.rel && F.t >= 0.8){ F.rel = true;   // release: everything near is struck at once, then the static stays on you
+        const R = 280;
+        for (const e of G.E){ if (e.dead || Math.abs(e.x - P.x) > R || Math.abs(e.y - P.y) > 220) continue;
+          bolt(tip[0], tip[1], e.x, e.y - 32*e.size); damageEnemy(e, 45*FM(), { kb:260, src:'form', stun:0.8, heavy:true, dir:sign(e.x - P.x) || 1 }); styleImpact('storm', e.x, e.y - 36*e.size, true); }
+        for (let k=0;k<10;k++){ const a = k/10*Math.PI*2; bolt(tip[0], tip[1], tip[0] + Math.cos(a)*R, tip[1] + Math.sin(a)*R*0.6); }
+        ringFx(P.x, P.y - 40, R, '#FFE14D'); ringFx(P.x, P.y - 40, R*0.55, '#FFFFFF'); burst(tip[0], tip[1], 40, '#FFE14D', 620, 4, true);
+        P.staticT = 3.2; G.shake = 14; flash('#FFF6B0', 0.45); zoomPunch(1.06); sfx('boom'); sfx('storm'); vib(70); } } },
+  // Heaven's Judgement: leap high with the blade to the sky, hang while it fills and every target is marked, drop,
+  // and the moment your feet touch the ground lightning strikes all of them together
+  storm5:{ dur:2.4, pose:'cast', start(P,F){ P.vy = -1050; P.onG = false; F.phase = 'up'; P.inv = 2.4; sfx('zap'); },
+    update(P,dt,F){ P.vx *= 0.85;
+      if (F.phase === 'up' && (P.vy >= -60 || F.t > 0.42)){ F.phase = 'hang'; F.th = F.t; P.vy = 0;
+        F.list = G.E.filter(e => !e.dead && Math.abs(e.x - P.x) < 700).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 14);
+        for (const e of F.list) ringFx(e.x, e.y - 4, 50, '#FFE14D', true);   // a mark under every target
+        sfx('storm'); }
+      if (F.phase === 'hang'){ P.vy = 0; const tip = formBladeTip(P);
+        F.bt = (F.bt || 0) - dt; if (F.bt <= 0){ F.bt = 0.06; bolt(tip[0] + rnd(-40, 40), tip[1] - 260, tip[0], tip[1]); }   // the sky pours into the raised blade
+        if (F.t - F.th > 0.24){ F.phase = 'down'; P.vy = 1800; sfx('whoosh'); } }
+      if (F.phase === 'down' && P.onG){ F.done = true;
+        for (const e of F.list || []){ if (e.dead) continue;
+          bolt(e.x + rnd(-20, 20), 0, e.x, e.y - 30*e.size); bolt(e.x, 0, e.x, e.y - 10*e.size);
+          damageEnemy(e, 70*FM(), { kb:120, src:'form', stun:0.8, heavy:true, dir:sign(e.x - P.x) || 1 });
+          ringFx(e.x, e.y - 20*e.size, 90, '#FFE14D', true); styleImpact('storm', e.x, e.y - 36*e.size, true); }
+        bolt(P.x, 0, P.x, P.y - 40); ringFx(P.x, P.y, 200, '#FFE14D', true); cracks(P.x, 200, '#FFE14D');
+        G.shake = 18; G.hitstop = 0.08; flash('#FFF6B0', 0.55); zoomPunch(1.09); sfx('boom'); sfx('storm'); vib(90); } } },
   /* ---- Gale ---- */
   gale1:{ dur:0.26, pose:'swipe', update(P,dt,F){ if (F.t>=0.07 && !F.shot){ F.shot=true; G.proj.push({kind:'wind', x:P.x+P.face*30, y:P.y-42, vx:P.face*860, vy:0, dmg:45*FM(), pierce:5, hit:new Set(), life:1.0, col:'#9EF0B8', cutArrows:true}); } } },
   gale2:{ dur:0.9, pose:'spin', start(P,F){ F.tick = 0; },
@@ -5060,7 +5153,7 @@ const FORM_MAP = {
             end:{ h:[16,-24], th:-1.1, lean:0.2, cr:3 } } },
   /* Storm: straight lines, instant arrivals */
   storm1:{ c:'thrust',  v:{ imp:0, th:0 } },
-  storm2:{ c:'blink',   v:{ dt:0.11, n:(F) => Math.max(1, Math.round(((F.dur || 0.21) - 0.1)/0.11)), seq:['tsuki'], cr:8 } },
+  storm2:{ c:'blink',   v:{ dt:0.11, n:(F) => Math.max(1, Math.round(((F.dur || 0.21) - 0.1)/0.11)), seq:['kesa','rise','gyaku','down'], cr:8 } },
   storm3:{ c:'plunge',  v:{ dh:[15,-14], dth:1.25 } },
   storm4:{ c:'invoke',  v:{ keys:[ { pre:0.6, h:[12,-14], th:-0.4, phi:0.15, lean:0.05, cr:4, pr:0, legs:FC_LEG.ready, off:[-6,-8] },
                                    { t:0, h:[11,-33], th:-1.57, lean:-0.1, cr:2, pr:-1, legs:FC_LEG.tall, off:[2,-14], imp:true },
@@ -5519,6 +5612,9 @@ function stickSegments(e){
   const segs = stickSegmentsRaw(e), a = (e.isPlayer ? (e.flyLean || 0) + (e.flipA || 0) : 0) + (segs.roll || 0);   // + a form's somersault (visual only)
   const lift = e.isPlayer ? (e.formLift || 0) : 0;   // a form's flip rises off the ground (drawing only)
   if (lift) for (const sg of segs){ sg[1] -= lift; sg[3] -= lift; }
+  if (e.isPlayer && e.spinPhi){   // turning on the spot: the figure narrows through side-on and comes round mirrored
+    let c = Math.cos(e.spinPhi); c = (c < 0 ? -1 : 1)*Math.max(0.22, Math.abs(c));
+    for (const sg of segs){ sg[0] = e.x + (sg[0] - e.x)*c; sg[2] = e.x + (sg[2] - e.x)*c; } }
   if (Math.abs(a) < 0.002) return segs;
   const s = e.size || 1, px = e.x, py = e.y - 28*s - lift, r = a*(e.face || 1), c = Math.cos(r), sn = Math.sin(r);
   const rot = (x, y) => { const dx = x - px, dy = y - py; return [px + dx*c - dy*sn, py + dx*sn + dy*c]; };
