@@ -1083,8 +1083,9 @@ let viewCompactApplied = false;
 let G_ref = null;   // set once G exists
 function viewCompactWanted(){ return VIEW.size === 'compact' && !!(G_ref && G_ref.P); }
 let LOWFX = false;   // 'Effects: light' setting — fewer particles and a lower render resolution
+let govLvl = 0;      // automatic quality: how far the render resolution has been lowered (see govTick)
 function resize(){
-  DPR = Math.min(LOWFX ? 1.25 : 2, window.devicePixelRatio || 1);
+  DPR = Math.max(0.5, Math.min(LOWFX ? 1.25 : 2, window.devicePixelRatio || 1)*[1, 0.85, 0.72, 0.6, 0.5][govLvl || 0]);
   const touchLayout = document.body.classList.contains('touch') || matchMedia('(pointer:coarse)').matches;
   // In forced-landscape mode the game is rotated 90 degrees, so width and height swap
   const rot = document.body.classList.contains('rot');
@@ -1424,21 +1425,92 @@ const FLOURISH = [
   [0.93, [26, -12],  TAU*2 + 0.05, 14, 0.6, TAU], // a deep lunge, a flat cut
   [1.00, [22, -13],  TAU*2 + 0.05, 12, 0.5, TAU] ];
 const FORM_CHOREO = {
-  tide1:{ t:'flurryTwirl', d:1 },  tide2:{ t:'twirlFront', n:3, d:1 }, tide3:{ t:'stanceWheel', d:1 }, tide4:{ t:'castTwirl', n:2, d:1 }, tide5:{ t:'twirlThrust', n:2, d:-1 },
-  ember1:{ t:'risingSpiral', d:1 }, ember2:{ t:'frontFlip', n:1 }, ember3:{ t:'slamFlip' }, ember4:{ t:'twirlOver', n:1.5, d:1 }, ember5:{ t:'castTwirl', n:3, d:-1 },
+  /* Tide: tai chi. Soft knees, circles, sinking and rising, never a dead stop */
+  tide1:{ t:'flowEight', n:2 },                                         // Flowing Cut: a figure of eight woven in front
+  tide2:{ t:'keys', k:[[0,0.6,0.3,10,0.3],[0.15,0.7,0.4,12,0.4,6,0.8],[0.85,0.7,0.4,12,0.4,6,6.28],[1,0.4,0.2,8,0.3]] },   // Rolling Current: a forward roll along the ground
+  tide3:{ t:'keys', k:[[0,0.3,-0.5,6,0],[0.15,0.25,-0.25,7,0.05],[1,0.25,-0.25,7,0.05]], still:true, ripple:true },     // Still Water: perfectly still, blade level, ripples
+  tide4:{ t:'circleDraw', n:1.5, d:-1 },                                 // Whirlpool: the blade draws a turning circle, then pushes it out
+  tide5:{ t:'multiThrust', every:0.12 },                                 // Thousand Rain: thrusts from every height, feet planted
+  /* Ember: Northern Shaolin. Wide, explosive, leaping, whirling */
+  ember1:{ t:'keys', k:[[0,1.2,1.5,12,0.3],[0.12,1.3,1.6,14,0.35],[0.32,-2.0,-2.5,0,-0.2,22],[1,-1.8,-2.3,2,-0.1,0]] },          // Rising Flame: down low, then an exploding rising cut
+  ember2:{ t:'frontFlip', n:1 },                                         // Burning Wheel: a forward wheel of fire
+  ember3:{ t:'keys', two:true, k:[[0,0.6,-0.85,2,0],[0.36,-2.6,-2.95,3,-0.38,6],[0.47,1.3,1.6,13,0.5],[1,1.15,1.45,11,0.42]] },   // Blazing Sun: arch back, then crash down
+  ember4:{ t:'whirlThrow' },                                             // Flame Dragon: one whirl overhead, whipped out like a dragon
+  ember5:{ t:'keys', two:true, k:[[0,0.8,1.2,4,0.1],[0.2,1.2,1.57,15,0.2],[0.55,-1.57,-1.57,0,-0.15,10],[1,-1.5,-1.57,2,-0.1]] },   // Pillars of Fire: stamp the blade down, raise it with the pillars
+  /* Storm: tai chi sword and iai. Still, then sudden straight lines (kept as tuned) */
   storm1:{ t:'zanshin' }, storm2:{ t:'chainHop' }, storm3:{ t:'thunderFall' }, storm4:{ t:'absorb' }, storm5:{ t:'judgement' },
+  /* Gale: Bagua. Light on the toes, turning on the spot, the blade flat */
   gale1:{ t:'windDraw' }, gale2:{ t:'cyclone', n:3, d:1 }, gale3:{ t:'spinCut', d:1 }, gale4:{ t:'drillUp', n:2.5 }, gale5:{ t:'flourish' },
-  crescent1:{ t:'backFlip', n:1 }, crescent2:{ t:'frontFlip', n:1 }, crescent3:{ t:'castTwirl', n:1, d:1 }, crescent4:{ t:'doubleFlip', d:-1 }, crescent5:{ t:'twirlOver', n:2, d:-1 },
-  stone1:{ t:'twirlOver', n:1, d:1 }, stone2:{ t:'slamFlip' }, stone3:{ t:'twirlFront', n:1, d:1 }, stone4:{ t:'twirlOver', n:2, d:1 }, stone5:{ t:'phaseSlam', d:1 },
-  frost1:{ t:'twirlFront', n:2, d:-1 }, frost2:{ t:'castTwirl', n:2, d:-1 }, frost3:{ t:'backFlip', n:1 }, frost4:{ t:'cartwheel', n:1, d:-1 }, frost5:{ t:'slamFlip' },
-  shadow1:{ t:'backFlip', n:1 }, shadow2:{ t:'thrustDash' }, shadow3:{ t:'frontFlip', n:2 }, shadow4:{ t:'doubleFlip', d:1 }, shadow5:{ t:'twirlThrust', n:3, d:1 },
-  blood1:{ t:'twirlOver', n:1, d:-1 }, blood2:{ t:'flurryTwirl', d:-1 }, blood3:{ t:'slamFlip' }, blood4:{ t:'twirlFront', n:3, d:1 }, blood5:{ t:'sunWheel', n:2 },
-  sun1:{ t:'flurryTwirl', d:1 }, sun2:{ t:'risingSpiral', d:1 }, sun3:{ t:'sunWheel', n:1 }, sun4:{ t:'castTwirl', n:2, d:1 }, sun5:{ t:'sunWheel', n:3 },
-  serpent1:{ t:'serpentWave', w:2 }, serpent2:{ t:'serpentWave', w:3 }, serpent3:{ t:'twirlFront', n:3, d:-1 }, serpent4:{ t:'risingSpiral', d:-1 }, serpent5:{ t:'serpentWave', w:5 },
-  kaal1:{ t:'thrustDash' }, kaal2:{ t:'doubleFlip', d:-1 }, kaal3:{ t:'castTwirl', n:4, d:1 }, kaal4:{ t:'backFlip', n:1 }, kaal5:{ t:'kaalStorm' }
+  /* Crescent: graceful arcs, the back bends like the moon */
+  crescent1:{ t:'keys', k:[[0,1.6,2.4,6,0.2],[0.45,-1.4,-1.95,2,-0.38],[0.8,0.5,1.0,6,0.3],[1,0.4,0.9,5,0.25]] },                  // Moon Arc: one great crescent from low behind, over, to the front
+  crescent2:{ t:'keys', k:[[0,1.3,1.8,5,0.2],[0.3,-1.4,-2.2,2,-0.32],[0.55,1.0,1.6,6,0.35],[0.8,-1.0,-1.8,3,-0.22],[1,0.2,0.2,4,0.2]] },   // Twin Moons: up, down, up
+  crescent3:{ t:'fullCircle' },                                          // Full Moon Cage: the blade draws one whole moon round the body
+  crescent4:{ t:'keys', two:true, k:[[0,0.5,0.2,6,0],[0.3,-1.57,-1.57,0,-0.2,60],[0.6,-2.4,-2.8,0,-0.32,70],[0.78,1.2,1.5,10,0.4],[1,1.1,1.4,9,0.35]] },   // Moonfall: rise like the moon, fall with it
+  crescent5:{ t:'keys', k:[[0,-1.2,-1.57,3,0],[0.6,-1.2,-1.57,3,0,0,0,6.28],[0.8,-1.4,-2.1,2,-0.25,0,0,6.28],[1,0.9,1.3,6,0.35,0,0,6.28]] },   // Lunar Eclipse: a slow turn behind the upright blade, then the cut
+  /* Stone: Hung Gar. Rooted, deep horse stance, heavy */
+  stone1:{ t:'keys', two:true, k:[[0,0.6,-0.85,6,0],[0.4,-2.4,-2.8,8,-0.22],[0.55,1.3,1.6,16,0.45],[1,1.2,1.5,14,0.4]] },          // Boulder Strike: slow lift, crushing drop
+  stone2:{ t:'keys', two:true, k:[[0,-1.5,1.57,4,-0.1,10],[0.45,1.2,1.57,16,0.3],[1,1.2,1.57,15,0.3]] },                           // Quake: point down from high, driven into the ground
+  stone3:{ t:'keys', k:[[0,-0.6,-1.57,10,0],[0.3,-0.6,-1.57,14,0],[1,-0.6,-1.57,14,0]], tremble:true },                           // Iron Body: blade upright on the centre line, unmovable
+  stone4:{ t:'pillarPumps', n:3 },                                       // Stone Pillars: three stabs, three pillars
+  stone5:{ t:'heavyFall' },                                              // Mountain Fall: overhead going up, the whole mountain coming down
+  /* Frost: iaido. Almost nothing moves, then one clean line, then stillness */
+  frost1:{ t:'keys', k:[[0,1.2,2.9,8,0.2],[0.22,0.0,0.0,9,0.45],[0.5,-0.4,-0.6,8,0.4],[1,-0.3,-0.5,8,0.35]] },                      // Frost Edge: a draw cut out of the scabbard, then frozen
+  frost2:{ t:'keys', two:true, legs:'kneel', k:[[0,-1.2,1.57,6,0],[0.5,1.0,1.57,18,0.2],[1,1.0,1.57,18,0.2]] },                     // Glacier: kneel and set the blade in the ground
+  frost3:{ t:'keys', k:[[0,-0.9,-1.57,2,0],[1,-0.9,-1.57,2,0]], still:true },                                                     // Absolute Zero: blade upright before the face, not a breath of movement
+  frost4:{ t:'keys', k:[[0,0.5,0.2,3,0],[0.3,-1.57,-1.57,0,-0.1],[0.75,-1.57,-1.57,0,-0.1],[0.9,-0.2,-0.1,4,0.3],[1,-0.2,-0.1,4,0.3]] },   // Icicle Storm: point at the sky, then at them
+  frost5:{ t:'keys', two:true, legs:'kneel', k:[[0,-1.5,1.57,6,0,8],[0.45,1.1,1.57,18,0.3],[1,1.1,1.57,18,0.3]] },                  // Permafrost: down on one knee, the blade plunged in
+  /* Shadow: ninjutsu. Low, reversed blade, there and gone */
+  shadow1:{ t:'keys', k:[[0,0.9,2.8,16,0.75],[0.8,0.9,2.8,16,0.75],[1,0.6,2.5,10,0.5]] },                                           // Vanishing Step: almost lying on the ground, blade reversed along the arm
+  shadow2:{ t:'keys', k:[[0,-1.2,1.57,12,0.3,6],[0.45,0.9,1.57,18,0.45],[1,0.9,1.57,18,0.45]] },                                    // Shadow Bind: stab the shadow, pin it
+  shadow3:{ t:'frontFlip', n:2 },                                        // Dance of Shades: a double flip from shade to shade
+  shadow4:{ t:'keys', k:[[0,0.6,3.6,12,0.3],[1,0.6,3.6,12,0.3,0,0,6.28]] },                                                       // Umbral Chains: a low turn with the blade reversed
+  shadow5:{ t:'twirlThrust', n:3, d:1 },                                 // Night Execution
+  /* Blood: feral, shaking, wild arcs */
+  blood1:{ t:'keys', k:[[0,-2.2,-2.6,6,-0.2],[0.4,1.2,1.6,12,0.55],[1,1.0,1.4,10,0.45]], jitter:true },                            // Crimson Cut
+  blood2:{ t:'flurryTwirl', d:-1 },                                      // Blood Mist
+  blood3:{ t:'keys', k:[[0,0.0,0.0,6,0.1],[1,0.0,0.0,6,0.1,0,0,12.56]], arcs:true },                                               // Red Lotus: two turns, the blade flat out, petals of red
+  blood4:{ t:'whirlThrow' },                                             // Scarlet Chains
+  blood5:{ t:'keys', two:true, legs:'kneel', k:[[0,0.5,1.5,18,0.4],[0.4,-1.57,-1.57,2,-0.25,10],[0.6,-2.5,-2.9,4,-0.32],[0.75,1.3,1.6,14,0.5],[1,1.2,1.5,12,0.45]] },   // Final Offering: from a kneel, up to the sky, down
+  /* Sun: kagura. A sacred dance: rhythm, big circles, upright and proud */
+  sun1:{ t:'danceCircles', n:1.5 },                                      // Dance
+  sun2:{ t:'keys', two:true, k:[[0,-1.57,-1.57,2,-0.2,20],[0.6,1.4,1.8,10,0.4],[1,1.2,1.6,8,0.35]] },                              // Setting Sun: one huge arc from the top to the ground in front
+  sun3:{ t:'sunWheel', n:1 },                                            // Beneficent Radiance
+  sun4:{ t:'keys', two:true, k:[[0,0.5,0.2,4,0],[0.4,-1.57,-1.57,0,-0.2,12],[0.7,-1.57,-1.57,0,-0.2,12],[1,-0.3,-0.2,6,0.3]] },    // Solar Flare: lift the sun, then let it go
+  sun5:{ t:'dawnFinale' },                                               // Dawn of the Twelfth: dance, wheel, then the last strike
+  /* Serpent: snake kung fu. Low, swaying, then the fang darts */
+  serpent1:{ t:'keys', k:[[0,0.4,0.3,14,0.5],[0.35,0.0,0.0,10,0.85],[1,0.0,0.0,10,0.7]], sway:true },                               // Fang Strike: coiled low, then one dart
+  serpent2:{ t:'serpentWave', w:3 },                                     // Coil
+  serpent3:{ t:'keys', k:[[0,0.6,0.4,10,0.2],[0.15,0.7,0.4,12,0.2,8,-0.6],[0.85,0.7,0.4,12,0.2,8,-6.28],[1,0.4,0.2,8,0.2]] },      // Shed Skin: a roll backwards out of your skin
+  serpent4:{ t:'keys', k:[[0,0.5,0.2,8,0.3],[0.4,-1.57,-1.57,2,0,8],[1,-1.5,-1.4,3,0]], sway:true },                               // Venom Rain: up to the sky, swaying
+  serpent5:{ t:'kingSerpent' },                                          // King of Serpent: rises tall like a cobra, the blade its hood, then strikes
+  /* Kaal: calm, then everything at once */
+  kaal1:{ t:'zanshin' }, kaal2:{ t:'fourSeasons' },
+  kaal3:{ t:'keys', k:[[0,-0.9,-1.57,3,0],[1,-0.9,-1.57,3,0]], still:true },
+  kaal4:{ t:'keys', two:true, k:[[0,0.5,0.2,4,0],[0.45,-1.57,-1.57,0,-0.2,14],[0.62,-2.5,-2.9,2,-0.3,10],[0.8,1.3,1.6,13,0.5],[1,1.2,1.5,12,0.45]] },
+  kaal5:{ t:'kaalStorm' }
 };
+/* the stance each style breathes in (during the moment of total concentration), from its martial art */
+const STYLE_BREATH = {
+  tide:{ a:0.3, b:-0.5, cr:6, lean:-0.1 }, ember:{ a:-0.4, b:-2.6, cr:8, lean:0.12 }, storm:{ a:1.1, b:2.8, cr:7, lean:0.15 },
+  gale:{ a:0.1, b:0.1, cr:2, lean:-0.05 }, crescent:{ a:-1.2, b:-2.4, cr:3, lean:-0.22 }, stone:{ a:0.6, b:1.3, cr:12, lean:0 },
+  frost:{ a:-0.8, b:-1.57, cr:2, lean:0 }, shadow:{ a:0.8, b:2.9, cr:14, lean:0.35 }, blood:{ a:0.9, b:1.6, cr:8, lean:0.3 },
+  sun:{ a:-1.57, b:-1.57, cr:2, lean:-0.15 }, serpent:{ a:0.4, b:0.6, cr:12, lean:0.4 }, kaal:{ a:0, b:-0.8, cr:4, lean:0 } };
+/* how each style carries its body through every form: stance, weight, sway, bounce */
+const STYLE_BODY = {
+  tide:{ legs:'step', bob:3, bobF:6, sway:0.05 }, stone:{ legs:'horse', cr:6, legW:0.7 }, ember:{ legs:'lunge', lean:0.12, legW:0.5 },
+  gale:{ legs:'tall', bob:5, bobF:9, legW:0.6 }, storm:{ legs:'deep', legW:0.4 }, serpent:{ legs:'low', cr:5, sway:0.12, legW:0.6 },
+  crescent:{ legs:'step', lean:-0.08, bob:4, bobF:5 }, frost:{ legs:'ready', legW:0.6 }, shadow:{ legs:'low', cr:8, lean:0.25, legW:0.6 },
+  blood:{ legs:'deep', cr:3, jitter:0.05, legW:0.5 }, sun:{ legs:'step', bob:5, bobF:8, legW:0.5 }, kaal:{ legs:'ready', legW:0.4 } };
 /* the pose for this instant of a form: { a, b, lean, crouch, rot, lift } */
 function choreo(C, F){
+  const sid = F.id.replace(/\d+$/, ''), B = STYLE_BREATH[sid];
+  if (F.wait && B) return { a:B.a, b:B.b, crouch:Math.max(0, B.cr - 3), lean:B.lean - 0.1, rot:0, lift:2, w:1, spin:0, two:sid !== 'shadow', breath:true };   // breathing in: the chest rises
+  const o2 = choreo0(C, F);
+  if (B && F.t < 0.08){ const k = FC_EASE(F.t/0.08); let b0 = B.b; while (o2.b - b0 > Math.PI) b0 += TAU; while (b0 - o2.b > Math.PI) b0 -= TAU;   // out of the stance into the form
+    o2.a = lerp(B.a, o2.a, k); o2.b = lerp(b0, o2.b, k); o2.crouch = lerp(B.cr, o2.crouch, k); o2.lean = lerp(B.lean, o2.lean, k); o2.w = Math.max(o2.w, 1 - k); }
+  return o2;
+}
+function choreo0(C, F){
   const dur = (FORMS[F.id] && FORMS[F.id].dur) || 0.5, t = F.t, q = clamp(t/dur, 0, 1), d = C.d || 1, n = C.n || 1;
   const o = { a:0.6, b:-0.85, lean:0, crouch:0, rot:0, lift:0, w:0, spin:0 };
   const ramp = (x, a0, a1) => clamp((x - a0)/Math.max(1e-4, a1 - a0), 0, 1);
@@ -1490,6 +1562,54 @@ function choreo(C, F){
       o.a = Math.sin(t*30)*1.25 - 0.3; o.b = o.a - 0.3 + d*t*22; o.lean = 0.4; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break;
     case 'serpentWave': {  // the blade slithers: arm and blade ripple out of step, like a snake
       const w = C.w || 3; o.a = 0.15 + Math.sin(q*Math.PI*2*w)*0.55; o.b = o.a + Math.sin(q*Math.PI*2*w + 1.2)*1.2; o.lean = 0.35 + Math.sin(q*Math.PI*w)*0.1; o.crouch = 4; o.w = 0.7*ramp(q, 0, 0.1)*(1 - ramp(q, 0.85, 1)); break; }
+    case 'keys': {         // a form written as key poses: [time, arm, blade, crouch, lean, lift, roll, turn]
+      const K = C.k; let j = 0; while (j < K.length - 2 && q > K[j+1][0]) j++;
+      const k0 = K[j], k1 = K[j+1], u = clamp((q - k0[0])/Math.max(1e-4, k1[0] - k0[0]), 0, 1), e = FC_EASE(u), g = (k, i, dv) => k[i] != null ? k[i] : dv;
+      o.a = lerp(k0[1], k1[1], e); o.b = lerp(k0[2], k1[2], e); o.crouch = lerp(g(k0,3,0), g(k1,3,0), e); o.lean = lerp(g(k0,4,0), g(k1,4,0), e);
+      o.lift = lerp(g(k0,5,0), g(k1,5,0), e); o.rot = lerp(g(k0,6,0), g(k1,6,0), e); o.spin = lerp(g(k0,7,0), g(k1,7,0), e);
+      o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.94, 1)); o.two = !!C.two; if (C.legs) o.legs = C.legs;
+      if (C.tremble) o.lean += Math.sin(t*55)*0.025;
+      if (C.jitter) o.lean += Math.sin(t*37)*0.05 + Math.sin(t*61)*0.04;
+      if (C.sway) o.lean += Math.sin(t*9)*0.14;
+      if (C.still) o.lift += Math.sin(t*3)*1.2;
+      o.ripple = !!C.ripple; o.windRing = !!C.arcs; break; }
+    case 'flowEight':      // two loops of a figure of eight, the arm rising while the blade falls and back
+      o.a = 0.1 + 0.55*Math.sin(TAU*n*q); o.b = -0.4 + 1.7*Math.sin(TAU*n*q + 0.9); o.lean = 0.3 + 0.06*Math.sin(TAU*n*q); o.crouch = 5 + 2*Math.sin(TAU*n*q*2);
+      o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.9, 1)); break;
+    case 'circleDraw':     // the hand goes round a circle while the blade turns with it, then pushes forward
+      if (q < 0.75){ const p = q/0.75; o.a = -0.5 + 0.8*Math.cos(TAU*n*p); o.b = -0.6 + d*TAU*n*p; o.crouch = 4; o.lean = 0.15; }
+      else { const p = FC_EASE((q - 0.75)/0.25); o.a = lerp(0.3, -0.1, p); o.b = lerp(-0.6, -0.1, p); o.lean = 0.15 + 0.3*p; o.crouch = 6; }
+      o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.92, 1)); break;
+    case 'multiThrust': {  // a rain of thrusts, each at a new height
+      const ev = C.every || 0.12, k = Math.floor(t/ev), u = (t % ev)/ev, hs = [-0.45, 0.05, 0.4, -0.15, 0.25];
+      o.a = hs[k % hs.length]; o.b = o.a; o.lean = 0.3 + 0.35*Math.sin(Math.PI*u); o.crouch = 7; o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.92, 1)); break; }
+    case 'whirlThrow':     // one whirl over the head, then whipped straight out
+      if (q < 0.55){ const p = q/0.55; o.a = -1.5; o.b = -1.57 + TAU*p; o.lean = -0.08; o.crouch = 3; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.55)/0.18)); o.a = lerp(-1.5, 0.05, p); o.b = lerp(-1.57, 0, p); o.lean = 0.55*p; o.crouch = 7; }
+      o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.92, 1)); break;
+    case 'fullCircle':     // the blade draws one whole moon round the body
+      o.a = -0.4 + 0.7*Math.sin(TAU*q); o.b = -1.57 - TAU*FC_EASE(q); o.lift = Math.sin(Math.PI*q)*8; o.lean = -0.1; o.w = ramp(q, 0, 0.08)*(1 - ramp(q, 0.92, 1)); o.windRing = true; break;
+    case 'pillarPumps': {  // three stabs into the ground, the hands lifting between them
+      const k = Math.min(n - 1, Math.floor(q*n)), u = q*n - k; o.a = lerp(-0.6, 1.1, Math.sin(Math.PI*Math.min(1, u*1.4))); o.b = 1.57; o.crouch = 12 + 4*Math.sin(Math.PI*u); o.lean = 0.25;
+      o.two = true; o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.94, 1)); break; }
+    case 'heavyFall':      // overhead in both hands going up, crushing down
+      if (F.phase === 'up'){ o.a = -2.4; o.b = -2.9; o.lean = -0.25; o.w = ramp(t, 0, 0.06); o.two = true; } else o.w = 0;
+      break;
+    case 'danceCircles':   // kagura: big circles of the blade on a beat, quarter turns, rising on the beat
+      o.a = -0.5 + 0.9*Math.sin(TAU*n*q); o.b = o.a - 0.4 - TAU*n*q; o.spin = Math.PI*0.5*Math.floor(q*4)*0.5; o.lift = Math.abs(Math.sin(TAU*2*q))*7; o.lean = 0.05;
+      o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.94, 1)); o.windRing = true; break;
+    case 'dawnFinale':     // the dance, a burning wheel, then the strike that ends it
+      if (q < 0.45){ const p = q/0.45; o.a = -0.5 + 0.9*Math.sin(TAU*2*p); o.b = o.a - 0.4 - TAU*2*p; o.lift = Math.abs(Math.sin(TAU*2*p))*8; o.w = 1; }
+      else if (q < 0.75){ const p = (q - 0.45)/0.3; o.rot = TAU*FC_EASE(p); o.lift = 18 + Math.sin(Math.PI*p)*30; o.a = -0.1; o.b = -0.1 + TAU*p; o.w = 1; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.75)/0.12)); o.a = lerp(-2.4, 1.3, p); o.b = lerp(-2.9, 1.6, p); o.crouch = 12*p; o.lean = 0.45*p; o.w = 1 - ramp(q, 0.92, 1); o.two = true; }
+      break;
+    case 'kingSerpent':    // rise tall like a cobra, the blade its hood, swaying; then the strike
+      if (q < 0.78){ o.a = -1.4; o.b = -1.57 + Math.sin(t*7)*0.8; o.lean = -0.18 + Math.sin(t*5)*0.12; o.lift = 12*FC_EASE(Math.min(1, q*3)); o.crouch = 0; }
+      else { const p = FC_EASE(Math.min(1, (q - 0.78)/0.1)); o.a = lerp(-1.4, 0.4, p); o.b = lerp(-1.57, 0.5, p); o.lean = 0.7*p; o.crouch = 10*p; }
+      o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.94, 1)); break;
+    case 'fourSeasons': {  // four quarter turns, a different blade for each season
+      const k = Math.min(3, Math.floor(q*4)), u = q*4 - k, bs = [0, -1.57, 1.3, 3.0]; o.spin = (k + FC_EASE(Math.min(1, u*2)))*Math.PI*0.5; o.a = [0, -1.4, 0.9, 0.3][k]; o.b = bs[k]; o.crouch = 5; o.lean = 0.2;
+      o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.94, 1)); o.windRing = true; break; }
     /* ---- Storm: straight, sudden, electric. No somersaults: lightning goes in lines ---- */
     case 'zanshin':        // Flash Step: you are already through them, low and still, the blade out in front (the cut happened in the flash)
       o.a = 0.35; o.b = 0.12; o.crouch = 12; o.lean = 0.6; o.w = 1 - ramp(q, 0.7, 1); o.crackle = q < 0.6; break;
@@ -1510,8 +1630,8 @@ function choreo(C, F){
     /* ---- Gale: wind turns on the spot like a top, light on its feet, the blade flat and flowing ---- */
     case 'windDraw':       // Wind Blade: a quick step and a flat draw cut (the clip), the coat of wind turning half round
       o.spin = Math.PI*FC_EASE(q)*0.35; o.w = 0; break;
-    case 'cyclone':        // Cyclone: spinning on the spot like a top, the blade flat (the clip's whirl), round and round
-      o.spin = d*TAU*n*q; o.w = 0; o.windRing = true; break;
+    case 'cyclone':        // Cyclone: spinning on the spot like a top, the blade held flat straight out, round and round
+      o.spin = d*TAU*n*q; o.a = 0.05; o.b = 0; o.lean = 0.05; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.08)*(1 - ramp(q, 0.9, 1)); o.windRing = true; break;
     case 'spinCut':        // Sky Rend: one fast full turn, the three blades leave at the end of it
       o.spin = d*TAU*FC_EASE(Math.min(1, q*1.25)); o.w = 0; o.windRing = q < 0.8; break;
     case 'drillUp':        // Updraft: a corkscrew going up, the blade pointing at the sky like a drill
@@ -1536,7 +1656,11 @@ function choreo(C, F){
 /* on top of the form's own clip: for the twirl parts, take the hand and the blade and turn the blade round the hand */
 function choreoOverlay(e, p){
   const C = FORM_CHOREO[e.form.id]; if (!C) return;
-  const o = choreo(C, e.form), w = o.w; if (w <= 0.01) return;
+  const o = choreo(C, e.form), sid = e.form.id.replace(/\d+$/, ''), SB = STYLE_BODY[sid], tt = e.form.t;
+  if (SB && !e.form.wait){   // the style's own way of standing and moving, under every form
+    p.crouch = (p.crouch || 0) + (SB.cr || 0); p.lean = (p.lean || 0) + (SB.lean || 0) + (SB.sway ? Math.sin(tt*7)*SB.sway : 0) + (SB.jitter ? Math.sin(tt*41)*SB.jitter : 0);
+    if (SB.legs && FC_LEG[SB.legs] && e.onG !== false){ const L = FC_LEG[SB.legs], k = SB.legW || 0.5; p.legs = p.legs ? p.legs.map((v, i) => lerp(v, L[i], k)) : L.slice(); p.legW = Math.max(p.legW || 0, k); } }
+  const w = o.w; if (w <= 0.01) return;
   const lv = clamp((e.vx || 0)*(e.face || 1), -200, 300)*0.0007, lean = p.lean != null ? p.lean : 0, cr = p.crouch || 0;
   const sx = (lean + lv)*22 + (p.protr || 0), sy = -18 + 0.2*cr, R = (ARM_UP + ARM_LO - 0.6)*0.88;
   let hand = o.h ? o.h.slice() : [sx + Math.cos(o.a)*R, sy + Math.sin(o.a)*R];
@@ -1559,7 +1683,16 @@ function formChoreoTick(P){
   if (P.flip) return;   // the air backflip owns the turn
   const C = P.form && FORM_CHOREO[P.form.id];
   if (!C){ if (P.choreoOn){ P.flipA = 0; P.formLift = 0; P.spinPhi = 0; P.choreoOn = false; P.crackle = false; P.windRing = false; } return; }
-  const o = choreo(C, P.form); P.flipA = o.rot; P.formLift = o.lift; P.spinPhi = o.spin || 0; P.crackle = !!o.crackle; P.windRing = !!o.windRing; P.choreoOn = true;
+  const o = choreo(C, P.form); P.flipA = o.rot; P.spinPhi = o.spin || 0; P.crackle = !!o.crackle; P.windRing = !!o.windRing; P.ripple = !!o.ripple; P.choreoOn = true;
+  const sid = P.form.id.replace(/\d+$/, ''), SB = STYLE_BODY[sid], fx = STYLE_FX[sid], cols = (fx && fx.cols) || ['#FFFFFF'];
+  P.formLift = o.lift + (SB && SB.bob && !P.form.wait ? Math.abs(Math.sin(P.form.t*(SB.bobF || 6)))*SB.bob : 0);
+  const head = P.x + P.face*6, hy = P.y - 64 - (P.formLift || 0);
+  if (P.form.wait){   // breathing in: wisps of the style's colour drawn toward the mouth
+    VFX(() => { if (Math.random() < 0.8){ const a = rnd(0, TAU), r = rnd(50, 110), x = head + Math.cos(a)*r, y = hy + Math.sin(a)*r*0.6, life = rnd(0.16, 0.24);
+      G.parts.push({ x, y, vx:(head - x)/life, vy:(hy - y)/life, life, max:life, col:cols[0], size:2.2, real:true }); } });
+  } else if (P.breathOut !== P.form){   // and out: a breath of the style's colour, and the eyes light up
+    P.breathOut = P.form; P.eyeT = G.time;
+    emit(head + P.face*8, hy + 4, { n:10, col:cols, spd:130, size:4, life:0.5, kind:'mist', g:-0.1 }); }
 }
 /* the sword's path as glowing arcs (and the body's turn as a faint swoosh), like a staff spun in a fight */
 function drawFormTwirl(P){
@@ -1577,6 +1710,15 @@ function drawFormTwirl(P){
       P.flipPrev = P.flipA;
     }
   } else { P.twPrev = null; P.flipPrev = null; }
+  if (P.eyeT != null && now - P.eyeT < 0.5 && !P.dead){   // the eyes light up as the breath goes out
+    const sg = stickSegments(P), hd = sg.find(q => q[5] === 'head'), k = 1 - (now - P.eyeT)/0.5;
+    if (hd){ const sid1 = P.form ? P.form.id.replace(/\d+$/, '') : '', fx1 = STYLE_FX[sid1], c1 = (fx1 && fx1.cols[0]) || '#FFFFFF';
+      ctx.save(); ctx.globalAlpha = 0.9*k; ctx.strokeStyle = c1; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+      const ex = hd[0] + P.face*3.5, ey = hd[1] - 1; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - P.face*(10 + 14*(1 - k)), ey - 1); ctx.stroke(); ctx.restore(); } }
+  if (P.form && P.ripple){   // Still Water: rings spreading on the ground
+    const sid2 = P.form.id.replace(/\d+$/, ''), c2 = (STYLE_FX[sid2] && STYLE_FX[sid2].cols[0]) || '#FFFFFF';
+    ctx.save(); for (let k=0;k<3;k++){ const u = ((now*0.9 + k/3) % 1); ctx.globalAlpha = 0.45*(1 - u); ctx.strokeStyle = c2; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(P.x, P.y - 1, 20 + u*90, 4 + u*12, 0, 0, TAU); ctx.stroke(); } ctx.restore(); }
   // lightning crawling over the blade (Storm), a ring of wind round the waist (Gale)
   if (P.form && (P.crackle || P.windRing)){
     const sid0 = P.form.id.replace(/\d+$/, ''), fx0 = STYLE_FX[sid0], c0 = (fx0 && fx0.cols[0]) || '#FFFFFF';
@@ -2679,6 +2821,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
+  govCapped = false; govPending = null; govAcc = 0; govN = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.dragons = []; G.serpents = [];
   if (G.mode !== 'levels') G.dojo = false;
   G.fistsOut = !!(G.dojo || (SV.eq.fistsOut && hasFists()));
@@ -11477,17 +11620,27 @@ function drawSerpents(){
 let last = performance.now();
 const hpFill = $('hpFill'), brFill = $('brFill'), info = $('info'), slowBadge = $('slowBadge'), hudCoins = $('hudCoins');
 let perfAcc = 0, perfN = 0, moodT = 0;
+const GOV_RQ = [1, 0.85, 0.72, 0.6, 0.5];
+let govAcc = 0, govN = 0, govGood = 0, govCapped = false, govPending = null;
+function govTick(raw){
+  govAcc += raw; govN++;
+  if (govAcc < 2) return;
+  const avg = govAcc/govN; govAcc = 0; govN = 0;
+  if (govPending){ if (avg > govPending.before*0.93){ govLvl = govPending.from; resize(); govCapped = true;   // resolution was not the problem: lighten the effects instead
+      if (!LOWFX && avg > 0.0215){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light (smoother)', 1.4); } } govPending = null; return; }
+  if (govCapped) return;
+  if (avg > 0.0215){ govGood = 0;
+    if (govLvl < GOV_RQ.length - 1){ govPending = { from:govLvl, before:avg }; govLvl++; resize(); toast(`Smoother: drawing at ${Math.round(GOV_RQ[govLvl]*100)}%`, 1.2); }
+    else if (!LOWFX){ SV.set.fx = 'light'; LOWFX = true; save(); resize(); syncSettings(); toast('Effects: light', 1.2); } }
+  else if (avg < 0.0172 && govLvl > 0){ if (++govGood >= 4){ govGood = 0; govLvl--; resize(); } }
+  else govGood = 0;
+}
 function frameBody(now){
   const raw = (now-last)/1000, dt = Math.min(0.033, raw); last = now;
   if (W3.on || W3.loading) return;
-  // phones: if the game runs below ~38 fps for 3 s with full effects, switch to light effects automatically
-  if (G.running && !G.paused && !LOWFX && isTouch){
-    perfAcc += Math.min(raw, 0.1); perfN++;
-    if (perfAcc >= 3){
-      if (perfAcc/perfN > 0.026){ SV.set.fx = SV.set.fx === 'max' ? 'full' : 'light'; LOWFX = SV.set.fx === 'light'; save(); resize(); syncSettings(); toast('Effects: ' + SV.set.fx, 1.4); }
-      perfAcc = 0; perfN = 0;
-    }
-  }
+  // every device: if frames take too long, draw the game at a slightly lower resolution (and, last, lighter effects);
+  // if a change does not help (a screen locked to 30 fps), undo it and stop; when it runs well again, step back up
+  if (G.running && !G.paused && !document.hidden && raw < 0.25) govTick(raw);
   if (toastT > 0){ toastT -= dt; if (toastT<=0) toastEl.classList.remove('on'); }
   if (formNameT > 0){ formNameT -= dt; if (formNameT<=0) formNameEl.classList.remove('on'); }
   if (screens.dojo.classList.contains('on')) safeDraw(() => renderPreview(dt));
