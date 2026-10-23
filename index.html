@@ -1396,6 +1396,128 @@ function wallSplat(e){
   pop(e.x - side*20, e.y - 92*e.size, 'Wall splat!', '#FFB347'); sfx('kick'); G.shake = Math.max(G.shake, 4);
   emit(side < 0 ? 26 : G.worldW - 26, e.y - 40*e.size, { n:10, col:['rgba(200,180,160,0.6)','rgba(120,100,90,0.5)'], spd:180, size:7, life:0.45, kind:'mist', g:-0.1, real:false });
 }
+/* ===== WEB SHOOTER (free mode): catch an enemy on a web line, then swing them as a weapon, throw them or slam them =====
+   X tap = shoot · hold X = spin them round you (they smash everyone they touch) · let go while spinning = throw
+   J while holding = slam them into the ground · K = let go */
+const WEBS = { range:640, speed:1800, reel:92, maxAv:15 };
+const webOn = () => G.mode === 'free';
+const webHandPt = P => (P.wg && P.wg.spinning) ? [P.x + P.face*4, P.y - 100] : [P.x + P.face*8, P.y - 54];   // spinning: the arm goes up over the head
+function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot') return [W.x, W.y]; if (W.e) return [W.e.x, W.e.y - 32*(W.e.size || 1)]; return null; }
+function webTouchBtn(){
+  const box = $('extraBtns'); if (!box) return;
+  let b = document.getElementById('webBtn');
+  if (G.mode !== 'free'){ if (b) b.remove(); return; }
+  if (b) return;
+  b = document.createElement('button'); b.id = 'webBtn'; b.className = 'tb sm'; b.dataset.k = 'web'; b.textContent = 'Web'; b.style.setProperty('--sc', '#FFFFFF');
+  b.setAttribute('aria-label', 'Web shooter: tap to shoot, hold to spin, release to throw'); box.appendChild(b); bindTouch(b);
+}
+function webDrop(P){ const W = P.wg; if (W && W.e){ W.e.webHeld = false; W.e.state = 'hurt'; W.e.timer = 0.6; W.e.juggle = Math.max(W.e.juggle || 0, 1); } P.wg = null; }
+function webShoot(P){
+  const h = webHandPt(P);
+  let best = null, bd = WEBS.range;   // aim at the nearest enemy in front
+  for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
+    const dx = (e.x - P.x)*P.face; if (dx < -10 || dx > bd || Math.abs(e.y - P.y) > 260) continue; bd = dx; best = e; }
+  const tx = best ? best.x : P.x + P.face*WEBS.range, ty = best ? best.y - 32*best.size : P.y - 70;
+  const dx = tx - h[0], dy = ty - h[1], L = Math.hypot(dx, dy) || 1;
+  P.wg = { st:'shot', x:h[0], y:h[1], vx:dx/L*WEBS.speed, vy:dy/L*WEBS.speed, t:0 };
+  sfx('whoosh');
+}
+function webTick(P, dt){
+  if (!webOn() || P.dead){ if (P.wg) webDrop(P); return; }
+  const W = P.wg;
+  if (!W){ if (pressed.web && !P.form && !(P.stunT > 0) && !P.ride) webShoot(P); return; }
+  if (W.st === 'shot'){
+    W.t += dt; W.x += W.vx*dt; W.y += W.vy*dt;
+    for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
+      if (Math.hypot(e.x - W.x, (e.y - 32*e.size) - W.y) > 28*e.size + 8) continue;
+      if (isBoss(e) || e.size > 1.6){   // too heavy to lift: it still stings and stuns
+        damageEnemy(e, 12, { src:'web', kb:0, dir:P.face, launch:0, stun:1.0 }); pop(e.x, e.y - 110*e.size, 'Too heavy!', '#FFFFFF'); P.wg = null; return; }
+      const hx = webHandPt(P);
+      P.wg = { st:'hold', e, a:Math.atan2((e.y - 32*e.size) - hx[1], e.x - hx[0]), len:Math.hypot(e.x - hx[0], (e.y - 32*e.size) - hx[1]), av:0, t:0, cd:new Map(), was:false };
+      e.webHeld = true; e.alert = true; e.atk = null; e.comboLeft = 0; e.bmove = null; e.react = null;
+      pop(e.x, e.y - 100*e.size, 'CAUGHT!', '#FFFFFF'); sfx('punch');
+      return;
+    }
+    if (W.t > WEBS.range/WEBS.speed + 0.05 || W.y > GROUND) P.wg = null;
+    return;
+  }
+  // holding someone
+  const e = W.e; W.t += dt;
+  if (!e || e.dead){ P.wg = null; return; }
+  if (pressed.block || W.t > 10){ webDrop(P); return; }
+  const spinKey = held.web; W.spinning = (spinKey && W.t > 0.12) || Math.abs(W.av) > 5;
+  const h = webHandPt(P);
+  W.len += ((W.spinning ? 68 : WEBS.reel) - W.len)*Math.min(1, dt*6);
+  if (W.slamT !== undefined){ W.slamT -= dt; W.av = P.face*20; }
+  else if (spinKey && W.t > 0.12){ if (!W.dir) W.dir = P.face; W.av += W.dir*30*dt; W.was = true; }   // spin it up (the direction is set when the spin starts)
+  else { W.av += Math.cos(W.a)*(1100/W.len)*dt; W.av *= Math.pow(0.35, dt); }                      // hang and swing like a pendulum
+  W.av = clamp(W.av, -WEBS.maxAv, WEBS.maxAv); W.a += W.av*dt;
+  let ex = h[0] + Math.cos(W.a)*W.len, ey = h[1] + Math.sin(W.a)*W.len;
+  const floor = GROUND - 26*e.size;
+  if (ey > floor){ ey = floor; if (W.slamT === undefined){ W.av *= Math.pow(0.25, dt); if (Math.abs(W.av) > 6 && Math.random() < 0.3) burst(ex, GROUND, 2, '#2a1418', 120, 3); } }   // scrapes along the floor
+  ex = clamp(ex, 30, G.worldW - 30);
+  e.x = ex; e.y = ey + 32*e.size; e.face = sign(P.x - e.x) || e.face; e.webRoll = W.a - Math.PI/2;
+  const vt = W.av*W.len; e.vx = -Math.sin(W.a)*vt; e.vy = Math.cos(W.a)*vt;
+  // the body on the line is a club: everything it sweeps through gets hit
+  if (Math.abs(vt) > 260){
+    for (const [o, t] of W.cd) if (G.time - t > 0.35) W.cd.delete(o);
+    for (const o of G.E){ if (o === e || o.dead || o.vanish || o.remote || o.webHeld || !sameLayer(o) || W.cd.has(o)) continue;
+      if (Math.hypot(o.x - ex, (o.y - 32*o.size) - ey) > 34*(o.size + e.size)) continue;
+      W.cd.set(o, G.time); const sp = Math.abs(vt), dir = sign(o.x - P.x) || P.face;
+      damageEnemy(o, 10 + sp*0.025, { src:'web', heavy:true, unblockable:true, kb:300 + sp*0.35, dir, launch:220 + sp*0.25 });
+      damageEnemy(e, 3, { src:'web', kb:0, dir, launch:0, quiet:true });
+      impactFx(o.x, o.y - 40*o.size, '#FFFFFF', 1.1); sfx('kick'); G.shake = Math.max(G.shake, 4);
+    }
+  }
+  // slam: J brings them over and down in front of you
+  if (pressed.attack && W.slamT === undefined && W.t > 0.15){ W.slamT = 0.45; sfx('whoosh'); }
+  if (W.slamT !== undefined && ((ey >= floor - 1 && (ex - P.x)*P.face > 0) || W.slamT <= 0)){ webSlam(P, e); return; }
+  // throw: let go while it spins fast
+  if (W.was && !spinKey && W.slamT === undefined){
+    if (Math.abs(W.av) > 7){ webThrow(P, e, vt); return; }
+    W.was = false; W.dir = 0;
+  }
+}
+function webSlam(P, e){
+  P.wg = null; e.webHeld = false; e.x = clamp(P.x + P.face*80, 30, G.worldW - 30); e.y = GROUND; e.onG = true;
+  damageEnemy(e, 20 + e.maxHp*0.25, { src:'web', heavy:true, unblockable:true, kb:120, dir:P.face, launch:0 });
+  if (!e.dead){ e.state = 'down'; e.timer = 1.3; e.vx = 0; e.vy = 0; }
+  G.shake = Math.max(G.shake, 10); sfx('boom'); ringFx(e.x, GROUND - 4, 150, '#FFFFFF', true); burst(e.x, GROUND, 14, '#2a1418', 260, 4);
+  pop(e.x, e.y - 120, 'SLAM!', '#FFFFFF');
+  for (const o of G.E){ if (o === e || o.dead || o.vanish || o.remote || !sameLayer(o) || Math.abs(o.x - e.x) > 150 || !o.onG) continue;   // the shockwave
+    damageEnemy(o, 14, { src:'web', heavy:true, unblockable:true, kb:200, dir:sign(o.x - e.x) || 1, launch:420 }); }
+}
+function webThrow(P, e, vt){
+  P.wg = null; e.webHeld = false;
+  const W = { a:Math.atan2(e.vy, e.vx) };
+  e.vx = clamp(e.vx*1.35, -1500, 1500); e.vy = clamp(e.vy*1.35 - 120, -1200, 900);
+  e.onG = false; e.state = 'hurt'; e.timer = 3; e.juggle = Math.max(e.juggle || 0, 1); e.webThrown = { t:0, hit:new Set() };
+  pop(e.x, e.y - 110*e.size, 'THROW!', '#FFFFFF'); sfx('whoosh'); G.shake = Math.max(G.shake, 4);
+}
+/* a thrown body: it bowls over anyone in its way, then lands hard */
+function webFlight(e, dt){
+  const F = e.webThrown; F.t += dt;
+  const sp = Math.hypot(e.vx, e.vy);
+  if (sp > 220) for (const o of G.E){ if (o === e || o.dead || o.vanish || o.remote || o.webHeld || !sameLayer(o) || F.hit.has(o)) continue;
+    if (Math.hypot(o.x - e.x, (o.y - 32*o.size) - (e.y - 32*e.size)) > 38*(o.size + e.size)) continue;
+    F.hit.add(o); damageEnemy(o, 12 + sp*0.02, { src:'web', heavy:true, unblockable:true, kb:380, dir:sign(e.vx) || 1, launch:300 });
+    impactFx(o.x, o.y - 40*o.size, '#FFFFFF', 1); sfx('kick'); }
+  if (F.t > 0.06 && e.onG){   // the landing
+    damageEnemy(e, 10 + Math.min(40, F.t*30), { src:'web', heavy:true, unblockable:true, kb:0, dir:1, launch:0, quiet:true });
+    G.shake = Math.max(G.shake, 6); burst(e.x, GROUND, 10, '#2a1418', 220, 4); sfx('boom'); e.webThrown = null; }
+  else if (F.t > 4) e.webThrown = null;
+}
+function drawWebLine(P){
+  const t = webTarget(P); if (!t) return; const h = webHandPt(P);
+  ctx.save(); ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.lineTo(t[0], t[1]); ctx.stroke();
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.lineTo(t[0], t[1]); ctx.stroke();
+  ctx.lineWidth = 1.4;   // a little star where the web sticks
+  for (let i=0;i<6;i++){ const a = i*1.047; ctx.beginPath(); ctx.moveTo(t[0], t[1]); ctx.lineTo(t[0] + Math.cos(a)*10, t[1] + Math.sin(a)*10); ctx.stroke(); }
+  if (P.wg && P.wg.e){ const e = P.wg.e;   // strands wrapped round the caught body
+    ctx.globalAlpha = 0.8; for (let k=0;k<3;k++){ ctx.beginPath(); ctx.ellipse(e.x, e.y - (18 + k*16)*e.size, 13*e.size, 4, (e.webRoll || 0) + 0.3, 0, 6.283); ctx.stroke(); } ctx.globalAlpha = 1; }
+  ctx.restore();
+}
 function hitReact(e, d){
   if (!e || e.dead || e.remote) return;
   const k = d.legSweep ? 'flip' : d.kick ? (d.aim === 'head' ? 'head' : d.aim === 'legs' ? 'legs' : 'body')
@@ -1911,7 +2033,7 @@ function comboFor(sw){
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'pause',
-  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map' };
+  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web' };
 const held = {}, pressed = {};
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -2293,7 +2415,8 @@ function startFree(){
   G.worldW = 2600; resetCommon();
   for (let i=0;i<3;i++) G.E.push(makeEnemy('grunt', 900+i*160, G.diff, false));
   toast('Free mode', 1.2);
-  setScreen(null); G.running = true;
+  setTimeout(() => { if (G.running && G.mode === 'free') showBanner('Free mode', 'Web shooter', isTouch ? 'Web: catch · hold: spin · let go: throw · Punch: slam' : 'X: catch · hold X: spin · let go: throw · J: slam · K: drop', '#FFFFFF'); }, 1500);
+  setScreen(null); G.running = true; webTouchBtn();
 }
 function startSurvival(){
   G.mode='survival'; G.level=0; G.diff=diffFor(1); G.theme='bamboo';
@@ -3070,6 +3193,7 @@ function updatePlayer(dt){
   if (pressed.astra) tryAstra(P);
   if (P.vthrow) updateVajraThrow(P, dt);
   if (P.gsum) updateGadaSummon(P, dt);
+  webTick(P, dt);
   if (pressed.switch && G.dojo && G.time - (P.dojoT || -9) > 1.5){ P.dojoT = G.time; toast('Dojo: no blades here', 0.8); }
   if (pressed.switch && hasFists() && !G.dojo && !P.form && P.dashT <= 0) switchWeapon();
   if (pressed.clone && hasAbil('clone') && P.cloneCd <= 0){
@@ -3950,6 +4074,8 @@ function startMo(kind, dur, depth){
 function attackersNow(){ let n=0; for (const e of G.E) if (!e.dead && !e.T.ranged && (e.state==='windup'||e.state==='swing'||e.state==='special')) n++; return n; }
 function updateEnemy(e, dt){
   const P = G.P;
+  if (e.webHeld){ e.state = 'stun'; e.timer = Math.max(e.timer || 0, 0.5); e.vx = 0; e.vy = 0; e.onG = false; e.flash -= dt; e.hurtBar -= dt; return; }   // on the end of a web line: the player moves it
+  if (e.webThrown) webFlight(e, dt);
   if (e.react){ e.react.t += dt; if (e.react.k === 'flip' ? (e.onG && e.react.t > 0.15) : e.react.t >= e.react.d) e.react = null; }
   if (!e.isPlayer && !e.remote && !e.puppet){   // swap blade <-> fists with the player
     const B = brawler(e);
@@ -4513,7 +4639,7 @@ function attackClipPose(e, p){
   p.crouch = Math.max(lerp(k0.cr, k1.cr, q), landCr);
   p.elbowW = we;
   // the free hand: two-handed grip just behind the sword hand on the hilt, or a counter-balance; never over the gun
-  if (!gunAim(e) && !e.vthrow && !e.gsum){
+  if (!gunAim(e) && !e.vthrow && !e.gsum && !e.wg){
     const kk = k0.base ? k1 : k1.base ? k0 : (q < 0.5 ? k0 : k1);
     const two = (k0.two || k0.base) && (k1.two || k1.base) && (k0.two || k1.two);
     if (two) p.offT = [h[0] - Math.cos(b)*4*fs, h[1] - Math.sin(b)*4*fs];
@@ -5019,7 +5145,7 @@ function applyFormKeys(e, p, ks, base, bh, T0, T){
     const hx0 = (lean + lv)*22 + 2, hy0 = -33 + 0.2*cr, tipD = (a) => Math.hypot(o[0] + Math.cos(a)*14 - hx0, o[1] + Math.sin(a)*14 - hy0);
     let bb2 = b2 + 0.22*Math.tanh((tipD(b2 + 0.22) - tipD(b2 - 0.22))*0.5), ob = base.b2;   // continuous, never flips in one frame while (bb2 - ob > Math.PI) bb2 -= Math.PI*2; while (ob - bb2 > Math.PI) bb2 += Math.PI*2;
     p.offT = lerp2(bo, o, we); p.b2 = lerp(ob, bb2, we); p.exs2 = 1;
-  } else if (!gunAim(e) && !e.vthrow && !e.gsum){
+  } else if (!gunAim(e) && !e.vthrow && !e.gsum && !e.wg){
     const two = (k0.two || k0.base) && (k1.two || k1.base) && (k0.two || k1.two);
     if (two) p.offT = [h[0] - Math.cos(b)*4*fs, h[1] - Math.sin(b)*4*fs];
     else { const o0 = k0.base ? k1.off : k0.off, o1 = k1.off; p.offT = lerp2(o0, o1, k0.base ? 1 : q); }
@@ -5177,6 +5303,9 @@ function getPose(e){
       a2 = lerp(lerp(aW, 0.35, ease(q)), base, ease(r)); lean = lerp(lerp(-0.18, 0.3, q), lean, r); }                              // throw through, then settle
     ext2 = 1;
   }
+  if (e.isPlayer && e.wg && !e.gsum && !e.form){   // web shooter: the left arm points along the line
+    const t = webTarget(e); if (t){ if (e.wg.spinning){ a2 = -1.75; ext2 = 1; } else { const hx = e.x + e.face*6, hy = e.y - 52; a2 = Math.atan2(t[1] - hy, Math.max(4, (t[0] - hx)*e.face)); ext2 = 1; } }
+  }
   if (e.isPlayer && e.gsum && !e.form){   // gada summon on the back (left) arm
     const t = e.gsum.t, up = -1.68, wind = -2.55, base = a2;
     if (t < GS.raise){ a2 = lerp(base, up, ease(t/GS.raise)); lean = lerp(lean, -0.06, t/GS.raise); }                 // raise the hand to the sky
@@ -5189,6 +5318,7 @@ function getPose(e){
   if (e.isPlayer && e.landT > 0 && !e.form){ const q = landWeight(e); crouch = Math.max(crouch, 16*q); lean = Math.max(lean, 0.6*q); a = lerp(a, 1.3, q*0.7); a2 = lerp(a2, 1.5, q*0.7); }   // superhero landing crouch
   const P_ = {a,b,crouch,lean,red,a2,b2,ext,ext2,kick,kickAng,kL,exs:1,exs2:1};
   if (!e.isPlayer && e.react) hitReactPose(e, P_);
+  if (e.webHeld){ P_.roll = e.webRoll || 0; P_.lean = 0; P_.a = -2.2; P_.a2 = -1.9; P_.b = -2.6; P_.b2 = -2.1; P_.ext = P_.ext2 = 1; P_.crouch = 0; }
   if (e.isPlayer && e.atk && e.atk.d.kick && e.atk.d.aim && e.onG !== false){ P_.legs = [0, 0, -0.24, 0.42]; P_.legW = 1; }   // supporting knee soft under the kick
   if (e.isPlayer && e.form && formClipWeapon(e) && FORM_MAP[e.form.id]) formClipPose(e, P_);   // Stage 2: breathing forms
   else if (e.isPlayer && e.atk && !e.form && clipWeapon(e)) attackClipPose(e, P_);
@@ -5303,8 +5433,8 @@ function stickSegmentsRaw(e){
     if (fpA > 0.001) restA = lerp(restA, 2.5, fpA);            // same flight angle getPose() gives the arms
     // after a shot the empty arm eases back from the aim line instead of snapping (the raise itself stays instant)
     if (e.isPlayer && (e.aimFade || 0) > 0 && !gunAim(e)) restA = lerp(restA, -(e.flyLean || 0) - 0.06, ease(e.aimFade));
-    const ba = (e.vthrow || e.gsum || gunAim(e)) ? pose.a2 : restA;
-    if (pose.offT && !e.vthrow && !e.gsum && !gunAim(e)){   // left hand on the scabbard mouth, on the hilt, or balancing a cut
+    const ba = (e.vthrow || e.gsum || e.wg || gunAim(e)) ? pose.a2 : restA;
+    if (pose.offT && !e.vthrow && !e.gsum && !e.wg && !gunAim(e)){   // left hand on the scabbard mouth, on the hilt, or balancing a cut
       const h = tgt(pose.offT), ow = pose.offW == null ? 1 : pose.offW;
       const rx = shX+Math.cos(ba)*16*s*f, ry = shY+Math.sin(ba)*16*s;
       segs.push([shX,shY, lerp(rx, h[0], ow), lerp(ry, h[1], ow), lw]); }
@@ -7579,6 +7709,7 @@ function renderScene(){
       if ((P.flyPose || 0) > 0.05) drawBoosterHousings(P);   // the boosters sit on the boots, in front
       if (P.ride) ctx.restore();
       if (!P.ride){ drawAstraHeld(P); if (P.gsum) drawGadaSummon(P); }
+      if (P.wg) drawWebLine(P);
       if (P.blockT >= 0 && P.blockT < G.ST.parry){ ctx.strokeStyle='rgba(255,231,168,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(P.x+P.face*18,P.y-46,16,0,Math.PI*2); ctx.stroke(); }
     }
     if (G.mode === 'world' && G.world) drawWorldFront();
@@ -11493,6 +11624,7 @@ function doSpawn(){
 const slotsEl = $('slots'), extraEl = $('extraBtns');
 let slotEls = [];
 function buildLoadoutUI(){
+  setTimeout(webTouchBtn, 0);
   slotsEl.innerHTML = ''; extraEl.innerHTML = ''; slotEls = [];
   {
     const d = document.createElement('div'); d.className='slot'; d.style.setProperty('--sc','#FBEFE0'); slotsEl.appendChild(d);
