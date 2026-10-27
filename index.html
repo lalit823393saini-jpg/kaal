@@ -1856,7 +1856,7 @@ const webOn = () => G.mode === 'free';
 function webHandPt(P){ const arm = vajraArmSeg(P, stickSegments(P)); return arm ? [arm[2], arm[3]] : [P.x + P.face*8, P.y - 54]; }
 /* the point the caught body swings round: just above the raised fist while spinning */
 const webPivot = P => webHandPt(P);
-function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot') return [W.x, W.y]; if (W.e) return [W.e.x, W.e.y - 32*(W.e.size || 1)]; return null; }
+function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot') return [W.x, W.y]; if (W.st === 'swing') return [W.ax, W.ay]; if (W.e) return [W.e.x, W.e.y - 32*(W.e.size || 1)]; return null; }
 function webTouchBtn(){
   const box = $('extraBtns'); if (!box) return;
   let b = document.getElementById('webBtn');
@@ -1865,7 +1865,7 @@ function webTouchBtn(){
   b = document.createElement('button'); b.id = 'webBtn'; b.className = 'tb sm'; b.dataset.k = 'web'; b.textContent = 'Web'; b.style.setProperty('--sc', '#FFFFFF');
   b.setAttribute('aria-label', 'Web shooter: tap to shoot, hold to spin, release to throw'); box.appendChild(b); bindTouch(b);
 }
-function webDrop(P){ const W = P.wg; if (W && W.e){ W.e.webHeld = false; W.e.state = 'hurt'; W.e.timer = 0.6; W.e.juggle = Math.max(W.e.juggle || 0, 1); } P.wg = null; }
+function webDrop(P){ const W = P.wg; if (W && W.e && W.st === 'hold'){ W.e.webHeld = false; W.e.state = 'hurt'; W.e.timer = 0.6; W.e.juggle = Math.max(W.e.juggle || 0, 1); } P.wg = null; }
 function webShoot(P){
   const h = webHandPt(P);
   let best = null, bd = WEBS.range;   // aim at the nearest enemy in front
@@ -1879,7 +1879,15 @@ function webShoot(P){
 function webTick(P, dt){
   if (!webOn() || P.dead){ if (P.wg) webDrop(P); return; }
   const W = P.wg;
-  if (!W){ if (pressed.web && !P.form && !(P.stunT > 0) && !P.ride) webShoot(P); return; }
+  if (!W){
+    if (pressed.web && !P.form && !(P.stunT > 0) && !P.ride){
+      const near = webFoeNear(P, 260);
+      if (held.down || (!P.onG && near)){ if (webZipStrike(P)) return; }
+      if (P.onG && webFoeNear(P, WEBS.range, true)) webShoot(P);
+      else webSwingStart(P);
+    }
+    return;
+  }
   if (W.st === 'shot'){
     W.t += dt; W.x += W.vx*dt; W.y += W.vy*dt;
     for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
@@ -1893,6 +1901,27 @@ function webTick(P, dt){
       return;
     }
     if (W.t > WEBS.range/WEBS.speed + 0.05 || W.y > GROUND) P.wg = null;
+    return;
+  }
+  if (W.st === 'swing'){
+    W.t += dt; W.shoot = Math.min(1, (W.shoot || 0) + dt*12);
+    if (pressed.jump){ webRelease(P, true); return; }
+    if (!held.web || pressed.block || P.hurtT > 0 || (P.onG && W.t > 0.15) || W.t > 8){ webRelease(P, false); return; }
+    if (Math.hypot(P.vx, P.vy) > 650 && FXL() > 0 && Math.random() < 0.5)
+      G.echoes.push({ snap:heroSnap(P, { atk:null, form:null, blockT:-1 }), life:0.14, max:0.3, col:'#FFFFFF' });
+    return;
+  }
+  if (W.st === 'zip'){
+    W.t += dt; const z = W.e;
+    if (!z || z.dead || W.t > 0.7 || pressed.block){ P.wg = null; P.webFly = 0.5; return; }
+    P.face = sign(z.x - P.x) || P.face;
+    const tx = z.x - P.face*40, ty = z.y - 10, dx = tx - P.x, dy = ty - P.y, d = Math.hypot(dx, dy) || 1;
+    if (d < 46){
+      P.wg = null; P.vx = P.face*260; P.vy = -260; P.swingCutT = 0.45; P.webFly = 0.3; P.atk = null;
+      startAttack('punch'); P.inv = Math.max(P.inv, 0.2);
+      pop(P.x, P.y - 110, 'WEB STRIKE', '#FFFFFF'); sfx('heavy'); return;
+    }
+    P.vx = dx/d*1500; P.vy = dy/d*1500 - 2200*dt; P.onG = false; P.inv = Math.max(P.inv, 0.1);
     return;
   }
   // holding someone
@@ -1943,6 +1972,40 @@ function webTick(P, dt){
     W.was = false; W.dir = 0;
   }
 }
+function webFoeNear(P, r, ahead){
+  let best = null, bd = r;
+  for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
+    const dx = e.x - P.x; if (ahead && (dx*P.face < -10 || Math.abs(e.y - P.y) > 260)) continue;
+    const d = ahead ? Math.abs(dx) : Math.hypot(dx, e.y - P.y); if (d < bd){ bd = d; best = e; } }
+  return best;
+}
+function webSwingStart(P){
+  const dir = P.face, sp = Math.abs(P.vx);
+  if (P.onG){ P.vy = -820; P.vx = dir*Math.max(sp, 460); P.onG = false; burst(P.x, P.y, 6, '#2a1418', 140, 3); }
+  const ax = clamp(P.x + dir*clamp(220 + sp*0.3, 220, 380), 40, G.worldW - 40);
+  const ay = Math.min(P.y - 300, GROUND - 400);
+  P.wg = { st:'swing', ax, ay, L:Math.hypot(P.x - ax, P.y - 70 - ay), t:0, shoot:0 };
+  P.fly = false; sfx('whoosh');
+}
+function webRelease(P, jumped){
+  if (!P.wg) return; P.wg = null; P.webFly = 1.1;
+  if (!P.onG){ P.vx = clamp(P.vx*1.1, -1500, 1500); P.vy = Math.min(P.vy, 0) - (jumped ? 120 : 200); }
+  P.jumpsLeft = Math.max(P.jumpsLeft, 1); sfx('swish');
+}
+function webZipStrike(P){
+  const e = webFoeNear(P, 700); if (!e) return false;
+  P.wg = { st:'zip', e, t:0 }; P.onG = false; P.atk = null; sfx('whoosh'); return true;
+}
+function webSwingStep(P, dt){
+  const W = P.wg; if (!W || W.st !== 'swing') return;
+  W.L = Math.max(160, W.L - 50*dt);
+  const dx = P.x - W.ax, dy = (P.y - 70) - W.ay, d = Math.hypot(dx, dy) || 1, nx = dx/d, ny = dy/d;
+  if (d > W.L){ P.x = W.ax + nx*W.L; P.y = W.ay + ny*W.L + 70;
+    const vr = P.vx*nx + P.vy*ny; if (vr > 0){ P.vx -= vr*nx; P.vy -= vr*ny; } }
+  const mv = (held.right?1:0) - (held.left?1:0);
+  if (mv && ny > 0.2) P.vx += mv*700*dt;
+  P.vx = clamp(P.vx, -1500, 1500); P.vy = clamp(P.vy, -1500, 1500);
+}
 function webSlam(P, e){
   P.wg = null; e.webHeld = false; e.x = clamp(P.x + P.face*80, 30, G.worldW - 30); e.y = GROUND; e.onG = true;
   damageEnemy(e, 20 + e.maxHp*0.25, { src:'web', heavy:true, unblockable:true, kb:120, dir:P.face, launch:0 });
@@ -1973,7 +2036,7 @@ function webFlight(e, dt){
   else if (F.t > 4) e.webThrown = null;
 }
 function drawWebLine(P){
-  const t = webTarget(P); if (!t) return; const h = webHandPt(P);
+  let t = webTarget(P); if (!t) return; const h = webHandPt(P); if (P.wg.st === 'swing') t = [lerp(h[0], t[0], P.wg.shoot || 0), lerp(h[1], t[1], P.wg.shoot || 0)];
   ctx.save(); ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.lineTo(t[0], t[1]); ctx.stroke();   // a dark edge so it shows on any sky
   ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.lineTo(t[0], t[1]); ctx.stroke();
@@ -1981,7 +2044,7 @@ function drawWebLine(P){
   ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(h[0], h[1], 3.2, 0, 6.283); ctx.fill();   // where it leaves the fist
   ctx.lineWidth = 1.4;   // a little star where the web sticks
   for (let i=0;i<6;i++){ const a = i*1.047; ctx.beginPath(); ctx.moveTo(t[0], t[1]); ctx.lineTo(t[0] + Math.cos(a)*10, t[1] + Math.sin(a)*10); ctx.stroke(); }
-  if (P.wg && P.wg.e){ const e = P.wg.e;   // strands wrapped round the caught body
+  if (P.wg && P.wg.e && P.wg.st === 'hold'){ const e = P.wg.e;   // strands wrapped round the caught body
     ctx.globalAlpha = 0.8; for (let k=0;k<3;k++){ ctx.beginPath(); ctx.ellipse(e.x, e.y - (18 + k*16)*e.size, 13*e.size, 4, (e.webRoll || 0) + 0.3, 0, 6.283); ctx.stroke(); } ctx.globalAlpha = 1; }
   ctx.restore();
 }
@@ -2882,7 +2945,7 @@ function startFree(){
   G.worldW = 2600; resetCommon();
   for (let i=0;i<3;i++) G.E.push(makeEnemy('grunt', 900+i*160, G.diff, false));
   toast('Free mode', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'free') showBanner('Free mode', 'Web shooter', isTouch ? 'Web: catch · hold: spin · let go: throw · Punch: slam' : 'X: catch · hold X: spin · let go: throw · J: slam · K: drop', '#FFFFFF'); }, 1500);
+  setTimeout(() => { if (G.running && G.mode === 'free') showBanner('Free mode', 'Web shooter', isTouch ? 'Web: catch / swing · Punch while swinging: Swing Cut' : 'X: catch / swing · J while swinging: Swing Cut · S+X: Web Strike', '#FFFFFF'); }, 1500);
   setScreen(null); G.running = true; webTouchBtn();
 }
 function startSurvival(){
@@ -3597,7 +3660,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.landT = (P.landT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -3698,15 +3761,18 @@ function updatePlayer(dt){
     if (P.crouching) mv = 0;
     const target = mv * 290 * ST.spd * (P.atk ? 0.3 : 1) * ((hasAbil('lastStand') && P.hp/P.maxHp < 0.35) ? 1.15 : 1);
     const vx0 = P.vx;
-    if (!P.fly) P.vx += (target - P.vx) * Math.min(1, dt * (P.onG ? 16 : 7));   // in flight the boosters steer instead (see below)
+    if (P.wg && P.wg.st === 'swing'){ /* the web line drives the body */ }
+    else if (P.webFly > 0 && !P.onG){ P.vx = clamp(P.vx + mv*520*dt, -1500, 1500); }
+    else if (!P.fly) P.vx += (target - P.vx) * Math.min(1, dt * (P.onG ? 16 : 7));   // in flight the boosters steer instead (see below)
     // auto-face: look at the nearest enemy within 10 m, otherwise face where you walk
     // in the air, reversing at speed turns into a backflip: the body goes over backwards and lands facing the new way
     if (P.flip){ P.flip.t += dt; const u = Math.min(1, P.flip.t/P.flip.dur); P.flipA = -easeIO(u)*6.2832;
       if (Math.random() < 0.5) emit(P.x, P.y - 34, { n:1, col:ST.trail, spd:40, size:3, life:0.3, kind:'mist', g:0 });
       if (u >= 1 || (P.onG && P.flip.t > 0.08)){ P.face = P.flip.to; P.flip = null; P.flipA = 0; } }
-    else if (!P.onG && !P.ride && !P.atk && !P.form && mv && Math.abs(vx0) > 110 && mv === -sign(vx0) && sign(vx0) === P.face){
+    else if (!P.onG && !P.ride && !P.wg && !P.atk && !P.form && mv && Math.abs(vx0) > 110 && mv === -sign(vx0) && sign(vx0) === P.face){
       P.flip = { t:0, dur:0.48, to:mv }; P.vy = Math.min(P.vy, -300); sfx('whoosh'); emit(P.x, P.y - 34, { n:8, col:ST.trail, spd:160, size:3, life:0.4, kind:'mist', g:0 }); }
     if (P.flip){ /* facing stays put until the flip is done */ }
+    else if (P.wg && P.wg.st === 'swing'){ if (!P.atk && Math.abs(P.vx) > 60) P.face = sign(P.vx); }
     else if (P.fly){ if (mv && !P.atk) P.face = mv; }
     else if (!P.atk){ const foe = nearestFoe(AGGRO); if (foe) P.face = sign(foe.x - P.x); else if (mv) P.face = mv; }
     if (pressed.jump && !blocking && P.jumpsLeft > 0){
@@ -3819,7 +3885,7 @@ function updatePlayer(dt){
     P.flyPose = lerp(P.flyPose || 0, P.fly ? 1 : 0, P.onG && !P.fly ? 1 - Math.exp(-14*dt) : 1 - Math.exp(-5*dt));
     if (!P.fly) P.thrust = Math.max(0, (P.thrust || 0) - dt*3.5);
     P.boostT = (P.boostT||0) - dt; P.boostCd = (P.boostCd||0) - dt; }
-  const preY = P.y; P.vy += grav*dt; P.x += P.vx*dt; P.y += P.vy*dt;
+  const preY = P.y; P.vy += grav*dt; P.x += P.vx*dt; P.y += P.vy*dt; webSwingStep(P, dt);
   const FL = G.world ? worldFloor(P, preY) : GROUND;
   if (!P.onG && P.vy > 450 && !P.atk && !P.fly && !P.form && FXL() > 0){ if (!P.fallRib){ G.ribbonSeq++; P.fallRib = true; } recordRibbon(P, '#FFB020', '#FFE38A', 'slash', 0.12, 2); } else P.fallRib = false;   // blade trails on a long fall
   if (P.y >= FL || P.roofSnap){ if (!P.onG && P.flown && P.vy > 600 && FL === GROUND) heroLanding(P); else if (!P.onG && P.flown){ emit(P.x, FL-4, {n:5, col:['rgba(120,90,80,0.5)','rgba(80,60,55,0.45)'], spd:120, size:9, life:0.45, kind:'mist', g:-0.2, dir:-Math.PI/2, spread:1.4, real:true}); P.landT = Math.max(P.landT||0, 0.22); } else if (!P.onG && P.vy>500){ burst(P.x,FL,6,'#2a1418',140,3); P.landT = Math.max(P.landT||0, 0.2); } P.flown = false; P.y = FL; P.vy = 0; P.onG = true; } else P.onG = false;
@@ -4005,6 +4071,11 @@ function slashHits(who, A, mult){
         continue;
       }
       let dmg = d.dmg*ST.slashMult*mult, tag = null;
+      let swK = 1;
+      if (!who.isClone && G.P && ((G.P.wg && G.P.wg.st === 'swing') || (G.P.swingCutT || 0) > 0 || ((G.P.webFly || 0) > 0 && !G.P.onG))){
+        swK = Math.max(1 + Math.min(1, Math.hypot(G.P.vx, G.P.vy)/1100), (G.P.swingCutT || 0) > 0 ? 1.6 : 1);
+        dmg *= swK; if (swK > 1.3) tag = 'Swing cut';
+      }
       const ironNow = !who.isClone && G.P && G.P.ironT > 0;
       if (sw.backstab && sign(who.x - e.x) !== e.face && !isBoss(e)){ dmg *= sw.backstab; tag = 'Backstab'; }
       if (sw.fist && e.state === 'stun'){ dmg *= 1.5; tag = 'Crush'; }
@@ -4016,7 +4087,7 @@ function slashHits(who, A, mult){
         e.x = who.x - who.face*46; e.face = who.face; e.vy = -320; e.onG = false;
         G.hitstop = Math.max(G.hitstop, 0.1); flash('#FFD9B0', 0.25); cameraKick(-who.face*8, -5);
       }
-      const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4 : d.kb, lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
+      const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4*swK : d.kb*swK, lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
         burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
         launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0), breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0), poison: poisonHit });
@@ -5833,7 +5904,7 @@ function getPose(e){
     ext2 = 1;
   }
   if (e.isPlayer && e.wg && !e.gsum && !e.form){   // web shooter: the left arm points along the line
-    const t = webTarget(e); if (t){ if (e.wg.spinning){ a2 = -1.57 + Math.cos(e.wg.a)*0.35*e.face; ext2 = 1.6; } else { const hx = e.x + e.face*4, hy = e.y - 46; a2 = Math.atan2(t[1] - hy, Math.max(4, (t[0] - hx)*e.face)); ext2 = 1.6; } }
+    const t = webTarget(e); if (t){ if (e.wg.spinning){ a2 = -1.57 + Math.cos(e.wg.a)*0.35*e.face; ext2 = 1.6; } else { const hx = e.x + e.face*4, hy = e.y - 46; a2 = Math.atan2(t[1] - hy, e.wg.st === 'swing' ? (t[0] - hx)*e.face : Math.max(4, (t[0] - hx)*e.face)); ext2 = 1.6; } }
   }
   if (e.isPlayer && e.gsum && !e.form){   // gada summon on the back (left) arm
     const t = e.gsum.t, up = -1.68, wind = -2.55, base = a2;
