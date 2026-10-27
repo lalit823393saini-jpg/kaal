@@ -1867,12 +1867,14 @@ function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot')
 function webTouchBtn(){
   const box = $('extraBtns'); if (!box) return;
   let b = document.getElementById('webBtn');
-  if (G.mode !== 'free'){ if (b) b.remove(); const nb = document.getElementById('netBtn'); if (nb) nb.remove(); return; }
+  if (G.mode !== 'free'){ if (b) b.remove(); for (const id of ['netBtn', 'climbBtn']){ const nb = document.getElementById(id); if (nb) nb.remove(); } return; }
   if (b) return;
   b = document.createElement('button'); b.id = 'webBtn'; b.className = 'tb sm'; b.dataset.k = 'web'; b.textContent = 'Web'; b.style.setProperty('--sc', '#FFFFFF');
   b.setAttribute('aria-label', 'Web shooter: tap to shoot or yank, hold to swing or spin, release to throw'); box.appendChild(b); bindTouch(b);
   const n = document.createElement('button'); n.id = 'netBtn'; n.className = 'tb sm'; n.dataset.k = 'webnet'; n.textContent = 'Net'; n.style.setProperty('--sc', '#FFFFFF');
   n.setAttribute('aria-label', 'Web net: wrap everyone in front, or hang the one on your line'); box.appendChild(n); bindTouch(n);
+  const cl = document.createElement('button'); cl.id = 'climbBtn'; cl.className = 'tb sm'; cl.dataset.k = 'climb'; cl.textContent = 'Climb'; cl.style.setProperty('--sc', '#FFFFFF');
+  cl.setAttribute('aria-label', 'Climb the building, house or pole you are standing in front of'); box.appendChild(cl); bindTouch(cl);
 }
 /* let go: whoever is on the line keeps the speed they had */
 function webDrop(P){
@@ -1884,12 +1886,12 @@ function webDrop(P){
   }
   P.wg = null;
 }
-function webShoot(P){
+function webShoot(P, up){
   const h = webHandPt(P);
   let best = null, bd = WEBS.range;   // aim at the nearest enemy in front
   for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
     const dx = (e.x - P.x)*P.face; if (dx < -10 || dx > bd || Math.abs(e.y - P.y) > 260) continue; bd = dx; best = e; }
-  let tx = best ? best.x : P.x + P.face*WEBS.range, ty = best ? best.y - 32*best.size : P.y - 70;
+  let tx = best ? best.x : P.x + P.face*WEBS.range*(up ? 0.7 : 1), ty = best ? best.y - 32*best.size : P.y - 70 - (up ? WEBS.range*0.75 : 0);
   if (best){   // lead the target: aim where it will be, and a little high so the drop brings the web onto it
     for (let k = 0; k < 2; k++){
       const t = Math.hypot(tx - h[0], ty - h[1])/WEBS.speed;
@@ -1897,7 +1899,7 @@ function webShoot(P){
     }
   }
   const dx = tx - h[0], dy = ty - h[1], L = Math.hypot(dx, dy) || 1;
-  P.wg = { st:'shot', x:h[0], y:h[1], vx:dx/L*WEBS.speed, vy:dy/L*WEBS.speed, t:0 };
+  P.wg = { st:'shot', x:h[0], y:h[1], vx:dx/L*WEBS.speed, vy:dy/L*WEBS.speed, t:0, free:!best };
   sfx('whoosh');
 }
 function webTick(P, dt){
@@ -1929,7 +1931,18 @@ function webTick(P, dt){
       pop(e.x, e.y - 100*e.size, 'CAUGHT!', '#FFFFFF'); sfx('punch');
       return;
     }
-    if (W.t > WEBS.range/WEBS.speed + 0.12 || W.y > GROUND) P.wg = null;
+    // a web with no enemy to catch sticks to the first building, pole or wire it reaches
+    const hit = (W.free && G.fc && W.t > 0.05) ? fcPointHit(W.x, W.y) : null;
+    if (hit){
+      fcSplat(hit[0], hit[1]);
+      if (held.web && hit[1] < P.y - 110 && hit[1] < GROUND - 200){   // still holding X: swing from it
+        if (P.onG){ P.vy = -700; P.vx = P.face*Math.max(Math.abs(P.vx), 380); P.onG = false; }
+        P.climb = null;
+        P.wg = { st:'swing', ax:hit[0], ay:hit[1], L:Math.hypot(P.x - hit[0], P.y - 70 - hit[1]), t:0, shoot:1, taut:0 }; P.fly = false; sfx('swish');
+      } else P.wg = null;
+      return;
+    }
+    if (W.t > WEBS.range/WEBS.speed + 0.12 || W.y > GROUND){ if (W.free && W.y > GROUND - 5) fcSplat(W.x, GROUND - 2); P.wg = null; }
     return;
   }
   if (W.st === 'swing'){
@@ -2078,12 +2091,13 @@ function webFoeNear(P, r, ahead){
 function webSwingStart(P){
   const sp = Math.abs(P.vx), mvIn = (held.right?1:0) - (held.left?1:0), dir = mvIn || (sp > 120 ? sign(P.vx) : P.face);   // the way you push, else the way you are moving
   P.face = dir;
-  if (P.onG){ P.vy = -820; P.vx = dir*Math.max(sp, 460); P.onG = false; burst(P.x, P.y, 6, '#2a1418', 140, 3); }
   const lead = clamp(200 + sp*0.35 + Math.max(0, P.vy)*0.15, 200, 440);
   let ax = clamp(P.x + dir*lead, 40, G.worldW - 40);
   let ay = Math.min(P.y - 280 - Math.min(140, sp*0.1), GROUND - 380);
-  const fa = G.fc ? fcSwingAnchor(P, dir, ax, ay) : null;   // stick it to a building, pole or wire ahead if there is one
-  if (fa){ ax = fa[0]; ay = fa[1]; }
+  const fa = G.fc ? fcSwingAnchor(P, dir, ax, ay) : null;   // stick it to a building, pole or wire ahead
+  if (!fa){ P.face = dir; webShoot(P, true); return; }      // nothing to stick to: the web flies out up-forward and may still catch on something
+  ax = fa[0]; ay = fa[1];
+  if (P.onG){ P.vy = -820; P.vx = dir*Math.max(sp, 460); P.onG = false; burst(P.x, P.y, 6, '#2a1418', 140, 3); }
   P.climb = null;
   P.wg = { st:'swing', ax, ay, L:Math.hypot(P.x - ax, P.y - 70 - ay), t:0, shoot:0, taut:0 };
   P.fly = false; sfx('whoosh');
@@ -2203,12 +2217,13 @@ function drawWebLine(P){
 }
 /* ===== FREE CITY (free mode): an endless street of houses, tall buildings and electric poles =====
    Walk right and the street keeps going. Every roof, pole crossbar and wire can be stood on.
-   Climb: run into a wall and hold toward it (S slides down, W / Space jumps off, the other way lets go).
-   Pole: jump at it holding W to grab, W climbs, S slides, A / D leaps off.
+   Buildings stand behind the street: you and the enemies walk past them.
+   Z next to a building, house or pole: climb it (W / Space up, S down, A / D along the wall, Z again lets go).
+   Webs only stick to something real: in the air X swings from a building, pole or wire, never from the empty sky.
    S on a pole or wire drops through. S + X with nobody near: zip up to the nearest roof edge.
    C: Web Net, wraps everyone in front; with something to hang from above, they are hoisted up and hung.
    C while holding someone on your web: hang them up (then catch the next one). */
-const FC = { start:1350, chunk:1600, hw:14 };
+const FC = { start:650, chunk:1600, hw:14 };
 const FC_COL = {
   bamboo: { wall:'#24101A', edge:'#55253A', dark:'#140810', win:[255,196,120], roof:'#1A0A10' },
   snow:   { wall:'#1B2335', edge:'#4A6080', dark:'#10151F', win:[225,238,255], roof:'#D9E4F0' },
@@ -2258,89 +2273,71 @@ function fcNear(x, r){ const C = G.fc; if (!C) return []; const out = []; for (c
 /* highest surface under x that is at or below y (used for hanging bodies and spawn checks) */
 function fcGroundAt(x, y){ let best = GROUND; for (const s of fcNear(x, 2)){ const t = fcTop(s, x); if (t != null && t >= y - 2 && t < best) best = t; } return best; }
 
-/* ----- the player: walls, climbing, poles and roofs. Runs right after gravity and motion; returns the floor ----- */
+/* ----- the player: climbing and roofs. Runs right after gravity and motion; returns the floor ----- */
+function fcClimbable(P){
+  let best = null, bd = 1e9;
+  for (const s of fcNear(P.x, 40)){
+    if (s.k === 'pole'){ const d = Math.abs(P.x - s.x); if (d < 30 && P.y > s.top + 30 && d < bd){ bd = d; best = s; } }
+    else if (fcWall(s) && P.x >= s.x + 4 && P.x <= s.x + s.w - 4 && P.y > s.top + 8){ const d = 0; if (d < bd){ bd = d; best = s; } }
+  }
+  return best;
+}
+function fcStartClimb(P){
+  if (P.climb){ P.climb = null; P.vy = 0; P.webFly = 0.3; return; }   // Z again: let go
+  if (P.ride || P.fly || P.form || P.dead) return;
+  const s = fcClimbable(P);
+  if (!s){ pop(P.x, P.y - 110, 'Nothing to climb here', 'rgba(255,255,255,0.75)'); return; }
+  if (P.wg && P.wg.st !== 'hold') P.wg = null;
+  P.climb = { s, x:s.k === 'pole' ? s.x : P.x }; P.vx = 0; P.vy = 0; P.onG = false; P.atk = null;
+  if (P.y >= GROUND) P.y = GROUND - 2;
+  sfx('swish');
+}
 function fcFloor(P, preY, dt){
-  const C = G.fc, hw = FC.hw, was = P.roof; P.roof = null; P.roofSnap = false;
+  const C = G.fc, was = P.roof; P.roof = null; P.roofSnap = false;
   const mv = (held.right?1:0) - (held.left?1:0);
   if (P.climb){
     const c = P.climb, s = c.s;
-    if (P.ride || P.fly || P.dead || (P.wg && P.wg.st !== 'swing')){ P.climb = null; }
-    else if (s.k === 'pole'){   // shinning up an electric pole
-      if (mv){ P.climb = null; P.vx = mv*420; P.vy = -560; P.face = mv; P.webFly = 0.5; sfx('swish'); }
-      else {
-        const vy = held.jump ? -300 : held.down ? 420 : 0;
-        P.x = s.x - P.face*6; P.vx = 0; P.vy = vy; P.y = preY + vy*dt; P.jumpsLeft = Math.max(P.jumpsLeft || 0, 1);
-        if (P.y <= s.top + 12 + 4 && vy < 0){ P.climb = null; P.y = s.top + 12; P.x = s.x; P.vy = 0; P.roof = s; return s.top + 12; }
-        if (P.y >= GROUND){ P.climb = null; P.y = GROUND; return GROUND; }
-        return 1e9;
-      }
-    } else {   // crawling up a wall
-      const side = c.side, T = s.top;
-      if (pressed.jump){ P.climb = null; P.vx = -side*520; P.vy = -760; P.face = -side; P.webFly = 0.6; sfx('swish'); pop(P.x, P.y - 100, 'Wall jump', '#FFFFFF'); }
-      else if (mv === -side){ P.climb = null; P.vx = -side*160; }
-      else {
-        const vy = mv === side ? -320 : held.down ? 380 : 0;
-        P.x = side > 0 ? s.x - hw : s.x + s.w + hw; P.vx = 0; P.vy = vy; P.y = preY + vy*dt; P.face = side;
-        P.jumpsLeft = Math.max(P.jumpsLeft || 0, 1);
-        if (P.y <= T + 6 && vy < 0){   // over the top: pull up onto the roof
-          P.climb = null; P.x = side > 0 ? s.x + 20 : s.x + s.w - 20; const t = fcTop(s, P.x); P.y = t; P.vy = 0; P.roof = s;
-          burst(P.x, t, 4, '#2a1418', 100, 3); return t;
+    if (P.ride || P.fly || P.dead || (P.wg && (P.wg.st === 'swing' || P.wg.st === 'zip' || P.wg.st === 'zipL'))) P.climb = null;
+    else {
+      const vy = held.jump ? -320 : held.down ? 380 : 0;
+      P.jumpsLeft = Math.max(P.jumpsLeft || 0, 1); P.climbT = (P.climbT || 0) + dt*(vy || mv ? 1 : 0);
+      if (s.k === 'pole'){
+        if (mv){ P.climb = null; P.vx = mv*420; P.vy = -560; P.face = mv; P.webFly = 0.5; sfx('swish'); }   // leap off the pole
+        else {
+          P.x = s.x - P.face*6; P.vx = 0; P.vy = vy; P.y = preY + vy*dt;
+          if (P.y <= s.top + 16 && vy < 0){ P.climb = null; P.y = s.top + 12; P.x = s.x; P.vy = 0; P.roof = s; return s.top + 12; }
+          if (P.y >= GROUND){ P.climb = null; P.y = GROUND; return GROUND; }
+          return 1e9;
         }
-        if (P.y >= GROUND){ P.climb = null; P.y = GROUND; return GROUND; }
-        return 1e9;
-      }
-    }
-  }
-  if (C){
-    const near = fcNear(P.x, 60), x0 = P.x - P.vx*dt;
-    // walls are solid below the roof line
-    for (const s of near){
-      if (!fcWall(s) || P.y <= s.top + 3) continue;
-      if (P.x + hw > s.x && P.x - hw < s.x + s.w){
-        const left = x0 < s.x + s.w/2, side = left ? 1 : -1;
-        P.x = left ? s.x - hw : s.x + s.w + hw;
-        if (P.vx*side > 0) P.vx = 0;
-        if (mv === side && !P.ride && !P.fly && !P.form && !(P.wg && P.wg.st !== 'swing')){   // hold toward the wall: start climbing
-          if (P.wg) P.wg = null;
-          P.climb = { s, side }; P.vy = 0; P.y = Math.min(P.y, GROUND - 2); P.face = side; sfx('swish');
+      } else {
+        const x = c.x + mv*200*dt;   // crawl along the wall too
+        if (x < s.x + 2 || x > s.x + s.w - 2){ P.climb = null; P.vx = mv*180; P.vy = -120; P.x = x; }   // off the side: let go
+        else {
+          c.x = x; P.x = x; P.vx = 0; P.vy = vy; P.y = preY + vy*dt; if (mv) P.face = mv;
+          if (P.y <= s.top + 6 && vy < 0){   // over the top: pull up onto the roof
+            P.climb = null; const t = fcTop(s, P.x) ?? s.top; P.y = t; P.vy = 0; P.roof = s;
+            burst(P.x, t, 4, '#2a1418', 100, 3); return t;
+          }
+          if (P.y >= GROUND){ P.climb = null; P.y = GROUND; return GROUND; }
           return 1e9;
         }
       }
     }
-    // poles: jump at one holding W to grab it
-    if (!P.onG && held.jump && !P.wg && !P.ride && !P.fly && P.vy > -350)
-      for (const s of near) if (s.k === 'pole' && Math.abs(P.x - s.x) < 16 && P.y > s.top + 40 && P.y < GROUND - 10){ P.climb = { s, side:0 }; P.vy = 0; P.vx = 0; return 1e9; }
-    // roofs, crossbars and wires: one-way platforms
-    if (P.vy >= -1 && !((P.dropT || 0) > 0)){
-      let best = GROUND, hit = null;
-      for (const s of near){ const y = fcTop(s, P.x); if (y == null) continue;
-        if (preY <= y + (was === s ? 24 : 3) && y < best){ best = y; hit = s; } }
-      if (hit){ P.roof = hit; P.roofSnap = was === hit && P.onG; }
-      return best;
-    }
+  }
+  if (C && P.vy >= -1 && !((P.dropT || 0) > 0)){   // roofs, crossbars and wires: one-way platforms
+    let best = GROUND, hit = null;
+    for (const s of fcNear(P.x, 60)){ const y = fcTop(s, P.x); if (y == null) continue;
+      if (preY <= y + (was === s ? 24 : 3) && y < best){ best = y; hit = s; } }
+    if (hit){ P.roof = hit; P.roofSnap = was === hit && P.onG; }
+    return best;
   }
   return GROUND;
 }
-/* ----- enemies: they stand on roofs too, cannot get through walls, and splat on them when thrown ----- */
+/* ----- enemies: they walk past buildings like you do, and can stand on roofs they land on ----- */
 function fcFloorE(e, preY, dt){
-  if (!G.fc) return GROUND;
-  const hw = 16*(e.size || 1), x0 = e.x - e.vx*dt, near = fcNear(e.x, 60), was = e.fcRoof; e.fcRoof = null;
-  for (const s of near){
-    if (!fcWall(s) || e.y <= s.top + 3) continue;
-    if (e.x + hw > s.x && e.x - hw < s.x + s.w){
-      const left = x0 < s.x + s.w/2, side = left ? 1 : -1;
-      e.x = left ? s.x - hw : s.x + s.w + hw;
-      if (Math.abs(e.vx) > 300 && (e.webThrown || e.state === 'hurt' || !e.onG) && !(e.wallCd > 0)){
-        e.wallCd = 0.4; e.hp -= 6 + Math.abs(e.vx)*0.012; e.lastHitT = 0; e.vx = -e.vx*0.3; e.vy = Math.min(e.vy, -150);
-        e.state = 'hurt'; e.timer = Math.max(e.timer || 0, 0.7); e.react = { k:'head', t:0, d:0.45, big:true };
-        pop(e.x, e.y - 92*e.size, 'Wall splat!', '#FFB347'); sfx('kick'); G.shake = Math.max(G.shake, 5);
-        burst(left ? s.x : s.x + s.w, e.y - 40*e.size, 8, '#2a1418', 180, 3);
-      } else if (e.vx*side > 0) e.vx = 0;
-    }
-  }
-  if (e.vy < -1) return GROUND;
-  let best = GROUND;
-  for (const s of near){ const y = fcTop(s, e.x); if (y == null) continue; if (preY <= y + (was === s ? 24 : 3) && y < best){ best = y; e.fcRoof = s; } }
+  if (!G.fc || e.vy < -1) return GROUND;
+  const was = e.fcRoof; e.fcRoof = null; let best = GROUND;
+  for (const s of fcNear(e.x, 60)){ const y = fcTop(s, e.x); if (y == null) continue; if (preY <= y + (was === s ? 24 : 3) && y < best){ best = y; e.fcRoof = s; } }
   return best;
 }
 /* ----- per frame: grow the street ahead, timers, effects ----- */
@@ -2351,7 +2348,19 @@ function fcTick(P, dt){
   if (pressed.down && P.roof && P.onG && (P.roof.k === 'pole' || P.roof.k === 'wire') && !P.fly){ P.dropT = 0.3; P.onG = false; P.roof = null; P.y += 3; P.vy = 80; }
   for (const f of C.fx) f.t += dt; C.fx = C.fx.filter(f => f.t < f.life);
   if (pressed.webnet && webOn() && !P.dead && !P.ride && !P.form) fcNetKey(P);
+  if (pressed.climb && webOn()) fcStartClimb(P);
 }
+/* where a flying web touches something it can stick to (a building face, roof, pole or wire) */
+function fcPointHit(x, y){
+  for (const s of fcNear(x, 12)){
+    if (s.k === 'bld' && x >= s.x && x <= s.x + s.w && y >= s.top - 4) return [x, Math.max(y, s.top + 6)];
+    if (s.k === 'house'){ const t = fcTop(s, x); if (t != null && y >= t) return [x, Math.max(y, t + 2)]; }
+    if (s.k === 'pole' && Math.abs(x - s.x) < 10 && y >= s.top) return [s.x, y];
+    if (s.k === 'wire' && x >= s.x1 && x <= s.x2){ const t = fcTop(s, x); if (Math.abs(y - t) < 12) return [x, t]; }
+  }
+  return null;
+}
+function fcSplat(x, y){ const C = G.fc; if (C) C.fx.push({ k:'splat', x1:x, y1:y, x2:x, y2:y, t:0, life:0.9 }); }
 /* places a body can hang from: roof edges, eaves, crossbar ends and anywhere along a wire */
 function fcAnchors(x, y, r){
   const out = [];
@@ -2484,14 +2493,14 @@ function fcZipTick(P, W, dt){
 function fcSwingAnchor(P, dir, ax, ay){
   let best = null, bd = 1e9;
   const hiY = Math.min(P.y - 140, GROUND - 240);
-  for (const s of fcNear(P.x + dir*300, 260)){
+  for (const s of fcNear(P.x + dir*260, 320)){
     let x, y;
     if (s.k === 'bld'){ x = clamp(ax, s.x + 6, s.x + s.w - 6); y = Math.max(s.top + 10, ay); }
     else if (s.k === 'pole'){ x = s.x; y = s.top + 14; }
     else if (s.k === 'wire'){ x = clamp(ax, s.x1 + 10, s.x2 - 10); y = fcTop(s, x) + 2; }
     else continue;
-    const dx = (x - P.x)*dir; if (dx < 110 || dx > 520 || y > hiY) continue;
-    const d = Math.abs(x - ax) + Math.abs(y - ay)*0.5;
+    const dx = (x - P.x)*dir; if (dx < -40 || dx > 560 || y > hiY) continue;
+    const d = Math.abs(x - ax) + Math.abs(y - ay)*0.5 + (dx < 110 ? 220 : 0);   // ahead is best, straight above still works
     if (d < bd){ bd = d; best = [x, y]; }
   }
   return best;
@@ -2582,6 +2591,9 @@ function fcDrawFront(){
     ctx.globalAlpha = 1;
   }
   for (const f of C.fx){ const u = f.t/f.life, k = Math.min(1, u*4);
+    if (f.k === 'splat'){ ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5;
+      for (let i = 0; i < 8; i++){ const a = i*0.785; ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x1 + Math.cos(a)*12, f.y1 + Math.sin(a)*12); ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(f.x1, f.y1, 6, 0, 6.283); ctx.stroke(); continue; }
     ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(lerp(f.x1, f.x2, k), lerp(f.y1, f.y2, k)); ctx.stroke(); }
   ctx.globalAlpha = 1; ctx.restore();
@@ -3101,7 +3113,7 @@ function comboFor(sw){
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'pause',
-  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet' };
+  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb' };
 const held = {}, pressed = {};
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -3483,7 +3495,7 @@ function startFree(){
   G.worldW = 2600; resetCommon(); fcNew();
   for (let i=0;i<3;i++) G.E.push(makeEnemy('grunt', 900+i*160, G.diff, false));
   toast('Free mode', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'free') showBanner('Free mode', 'Web shooter', isTouch ? 'Web: swing / catch · Net: wrap everyone / hang them · Tap again: yank · Hold: spin' : 'X: swing / catch · C: Web Net / hang · hold toward a wall: climb · S+X: zip to roof · Tap X: yank · Hold X: spin', '#FFFFFF'); }, 1500);
+  setTimeout(() => { if (G.running && G.mode === 'free') showBanner('Free mode', 'Web shooter', isTouch ? 'Web: swing / catch · Climb: up a building · Net: wrap everyone / hang them' : 'X: swing / catch · Z: climb (W up, S down) · C: Web Net / hang · S+X: zip to roof · Tap X: yank · Hold X: spin', '#FFFFFF'); }, 1500);
   setScreen(null); G.running = true; webTouchBtn();
 }
 function startSurvival(){
