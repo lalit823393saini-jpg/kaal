@@ -1487,9 +1487,9 @@ const FORM_CHOREO = {
   blood5:{ t:'windDraw' },
   /* Sun: kagura. A sacred dance: rhythm, big circles, upright and proud */
   sun1:{ t:'danceCircles', n:1.5 },                                      // Dance
-  sun2:{ t:'keys', two:true, k:[[0,-1.57,-1.57,2,-0.2,20],[0.6,1.4,1.8,10,0.4],[1,1.2,1.6,8,0.35]] },                              // Setting Sun: one huge arc from the top to the ground in front
+  sun2:{ t:'windDraw' },                                                // Setting Sun: the clip and the jump do it
   sun3:{ t:'sunWheel', n:1 },                                            // Beneficent Radiance
-  sun4:{ t:'keys', two:true, k:[[0,0.5,0.2,4,0],[0.4,-1.57,-1.57,0,-0.2,12],[0.7,-1.57,-1.57,0,-0.2,12],[1,-0.3,-0.2,6,0.3]] },    // Solar Flare: lift the sun, then let it go
+  sun4:{ t:'windDraw' },                                                // Solar Flare: the clip does it
   sun5:{ t:'dawnFinale' },                                               // Dawn of the Twelfth: dance, wheel, then the last strike
   /* Serpent: snake kung fu. Low, swaying, then the fang darts */
   serpent1:{ t:'keys', k:[[0,0.4,0.3,14,0.5],[0.35,0.0,0.0,10,0.85],[1,0.0,0.0,10,0.7]], sway:true },                               // Fang Strike: coiled low, then one dart
@@ -4872,7 +4872,7 @@ const FORM_DESC = {
   frost1:'Ice Fang: crouch, lunge and cut. Then fangs of ice come down from above and up from the ground and bite shut on everyone ahead.', frost2:'Frozen Lotus: hop up and plant the blade. A great ice lotus blooms round you and freezes everyone near, then its petals break off and fly as icicles.', frost3:'Absolute Zero: raise the blade, then lower it slowly. Frost spreads along the ground for 7 m and everyone it reaches freezes inside a pillar of ice.', frost4:'Icicle Rain: thrust the blade at the sky, then point it at them. A sweeping line of icicles rains down, pinning and freezing everyone ahead.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
   shadow1:'Shadow Step: sink into your own shadow and glide under the enemies, unseen and untouchable, then rise behind the last one with a cut from behind. Your next slash is an Ambush.', shadow2:'Shadow Snare: stab your own shadow. Black tendrils rise from the shadows of everyone near, wrap round them and hold them for 2.5 s.', shadow3:'Phantom Dance: three shadow clones burst out of you and dash through the nearest enemies from both sides, cutting each from behind.', shadow4:'Shadow Chains: chains of shadow shoot out to everyone in range and drag them to you, then one turning cut takes them all.', shadow5:'Midnight Requiem: night falls. You flicker behind each enemy in turn and mark them; when you sheathe the blade every mark opens at once.',
   blood1:'Scarlet Piercer: costs health, not breath. Ten stabs in a blur while you press forward, then one twisting thrust that blows them away. The lower your health, the harder every Blood form hits.', blood2:'Blood Grip: lunge in and seize the enemy by the throat, stab them three times, then hurl them into the others.', blood3:'Crimson Brawler: a front kick, a spinning heel kick, then a leaping two-handed chop straight down.', blood4:'Blood Rampage: for 1.4 s you charge like a beast, cutting wildly at everything in reach. A and D steer.', blood5:'Blood Massacre: you run down up to six enemies one after another, a different brutal strike for each, then flick the blood off the blade and every one of them bursts.',
-  sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
+  sun1:'Dance: four great circles of the blade while you advance, each one leaving an arc of fire.', sun2:'Setting Sun: leap high with the blade behind you and come down with it like the sun setting: a great arc of fire crushes everything in front and the ground bursts into flame.', sun3:'Beneficent Radiance: you turn with the blade in a full burning wheel, then send the wheel of fire rolling forward. It burns through the line and heals you for every enemy it touches.', sun4:'Solar Flare: raise the blade and a small sun gathers on its point; bring it down and the sun bursts, stunning and burning everyone around.', sun5:'Dawn of the Twelfth: twelve slashes of fire round you like the hours of a clock, then the sun rises behind you and bursts over the whole screen.',
   serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
   kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: an untouchable burning spin that leaves fire and water behind and launches enemies.', kaal3:'Still Eternity: time stops for everyone but you for 2.6 s. Every enemy and projectile freezes, and your hits on a frozen world deal +50%. Static field and iron body stay on you for 3 s.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
 };
@@ -5421,48 +5421,60 @@ const FORMS = {
             bloodSlash(e.x, e.y - 34*(e.size || 1), P.face > 0 ? ang : Math.PI - ang, 55, type, true); bloodSpray(e, P.face, 22);
             G.shake = Math.max(G.shake, 7); G.hitstop = Math.max(G.hitstop, 0.04); sfx('kill', 0.01); } } }
       if (F.t >= 1.78 && !F.end){ F.end = true;   // the flick that shakes the blood off the blade, and they all burst
-        for (const e of F.hitList){ if (e.dead) continue; damageEnemy(e, 70*m*FM(), {kb:200, heavy:true, src:'form', bleed:20, dir:sign(e.x - P.x) || 1}); bloodSpray(e, sign(e.x - P.x) || 1, 30);
-          bloodSlash(e.x, e.y - 34*(e.size || 1), rnd(0, 3.14), 70, 'arc', true); }
+        for (const e of F.hitList){ bloodExplosion(e);   // every one of them bursts
+          if (!e.dead) damageEnemy(e, 70*m*FM(), {kb:200, heavy:true, src:'form', bleed:20, dir:sign(e.x - P.x) || 1}); }
         emit(P.x + P.face*30, P.y - 30, {n:14, col:STYLE_FX.blood.cols, spd:300, size:4, life:0.6, kind:'drop', g:1.6, vx:P.face*200});
         flash('#E0283E', 0.4); G.shake = 18; G.hitstop = Math.max(G.hitstop, 0.14); sfx('boom'); sfx('kill', 0.03); vib(90); } } },
   /* ---- Sun ---- */
   sun1:{ dur:0.6, pose:'flurry', start(P,F){ F.tick = 0; F.n = 0; },
     update(P,dt,F){ P.vx = P.face*300; F.tick -= dt;
       if (F.tick <= 0 && F.n < 4){ F.tick = 0.12; F.n++;
-        areaHit(P.x+P.face*50, P.y-35, 80, 60, 30*FM(), {kb:120, src:'form', burn:6, dir:P.face}, new Set());
-        styleImpact('sun', P.x+P.face*55, P.y-40, false); sfx('swish'); } } },
-  sun2:{ dur:0.55, pose:'up', start(P,F){ if (P.onG) P.vy = -420; },
-    update(P,dt,F){ if (F.t >= 0.1 && !F.hitOnce){ F.hitOnce = true;
-      areaHit(P.x+P.face*50, P.y-40, 85, 80, 70*FM(), {kb:140, src:'form', launch:520, burn:8, heavy:true, dir:P.face}, F.set);
-      burst(P.x+P.face*45, P.y-50, 24, '#FFD23F', 420, 5, true); ringFx(P.x+P.face*40, P.y-45, 110, '#FFD23F');
-      sfx('fire'); G.shake = 10; vib(45); } } },
+        areaHit(P.x+P.face*55, P.y-38, 95, 70, 38*FM(), {kb:140, src:'form', burn:7, dir:P.face}, new Set());
+        bloodSlash(P.x + P.face*40, P.y - 40, (P.face > 0 ? 0 : Math.PI) + (F.n % 2 ? 1.0 : -1.0), 60, 'arc', true, 'sun');   // an arc of fire for each circle of the blade
+        emit(P.x + P.face*55, P.y - 40, {n:10, col:['#FF7A1A','#FFD23F','#FFF3C4'], spd:260, size:4, life:0.5, kind:'ember', g:-0.3});
+        sfx('swish'); sfx('fire', 0.01); G.shake = Math.max(G.shake, 4); } } },
+  sun2:{ dur:0.8, pose:'slam', start(P,F){ if (P.onG){ P.vy = -720; P.onG = false; } F.phase = 'up'; P.inv = 0.5; sfx('whoosh'); },
+    update(P,dt,F){ P.vx *= Math.pow(0.3, dt);
+      if (F.phase === 'up' && (P.vy > -60 || F.t > 0.32)){ F.phase = 'down'; P.vy = 1400; P.vx = P.face*120; }
+      if (F.phase === 'down' && P.onG && F.t > 0.15 && !F.landed){ F.landed = true; F.arcT = F.t; F.ax = P.x + P.face*70;   // the sun sets: a great arc of fire crushes down in front
+        for (const e of G.E){ if (e.dead || e.remote) continue; const dx = (e.x - P.x)*P.face; if (dx < -20 || dx > 220 || Math.abs(e.y - P.y) > 140) continue;
+          damageEnemy(e, 90*FM(), {kb:220, src:'form', burn:12, heavy:true, knockdown:1.2, dir:P.face}); }
+        for (let k = 0; k < 5; k++) emit(P.x + P.face*(40 + k*40), GROUND - 6, {n:8, col:['#FF7A1A','#FFD23F','#FFF3C4'], spd:280, size:5, life:0.7, kind:'ember', g:-0.6, vy:-260});
+        ringFx(F.ax, GROUND, 170, '#FFD23F', true); cracks(F.ax, 140, '#FF7A1A'); G.suns.push({x:F.ax, y:GROUND - 20, life:0.5, max:0.5, r:140});
+        G.shake = 15; G.hitstop = Math.max(G.hitstop, 0.1); flash('#FFF3C4', 0.25); zoomPunch(1.07); sfx('boom'); sfx('fire', 0.03); vib(70); } } },
   sun3:{ dur:0.75, pose:'spin', start(P,F){ F.tick = 0; F.healed = 0; },
     update(P,dt,F){ P.vx = lerp(P.vx, 0, Math.min(1, dt*4)); F.tick -= dt;
-      if (F.tick <= 0){ F.tick = 0.15;
-        const n = areaHit(P.x, P.y-35, 115, 75, 55*FM(), {kb:180, kbAway:true, src:'form', burn:8}, new Set());
-        if (n && F.healed < 30){ const h = Math.min(5*n, 30 - F.healed); F.healed += h; P.hp = Math.min(P.maxHp, P.hp + h); pop(P.x, P.y-105, '+'+h, '#FFF3C4'); }
-        ringFx(P.x, P.y-35, 120, '#FFD23F'); styleImpact('sun', P.x, P.y-40, false); sfx('fire'); } } },
-  sun4:{ dur:0.5, pose:'cast', start(P,F){
-      let n = 0;
-      for (const e of G.E){ if (e.dead || Math.abs(e.x-P.x) > 380) continue; damageEnemy(e, 60*FM(), {kb:120, kbAway:true, src:'form', stun:1.5, burn:10, quiet:n>4, dir:sign(e.x-P.x)||1}); n++; }
-      G.suns.push({x:P.x, y:P.y-40, life:0.8, max:0.8, r:260});
-      flash('#FFF3C4', 0.5); ringFx(P.x, P.y-40, 380, '#FFD23F', true); G.shake = 13; G.hitstop = 0.08;
-      sfx('boom'); sfx('fire', 0.04); zoomPunch(1.07); vib(70); }, update(P){ P.vx *= 0.85; } },
-  sun5:{ dur:1.5, pose:'flurry', start(P,F){ F.tick = 0; F.n = 0; P.inv = 1.6; },
-    update(P,dt,F){ F.tick -= dt;
-      if (F.tick <= 0 && F.n < 12){ F.tick = 0.1; F.n++;
-        const foes = G.E.filter(e=>!e.dead);
-        const e = foes.length ? foes[F.n % foes.length] : null;
-        if (e){ const ox = P.x; P.x = clamp(e.x - sign(e.x-P.x)*40, 30, G.worldW-30); P.face = sign(e.x-P.x) || P.face; echoTrail(ox, P.x, P);
-          damageEnemy(e, 40*FM(), {kb:90, src:'form', burn:8, dir:P.face});
-          G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.25, col:'#FFD23F' }); }
-        else { P.vx = P.face*300; areaHit(P.x+P.face*50, P.y-35, 85, 65, 40*FM(), {kb:90, src:'form', burn:8}, new Set()); }
-        styleImpact('sun', P.x+P.face*50, P.y-40, false); sfx('swish');
-        if (F.n === 12){
-          areaHit(P.x, P.y-35, 200, 110, 120*FM(), {kb:480, kbAway:true, heavy:true, src:'form', burn:16}, new Set());
-          G.suns.push({x:P.x, y:P.y-40, life:0.9, max:0.9, r:300}); ringFx(P.x, P.y-40, 300, '#FFD23F', true);
-          burst(P.x, P.y-40, 50, '#FFD23F', 650, 6, true); G.shake = 20; G.hitstop = 0.16;
-          sfx('boom'); flash('#FFF3C4', 0.5); zoomPunch(1.12); vib(100); } } } },
+      if (F.t < 0.45 && F.tick <= 0){ F.tick = 0.15;
+        const n = areaHit(P.x, P.y-35, 115, 75, 40*FM(), {kb:120, kbAway:true, src:'form', burn:8}, new Set());
+        if (n && F.healed < 20){ const h = Math.min(4*n, 20 - F.healed); F.healed += h; P.hp = Math.min(P.maxHp, P.hp + h); pop(P.x, P.y-105, '+'+h, '#FFF3C4'); }
+        bloodSlash(P.x, P.y - 45, 0, 80, 'ring', false, 'sun'); sfx('fire'); }
+      if (F.t >= 0.48 && !F.rolled){ F.rolled = true;   // the wheel of fire is sent rolling
+        G.proj.push({kind:'sunwheel', x:P.x + P.face*50, y:GROUND - 48, vx:P.face*560, vy:0, r:48, rot:0, dmg:45*FM(), pierce:40, hit:new Set(), life:1.5, kb:200, burn:10, big:true, noLaunch:true, heal:0});
+        sfx('whoosh'); sfx('fire', 0.02); } } },
+  sun4:{ dur:0.75, pose:'cast', update(P,dt,F){ P.vx *= 0.85;
+      F.orb = clamp((F.t - 0.06)/0.32, 0, 1);
+      if (F.t >= 0.44 && !F.flare){ F.flare = true; F.flareT = F.t; F.fx = P.x + P.face*40; F.fy = P.y - 60;   // the sun bursts
+        let n = 0;
+        for (const e of G.E){ if (e.dead || Math.abs(e.x-P.x) > 400) continue; damageEnemy(e, 70*FM(), {kb:150, kbAway:true, src:'form', stun:1.6, burn:12, quiet:n>4, dir:sign(e.x-P.x)||1}); n++; }
+        G.suns.push({x:F.fx, y:F.fy, life:0.9, max:0.9, r:300});
+        flash('#FFF3C4', 0.6); ringFx(F.fx, F.fy, 400, '#FFD23F', true); G.shake = 15; G.hitstop = 0.1;
+        sfx('boom'); sfx('fire', 0.04); zoomPunch(1.08); vib(75); } } },
+  sun5:{ dur:1.9, pose:'flurry', start(P,F){ F.n = 0; P.inv = 2.0; },
+    update(P,dt,F){ P.vx *= 0.85;
+      const k = Math.floor((F.t - 0.05)/0.09);
+      if (F.t >= 0.05 && k < 12 && k >= F.n){ F.n = k + 1;   // twelve slashes of fire round you, like the hours of a clock
+        const a = -Math.PI/2 + k*(Math.PI*2/12), side = Math.cos(a) >= 0 ? 1 : -1;
+        bloodSlash(P.x + Math.cos(a)*90, P.y - 45 + Math.sin(a)*70, a, 70, 'arc', true, 'sun');
+        for (const e of G.E){ if (e.dead || e.remote) continue; const dx = e.x - P.x; if (Math.abs(dx) > 230 || Math.abs(e.y - P.y) > 160) continue;
+          if (Math.abs(Math.cos(a)) > 0.25 && sign(dx) !== side) continue;
+          damageEnemy(e, 22*FM(), {kb:60, src:'form', burn:6, dir:sign(dx) || 1, noStop:true, quiet:true}); }
+        sfx('swish'); G.shake = Math.max(G.shake, 4); }
+      if (F.t >= 1.62 && !F.burst){ F.burst = true;   // the risen sun bursts over the whole screen
+        for (const e of G.E){ if (e.dead || e.remote || e.x < G.camX - 40 || e.x > G.camX + VW + 40) continue;
+          damageEnemy(e, 130*FM(), {kb:480, kbAway:true, heavy:true, src:'form', burn:16, dir:sign(e.x - P.x) || 1}); }
+        G.suns.push({x:P.x, y:P.y - 160, life:1.0, max:1.0, r:420}); ringFx(P.x, P.y-40, 420, '#FFD23F', true);
+        burst(P.x, P.y-40, 60, '#FFD23F', 700, 6, true); G.shake = 22; G.hitstop = 0.16;
+        sfx('boom'); flash('#FFF3C4', 0.6); zoomPunch(1.12); vib(100); } } },
   /* ---- Serpent ---- */
   serpent1:{ dur:0.32, pose:'thrust', start(P,F){ P.inv = 0.35; F.n = 0; },
     update(P,dt,F){ P.vx = P.face*900; if (P.onG) P.vy = Math.min(P.vy, 0);
@@ -6641,12 +6653,21 @@ const FORM_MAP = {
     { t:1.95, h:[16,-8], th:1.3, phi:0.4, lean:0.3, cr:8 } ] } },
   /* Sun: sweeping, two-handed, radiant */
   sun1:{ c:'flurry',  v:{ n:4, dt:0.12, seq:['down','rise'], phi:0.3, lean:0.2, cr:5, two:true, legs:FC_LEG.step } },
-  sun2:{ c:'rising',  v:{ imp:0.1, phi:0.3, th0:2.9, two:true, set:true, top:[11,-31], thTop:-1.8 } },
+  sun2:{ c:'invoke', v:{ keys:[   // Setting Sun: crouch, spring with the blade drawn back over the head, bring it round and down in front as you land
+    { pre:0.5, h:[6,-6], th:1.8, phi:0.3, lean:0.3, cr:12, pr:-2, legs:FC_LEG.deep, off:[-6,-10], two:true },
+    { t:0.08, h:[0,-37], th:-2.6, phi:0.3, lean:-0.2, cr:2, legs:FC_LEG.tall },
+    { t:0.3, h:[-2,-37], th:-2.75, phi:0.3, lean:-0.25, cr:2 },
+    { t:0.42, h:[14,-34], th:-1.0, phi:0.3, lean:0.1, cr:4 },
+    { t:0.5, h:[22,-6], th:1.35, phi:0.3, lean:0.5, cr:15, pr:5, legs:FC_LEG.kneel, imp:true },
+    { t:0.75, h:[20,-6], th:1.4, phi:0.3, lean:0.45, cr:14 } ] } },
   sun3:{ c:'whirl',   v:{ turns:2, y:-14, r:15, cr:5, lean:0.25, two:true, t1:0.55, legs:FC_LEG.horse } },
-  sun4:{ c:'invoke',  v:{ keys:[ { pre:0.55, h:[8,-6], th:1.9, phi:0.3, lean:0.05, cr:9, pr:-3, legs:FC_LEG.deep, off:[-6,-10], two:true },
-                                 { t:0, h:[16,-29], th:-1.15, lean:-0.15, cr:1, pr:2, legs:FC_LEG.tall, off:[6,-30], imp:true, two:false },
-                                 { t:0.35, h:[15,-28], th:-1.1, lean:-0.12 } ] } },
-  sun5:{ c:'blink',   v:{ dt:0.1, n:() => 12, seq:['gyaku','kesa'], phiOf:() => 0.4, fin:true, two:true } },
+  sun4:{ c:'invoke',  v:{ keys:[   // Solar Flare: blade to the sky while the sun gathers on it, then brought down hard
+    { pre:0.55, h:[8,-6], th:1.9, phi:0.3, lean:0.05, cr:9, pr:-3, legs:FC_LEG.deep, off:[-6,-10], two:true },
+    { t:0.06, h:[13,-38], th:-1.57, phi:0.3, lean:-0.15, cr:1, pr:0, legs:FC_LEG.tall, two:true },
+    { t:0.38, h:[12,-38], th:-1.6, phi:0.3, lean:-0.18, cr:1 },
+    { t:0.44, h:[22,-14], th:0.4, phi:0.3, lean:0.5, cr:12, pr:6, legs:FC_LEG.lunge, imp:true },
+    { t:0.7, h:[20,-14], th:0.45, phi:0.3, lean:0.4, cr:10 } ] } },
+  sun5:{ c:'flurry',  v:{ n:12, dt:0.09, seq:['gyaku','kesa'], phi:0.4, lean:0.2, cr:6, two:true, legs:FC_LEG.step } },   // Dawn: twelve cuts, one per hour
   /* Serpent: low, whipping, the wrist does the work */
   serpent1:{ c:'thrust', v:{ imp:0.03, low:5, th:0.12 } },
   serpent2:{ c:'bind',   v:{ keys:[ { pre:0.6, h:[6,-12], th:0.2, phi:0.4, lean:0, cr:7, pr:-3, legs:FC_LEG.step, off:[-8,-8] },
@@ -9020,22 +9041,78 @@ function snareTick(dt){
 }
 /* Blood forms hit harder the more health you have lost (up to 2.5x) */
 function bloodMult(P){ return 1 + 1.5*clamp(1 - P.hp/P.maxHp, 0, 1); }
+/* Sun Breathing: the wheel of fire, the setting-sun arc, the sun gathering on the blade, the dawn rising */
+function drawSunWheel(x, y, r, rot){
+  ctx.save(); ctx.translate(x, y); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(0, 0, r*0.2, 0, 0, r*1.4); g.addColorStop(0, 'rgba(255,243,196,0.9)'); g.addColorStop(0.5, 'rgba(255,138,26,0.55)'); g.addColorStop(1, 'rgba(255,90,0,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r*1.4, 0, 6.283); ctx.fill();
+  ctx.rotate(rot); ctx.strokeStyle = '#FFD23F'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.stroke();
+  for (let k = 0; k < 8; k++){ const a = k*0.785; ctx.lineWidth = 3; ctx.strokeStyle = '#FFF3C4'; ctx.beginPath(); ctx.moveTo(Math.cos(a)*r*0.25, Math.sin(a)*r*0.25); ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r); ctx.stroke();
+    ctx.fillStyle = '#FF8A1A'; ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.15)*r, Math.sin(a - 0.15)*r); ctx.lineTo(Math.cos(a)*r*1.35, Math.sin(a)*r*1.35); ctx.lineTo(Math.cos(a + 0.15)*r, Math.sin(a + 0.15)*r); ctx.fill(); }   // flames off the rim
+  ctx.restore();
+}
+function drawSunForms(P){
+  const F = P.form && !P.form.wait ? P.form : null; if (!F) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  if (F.id === 'sun2' && F.arcT != null){ const u = clamp((F.t - F.arcT)/0.25, 0, 1), a = 1 - u;   // the arc of the setting sun, from high behind down to the ground in front
+    const cx = P.x, cy = GROUND, R = 150, a0 = P.face > 0 ? Math.PI*1.05 : -0.05, a1 = P.face > 0 ? Math.PI*2.02 : -Math.PI*1.02;
+    for (const [c, w] of [['#8A2A00', 26], ['#FF8A1A', 14], ['#FFF3C4', 5]]){ ctx.globalAlpha = a; ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(cx, cy, R, a0, a1, P.face < 0); ctx.stroke(); } }
+  if (F.id === 'sun4' && F.orb > 0 && !F.flare){ const tip = formBladeTip(P), r = 10 + 34*F.orb;   // the sun gathering on the point of the blade
+    const g = ctx.createRadialGradient(tip[0], tip[1], 2, tip[0], tip[1], r*2.2); g.addColorStop(0, 'rgba(255,255,240,1)'); g.addColorStop(0.35, 'rgba(255,210,63,0.9)'); g.addColorStop(1, 'rgba(255,120,20,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(tip[0], tip[1], r*2.2, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,243,196,0.6)'; ctx.lineWidth = 2; for (let k = 0; k < 12; k++){ const a = k*0.524 + G.time*2; ctx.beginPath(); ctx.moveTo(tip[0] + Math.cos(a)*r, tip[1] + Math.sin(a)*r); ctx.lineTo(tip[0] + Math.cos(a)*r*2.4, tip[1] + Math.sin(a)*r*2.4); ctx.stroke(); } }
+  if (F.id === 'sun4' && F.flare){ const u = clamp((F.t - F.flareT)/0.3, 0, 1);   // rays from the burst
+    ctx.globalAlpha = 1 - u; ctx.strokeStyle = '#FFF3C4'; ctx.lineWidth = 4;
+    for (let k = 0; k < 16; k++){ const a = k*0.393, L = 60 + 520*u; ctx.beginPath(); ctx.moveTo(F.fx + Math.cos(a)*L*0.2, F.fy + Math.sin(a)*L*0.2); ctx.lineTo(F.fx + Math.cos(a)*L, F.fy + Math.sin(a)*L); ctx.stroke(); } }
+  if (F.id === 'sun5' && F.t > 1.15 && F.t < 1.85){   // the sun rises behind you
+    const u = FC_EASE(clamp((F.t - 1.15)/0.45, 0, 1)), fade = 1 - clamp((F.t - 1.65)/0.2, 0, 1), sx = P.x, sy = lerp(GROUND + 120, P.y - 170, u), R = 120;
+    const g = ctx.createRadialGradient(sx, sy, R*0.5, sx, sy, R*2.4); g.addColorStop(0, `rgba(255,243,196,${0.9*fade})`); g.addColorStop(0.45, `rgba(255,170,40,${0.5*fade})`); g.addColorStop(1, 'rgba(255,90,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, R*2.4, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = fade; ctx.fillStyle = '#FFF6D8'; ctx.beginPath(); ctx.arc(sx, sy, R, 0, 6.283); ctx.fill(); }
+  ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+/* the aura of a breathing form: tongues of coloured fire rising off the body, a glow on the ground, sparks */
+function drawFormAura(P){
+  const F = P.form, st = STYLES[F.sid], col = (st && st.col) || F.col || '#FFFFFF', t = G.time;
+  const q = Math.min(1, F.t/0.1)*(1 - clamp((F.t - F.dur + 0.12)/0.12, 0, 1)), big = /5$/.test(F.id) ? 1.4 : /4$/.test(F.id) ? 1.2 : 1;
+  if (q <= 0) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(P.x, GROUND, 4, P.x, GROUND, 70*big); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 0.45*q; ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(P.x, GROUND, 70*big, 16*big, 0, 0, 6.283); ctx.fill();   // glow on the ground
+  ctx.fillStyle = col;
+  for (let k = 0; k < 9; k++){   // flames
+    const off = (k - 4)*5.5, h = (46 + 26*Math.sin(t*13 + k*1.9) + (4 - Math.abs(k - 4))*8)*big, sway = Math.sin(t*9 + k)*7, bx = P.x + off, by = P.y - 4;
+    ctx.globalAlpha = (0.16 + 0.08*Math.sin(t*20 + k))*q;
+    ctx.beginPath(); ctx.moveTo(bx - 7, by); ctx.quadraticCurveTo(bx - 9 + sway, by - h*0.6, bx + sway*1.4, by - h); ctx.quadraticCurveTo(bx + 9 + sway, by - h*0.6, bx + 7, by); ctx.closePath(); ctx.fill(); }
+  ctx.restore(); ctx.globalAlpha = 1;
+  if (FXL() > 0 && Math.random() < 0.5*q) G.parts.push({x:P.x + rnd(-18, 18), y:P.y - rnd(5, 60), vx:rnd(-20, 20), vy:-rnd(80, 160), life:0.5, max:0.5, col, size:2.5, real:true});
+}
+/* a body bursting with blood: a cloud, a spray in every direction, a ring and a pool on the ground */
+function bloodExplosion(e){
+  const s = e.size || 1, x = e.x, y = e.y - 36*s;
+  emit(x, y, {n:FXL() > 0 ? 55 : 22, col:STYLE_FX.blood.cols, spd:620, size:6, life:1.0, kind:'drop', g:1.5, real:true});
+  emit(x, y, {n:FXL() > 0 ? 14 : 6, col:['#8A0A1A', '#E0283E'], spd:120, size:14, life:0.7, kind:'mist', g:-0.05});
+  ringFx(x, y, 120*s, '#E0283E'); bloodSlash(x, y, 0, 70*s, 'impact', true); bloodSlash(x, y, 0, 60*s, 'ring', true);
+  if (G.splats){ G.splats.push({ x, w:rnd(50, 80)*s, life:8 }); if (G.splats.length > 40) G.splats.shift(); }
+  G.shake = Math.max(G.shake, 10);
+}
 /* big anime-style blood slashes, and blood spraying out of a wound */
-function bloodSlash(x, y, ang, r, kind, big){ (G.bslash = G.bslash || []).push({ x, y, ang, r:r || 40, kind:kind || 'arc', big:!!big, t0:G.time, life:big ? 0.32 : 0.22 }); }
+function bloodSlash(x, y, ang, r, kind, big, pal){ (G.bslash = G.bslash || []).push({ x, y, ang, r:r || 40, kind:kind || 'arc', big:!!big, pal:pal || 'blood', t0:G.time, life:big ? 0.32 : 0.22 }); }
+const SLASH_PAL = { blood:['#5A0A16', '#E0283E', '#FFE0E4'], sun:['#8A2A00', '#FF8A1A', '#FFF3C4'] };
 function bloodSpray(e, dir, n){ if (FXL() <= 0 && n > 8) n = 8; emit(e.x, e.y - 36*(e.size || 1), {n, col:STYLE_FX.blood.cols, spd:180 + n*12, size:3 + Math.min(4, n/8), life:0.7, kind:'drop', g:1.5, vx:dir*160, vy:-160}); }
 function drawBloodSlashes(){
   if (!G.bslash || !G.bslash.length) return;
   G.bslash = G.bslash.filter(b => G.time - b.t0 < b.life);
   ctx.save(); ctx.lineCap = 'round';
-  for (const b of G.bslash){ const u = (G.time - b.t0)/b.life, a = 1 - u, g = Math.min(1, u*5), W = b.big ? 1.6 : 1;
-    ctx.globalAlpha = a;
+  for (const b of G.bslash){ const u = (G.time - b.t0)/b.life, a = 1 - u, g = Math.min(1, u*5), W = b.big ? 1.6 : 1, C = SLASH_PAL[b.pal] || SLASH_PAL.blood;
+    ctx.globalAlpha = a; if (b.pal === 'sun') ctx.globalCompositeOperation = 'lighter'; else ctx.globalCompositeOperation = 'source-over';
     if (b.kind === 'thrust'){ const L = (b.big ? 150 : 70 + b.r)*g, dx = Math.cos(b.ang), dy = Math.sin(b.ang);   // a straight streak
-      for (const [c, w] of [['#5A0A16', 9*W], ['#E0283E', 5*W], ['#FFE0E4', 1.6*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(b.x - dx*L*0.5, b.y - dy*L*0.5); ctx.lineTo(b.x + dx*L*0.5, b.y + dy*L*0.5); ctx.stroke(); } }
-    else if (b.kind === 'ring'){ for (const [c, w] of [['#5A0A16', 10], ['#E0283E', 5], ['#FFE0E4', 1.6]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(b.x, b.y, b.r*g, b.r*0.35*g, 0, 0, 6.283); ctx.stroke(); } }
-    else if (b.kind === 'impact'){ ctx.fillStyle = '#E0283E'; for (let k = 0; k < 8; k++){ const aa = k*0.785, L = b.r*(0.6 + 0.4*(k % 2))*g; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(aa - 0.12)*L*0.3, b.y + Math.sin(aa - 0.12)*L*0.3); ctx.lineTo(b.x + Math.cos(aa)*L, b.y + Math.sin(aa)*L); ctx.lineTo(b.x + Math.cos(aa + 0.12)*L*0.3, b.y + Math.sin(aa + 0.12)*L*0.3); ctx.fill(); } }
+      for (const [c, w] of [[C[0], 9*W], [C[1], 5*W], [C[2], 1.6*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(b.x - dx*L*0.5, b.y - dy*L*0.5); ctx.lineTo(b.x + dx*L*0.5, b.y + dy*L*0.5); ctx.stroke(); } }
+    else if (b.kind === 'ring'){ for (const [c, w] of [[C[0], 10], [C[1], 5], [C[2], 1.6]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(b.x, b.y, b.r*g, b.r*0.35*g, 0, 0, 6.283); ctx.stroke(); } }
+    else if (b.kind === 'impact'){ ctx.fillStyle = C[1]; for (let k = 0; k < 8; k++){ const aa = k*0.785, L = b.r*(0.6 + 0.4*(k % 2))*g; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(aa - 0.12)*L*0.3, b.y + Math.sin(aa - 0.12)*L*0.3); ctx.lineTo(b.x + Math.cos(aa)*L, b.y + Math.sin(aa)*L); ctx.lineTo(b.x + Math.cos(aa + 0.12)*L*0.3, b.y + Math.sin(aa + 0.12)*L*0.3); ctx.fill(); } }
     else { const R = b.r*W*(0.6 + 0.4*g), a0 = b.ang - 1.1, a1 = b.ang + 1.1*g;   // a thick crescent of a cut
-      for (const [c, w] of [['#5A0A16', 13*W], ['#E0283E', 7*W], ['#FFE0E4', 2*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(b.x - Math.cos(b.ang)*R*0.6, b.y - Math.sin(b.ang)*R*0.6, R, a0, a1); ctx.stroke(); } } }
-  ctx.restore(); ctx.globalAlpha = 1;
+      for (const [c, w] of [[C[0], 13*W], [C[1], 7*W], [C[2], 2*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(b.x - Math.cos(b.ang)*R*0.6, b.y - Math.sin(b.ang)*R*0.6, R, a0, a1); ctx.stroke(); } } }
+  ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
 function bloodSpearTick(p, dt){
   if (!p.stuck){
@@ -9351,6 +9428,7 @@ function drawProj(){
       const f = sign(p.vx);
       if (p.xBlade){ drawXBlade(p.x, p.y, 26, f || 1, p.col); continue; }
       if (p.kind === 'icicle'){ drawIcicle(p.x, p.y, p.len || 30, Math.atan2(p.vy, p.vx)); continue; }
+      if (p.kind === 'sunwheel'){ drawSunWheel(p.x, p.y, p.r, p.rot); continue; }
       if (p.kind === 'bloodspear'){ drawBloodSpear(p.x, p.y, p.ang != null ? p.ang : Math.atan2(p.vy, p.vx), p.len || 90); continue; }
       if (p.kind === 'rock' || p.kind === 'boulder'){
         if (p.streak){ ctx.save(); ctx.strokeStyle = 'rgba(229,211,188,0.45)'; ctx.lineWidth = p.r*0.9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x - p.vx*0.05, p.y - p.vy*0.05); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.restore(); }   // speed streak
@@ -9712,6 +9790,7 @@ function renderScene(){
     if (P.form && P.form.id==='frost5' && !P.form.wait) drawBlizzard(P);
     if (P.form && !P.form.wait && (P.form.id==='frost2' || P.form.id==='frost3' || P.form.id==='frost4')) drawFrostForm(P);
     drawShadowForms(P);
+    drawSunForms(P);
     drawBloodSlashes();
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
@@ -9745,6 +9824,7 @@ function renderScene(){
       if (G.mode === 'duel') drawNetVisuals();
       const blink = P.inv > 0 && P.dashT<=0 && !P.form && Math.floor(G.time*20)%2===0;
       if (FXL() > 0 && !P.ride && Math.random() < (P.form ? 0.3 : P.atk ? 0.6 : 0.4)){ const ac = auraCol(); G.parts.push({ x:P.x + rnd(-13,13), y:P.y - rnd(4,62), vx:rnd(-12,12) - P.vx*0.15, vy:rnd(-90,-40), life:rnd(0.35,0.7), max:0.7, col:Math.random() < 0.5 ? ac : shadeHex(ac, 0.45), size:rnd(1.5,3.2), real:true, g:-0.05 }); }
+      if (P.form && !P.form.wait && !P.dead) drawFormAura(P);   // the breathing style's aura burns round you while a form is on
       drawStick(P, blink?0.45:1);
       if (P.ironT > 0 && !P.dead) drawGranite(P);   // stone plates over the body
       drawBloodForms(P);
@@ -13511,6 +13591,9 @@ function step(dt){
       if (p.y > GROUND - 10){ p.life = 0; emit(p.x, GROUND - 4, {n:7, col:STYLE_FX.frost.cols, spd:220, size:3.5, life:0.5, kind:'star', g:1.2, vy:-120});
         if (p.stick) G.haz.push({kind:'spike', ice:true, x:p.x, w:10, H:p.len*0.9, life:0.8, max:0.8, tick:99, every:99, dmg:0, lean:Math.atan2(p.vx, p.vy)*0.5}); } }   // it stays stuck in the ground a moment
     if (p.kind==='bloodspear' && pdt>0) bloodSpearTick(p, pdt);
+    if (p.kind==='sunwheel' && pdt>0){ p.y = GROUND - p.r; p.vy = 0; p.rot += p.vx/p.r*pdt;   // it rolls, burning, and heals you for each one it touches
+      if (p.hit.size > (p.seen || 0)){ const n = p.hit.size - (p.seen || 0); p.seen = p.hit.size; if (G.P && p.heal < 30){ const h = Math.min(4*n, 30 - p.heal); p.heal += h; G.P.hp = Math.min(G.P.maxHp, G.P.hp + h); pop(G.P.x, G.P.y - 105, '+' + h, '#FFF3C4'); } }
+      if (Math.random() < 0.8) emit(p.x - sign(p.vx)*p.r*0.5, GROUND - 6, {n:1, col:['#FF7A1A','#FFD23F'], spd:60, size:4, life:0.5, kind:'ember', g:-0.5}); }
     if (p.kind==='bloodblade' && pdt>0 && Math.random()<0.7) emit(p.x, p.y + rnd(-18, 18), {n:1, col:STYLE_FX.blood.cols, spd:30, size:3, life:0.5, kind:'drop', g:1.2});
     if (p.kind==='moonlet' && pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.crescent.cols, spd:20, size:2.5, life:0.3, kind:'star', g:0});
     if (p.kind==='venom' && pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.serpent.cols, spd:30, size:3, life:0.35, kind:'drop', g:0.4});
