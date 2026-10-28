@@ -2127,27 +2127,30 @@ function webSlingStart(P){
 function webSlingTick(P, W, dt){
   W.t += dt;
   if (W.phase === 'shoot'){ W.shoot = Math.min(1, W.t/0.12); P.vx = 0; if (W.t >= 0.12){ W.phase = 'pull'; W.t0 = W.t; W.taut = 1; sfx('swish'); } return; }
-  if (W.phase === 'pull'){   // pulled back against the line, like a slingshot drawn
-    const u = Math.min(1, (W.t - W.t0)/0.35); P.x = W.x0 - W.dir*42*FC_EASE(u); P.vx = 0; if (P.onG) P.vy = 0;
-    if (Math.random() < 0.5) emit(P.x, GROUND - 3, {n:1, col:['#2a1418','#5a4a40'], spd:60, size:3, life:0.4, kind:'rock', g:1.2, vy:-60});
-    if (u >= 1){ W.phase = 'rise'; W.t0 = W.t; W.y0 = P.y; sfx('whoosh'); }
+  if (W.phase === 'pull'){   // drawn back against the line like a slingshot, for as long as you keep the keys down
+    const held_ = held.slowHold || held.kunai || held.left || held.right, age = W.t - W.t0;
+    W.charge = Math.min(1, age/0.9);   // the longer you hold, the harder you fly
+    P.x = clamp(W.x0 - W.dir*(30 + 45*W.charge)*FC_EASE(Math.min(1, age/0.3)), 30, G.worldW - 30); P.vx = 0; if (P.onG) P.vy = 0; P.face = W.dir;
+    if (Math.random() < 0.3 + 0.5*W.charge) emit(P.x - W.dir*6, GROUND - 3, {n:1, col:['#2a1418','#5a4a40'], spd:60 + 80*W.charge, size:3, life:0.4, kind:'rock', g:1.2, vy:-60});   // the heels dig in
+    if (W.charge >= 1 && !W.full){ W.full = true; pop(P.x, P.y - 110, 'Full power', '#E8202A'); ringFx(P.x, P.y - 40, 60, '#E8202A'); sfx('swish'); }
+    if ((!held_ && age > 0.15) || age > 6){ W.phase = 'rise'; W.t0 = W.t; W.y0 = P.y; sfx('whoosh'); vib(20); }   // every key let go: fly
     return; }
   if (W.phase === 'rise'){   // the feet let go and the body comes up straight
     const u = Math.min(1, (W.t - W.t0)/0.12); P.onG = false; P.y = W.y0 - 34*FC_EASE(u); P.vx = 0; P.vy = -2200*dt;
-    if (u >= 1){ W.phase = 'fly'; W.tx = W.ax + (W.s && fcWall(W.s) ? W.dir*8 : -W.dir*16); W.ty = W.ay + 58; P.webFly = 1; }   // onto the wall itself
+    if (u >= 1){ W.phase = 'fly'; W.tf = W.t; W.tx = W.ax + (W.s && fcWall(W.s) ? W.dir*8 : -W.dir*16); W.ty = W.ay + 58; P.webFly = 1; }   // onto the wall itself
     return; }
   // feet first along the line, kicking every face on the way
-  const dx = W.tx - P.x, dy = W.ty - P.y, d = Math.hypot(dx, dy) || 1, sp = 1350;
+  const dx = W.tx - P.x, dy = W.ty - P.y, d = Math.hypot(dx, dy) || 1, sp = 1150 + 550*(W.charge || 0);
   P.vx = dx/d*sp; P.vy = dy/d*sp - 2200*dt; P.onG = false; P.face = W.dir; P.inv = Math.max(P.inv, 0.1);
   if (FXL() > 0 && Math.random() < 0.6) G.echoes.push({ snap:heroSnap(P), life:0.12, max:0.25, col:'#E8202A' });
   for (const e of G.E){ if (e.dead || e.remote || W.hit.has(e)) continue;
     if (Math.abs(e.x - (P.x + W.dir*20)) > 46*(e.size || 1) || Math.abs((e.y - 50*(e.size || 1)) - (P.y - 30)) > 70) continue;
     W.hit.add(e);   // a kick in the face: their head snaps back and they go over backwards
-    damageEnemy(e, 45*FM(), {kb:540, dir:W.dir, src:'web', heavy:true, knockdown:1.4});
+    damageEnemy(e, 45*(1 + 1.2*(W.charge || 0))*FM(), {kb:480 + 260*(W.charge || 0), dir:W.dir, src:'web', heavy:true, knockdown:1.4});
     if (!e.dead && !isBoss(e)){ e.react = { k:'head', t:0, d:0.5, big:true }; e.state = 'down'; e.timer = Math.max(e.timer || 0, 1.4); e.vx = W.dir*520; e.vy = Math.min(e.vy || 0, -160); e.onG = false; }
     impactFx(e.x - W.dir*6, e.y - 56*(e.size || 1), '#FFFFFF', 1.2); pop(e.x, e.y - 110*(e.size || 1), 'Face kick!', '#FFFFFF');
     G.hitstop = Math.max(G.hitstop, 0.05); G.shake = Math.max(G.shake, 6); sfx('punch'); vib(25); }
-  if (d < 28 || W.t > 1.6){   // arrived where the web stuck
+  if (d < 28 || W.t - (W.tf || 0) > 1.6){   // arrived where the web stuck
     P.wg = null; P.vx = 0; P.vy = 0; if (d < 28){ P.x = W.tx; P.y = W.ty; }
     const s = W.s;
     if (s && fcWall(s) && P.x > s.x + 2 && P.x < s.x + s.w - 2 && P.y > s.top + 8){ P.climb = { s, x:P.x }; }
@@ -2689,7 +2692,7 @@ function startSpider(){
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
     isTouch ? 'Swing: web to buildings · Web: catch enemies · Climb: crawl a wall · Net: wrap / hang'
-            : 'Hold Q + D: swing · Shift + Q (+ A/D): sling kick · X: web enemies · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
+            : 'Hold Q + D: swing · Shift + A/D + Q, hold then let go: sling kick · X: web enemies · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
   setScreen(null); G.running = true; webTouchBtn();
 }
 /* endless street fight: more enemies and tougher types the more you take down */
@@ -4394,7 +4397,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dodgeT = (P.dodgeT || 0) - dt; if (P.atk) P.lastAtkT = G.time; P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dodgeT = (P.dodgeT || 0) - dt; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -5736,7 +5739,8 @@ function updateEnemy(e, dt){
         G.atkN = (G.atkN || 0) + 1; e.state = 'windup'; e.timer = e.wind*0.7; e.str = ['flykick']; e.strI = 0; e.bmove = 'flykick'; e.comboLeft = 0; e.lastK = null; break; }
       if (e.sword === EFIST && want === 0 && dist < rng + 30){ e.foot = (e.foot || rnd(0, 6)) + dt*3.2; want = Math.sin(e.foot)*e.spd*0.35*e.face; }   // footsies: step in, step out
       if (e.onG) e.vx = lerp(e.vx, want, Math.min(1, dt*8));
-      if (dist < rng + 6 && e.cd <= 0 && (G.atkN ?? attackersNow()) < G.diff.maxAtk && Math.abs(P.y - e.y) < 90*e.size && e.onG){
+      const dodgeShow = SV.set.dodge !== false && (P.atk || (P.form && !P.form.wait)) && G.mode !== 'duel' && G.mode !== 'coop' && Math.random() < dt*1.6;   // Auto-dodge on: they keep trying while you attack, so you see yourself slip them
+      if (dist < rng + 6 && (e.cd <= 0 || dodgeShow) && (G.atkN ?? attackersNow()) < G.diff.maxAtk + (dodgeShow ? 1 : 0) && Math.abs(P.y - e.y) < 90*e.size && e.onG){
         G.atkN = (G.atkN || 0) + 1; e.state='windup'; e.timer=e.wind; e.comboLeft = (e.T.combo||1)-1;
         if (e.sword === EFIST){ const pun = e.punish; e.str = null; brawlPick(e); e.comboLeft = e.str.length - 1; e.lastK = null; if (pun) e.timer = e.wind*0.4; }
       }
@@ -6055,6 +6059,7 @@ function tryHitPlayer(e){
     if (lv === 'low' && P.blockT >= 0 && !P.crouching){ e.hitDone = true; hurtPlayer(e.dmg*0.85, 200, e, true); sfx('kick'); return; }   // a low goes under a standing guard
   }
   e.hitDone = true;
+  if (autoDodge(P, e)) return;   // mid-attack: the blow is slipped, even inside your own invulnerable frames, so you see it
   if (P.inv > 0) return;
   const facing = sign(e.x - P.x) === P.face;
   // Tide Breathing third form: automatic counter
@@ -6102,22 +6107,39 @@ function tryHitPlayer(e){
   }
   hurtPlayer(e.dmg, isArmored(e) ? 520 : 300, e, true);
 }
+/* Auto-dodge (pause menu): while attacking, the hero slips every blow that would land, slowed down so you can see it, and keeps cutting */
+function autoDodge(P, e){
+  if (!e || SV.set.dodge === false || P.dead || P.ride || G.mode === 'duel' || G.mode === 'arena' || G.mode === 'coop') return false;
+  if (!(P.atk || (P.form && !P.form.wait) || G.time - (P.lastAtkT ?? -9) < 0.35)) return false;
+  P.evadeT = G.time; P.inv = Math.max(P.inv, 0.25);
+  const away = -(sign((e.x ?? P.x) - P.x) || P.face);
+  P.dodgeT = 0.35; P.dodgeDir = away;
+  if (!P.form) P.x = clamp(P.x + away*24, 30, G.worldW - 30);   // a slip out of the line of the blade (forms keep their own footwork)
+  G.echoes.push({ snap:heroSnap(P), life:0.3, max:0.4, col:'#DCF3FF' });
+  G.mo = { kind:'dodge', t:0, end:0.45, depth:0.2 };   // time slows for the moment of the dodge
+  pop(P.x, P.y - 100, 'Evade', '#DCF3FF'); sfx('swish'); ringFx(P.x, P.y - 40, 50, '#FFFFFF');
+  if (e.T) sparks(P.x - away*14, P.y - 44);   // their blade cuts only air
+  return true;
+}
+/* the moment an enemy near you starts an attack while you are attacking, you are already slipping it */
+function autoDodgeWatch(P){
+  if (SV.set.dodge === false || P.dead) return;
+  for (const e of G.E){
+    if (e.dead || e.remote){ continue; }
+    if (e.state !== 'swing' && e.state !== 'windup'){ e._dg = false; continue; }
+    if (e._dg) continue;   // one dodge per attack, seen as soon as they start it
+    const dxp = (P.x - e.x)*(e.face || 1);
+    if (dxp < -12 || dxp > (e.range || 60) + 45 || Math.abs(e.y - P.y) > 90*(e.size || 1)) continue;
+    e._dg = true;
+    if (G.time - (P.evadeT ?? -9) < 0.12) continue;   // one dodge covers blows that land together
+    autoDodge(P, e);
+  }
+}
 function hurtPlayer(dmg, kb, e, full){
   const P = G.P;
   // mid-attack (a swing or a form) the hero slips the blow and keeps cutting; it needs a moment before it works again
   if (P.atk) P.lastAtkT = G.time;
-  // Auto-dodge (pause menu): mid-attack the hero slips every blow, slowed down so you can see it, and keeps cutting
-  if (e && SV.set.dodge !== false && !P.dead && !P.ride && (P.atk || (P.form && !P.form.wait) || G.time - (P.lastAtkT ?? -9) < 0.3) && G.mode !== 'duel' && G.mode !== 'arena' && G.mode !== 'coop'){
-    P.evadeT = G.time; P.inv = Math.max(P.inv, 0.25);
-    const away = -(sign((e.x ?? P.x) - P.x) || P.face);
-    P.dodgeT = 0.35; P.dodgeDir = away;
-    if (!P.form) P.x = clamp(P.x + away*24, 30, G.worldW - 30);   // a slip out of the line of the blade (forms keep their own footwork)
-    if (FXL() > 0){ G.echoes.push({ snap:heroSnap(P), life:0.3, max:0.4, col:'#DCF3FF' }); }
-    G.mo = { kind:'dodge', t:0, end:0.4, depth:0.22 };   // time slows for the moment of the dodge
-    pop(P.x, P.y - 100, 'Evade', '#DCF3FF'); sfx('swish'); ringFx(P.x, P.y - 40, 50, '#FFFFFF');
-    if (e.T) sparks(P.x - away*14, P.y - 44);   // their blade cuts only air
-    return;
-  }
+  if (autoDodge(P, e)) return;
   const iron = P.ironT > 0;
   if (iron) dmg *= 0.5;
   if (iron && e && e.T && !e.dead && !e.remote && Math.abs(e.x - P.x) < 150 && G.ST.style === 'stone')   // Granite Skin: striking stone hurts
@@ -7151,7 +7173,7 @@ function getPose(e){
   if (e.isPlayer && e.dodgeT > 0){ const w = Math.sin(clamp((0.35 - e.dodgeT)/0.35, 0, 1)*Math.PI);   // the dodge: the body sways back from the blade
     P_.lean = lerp(P_.lean || 0, -0.75, w); P_.crouch = Math.max(P_.crouch || 0, 13*w); P_.roll = lerp(P_.roll || 0, -0.3, w); }
   if (e.isPlayer && e.wg && e.wg.st === 'sling'){ const W = e.wg;   // Web Sling Kick
-    if (W.phase === 'pull'){ P_.lean = -0.5; P_.crouch = 14; }
+    if (W.phase === 'pull'){ const c = W.charge || 0; P_.lean = -0.4 - 0.25*c; P_.crouch = 10 + 8*c; }
     else if (W.phase === 'rise' || W.phase === 'fly'){ P_.kick = 1; P_.kickAng = 1.55; P_.lean = -0.6; P_.crouch = 0; P_.a = -1.3; P_.ext = 1; } }
   if (e.clashV) applyClashPose(e, P_);   // a duel clash: the blade kicks back (visual only)
   if (e.isPlayer && e.sheath) sheathPose(e, P_);
