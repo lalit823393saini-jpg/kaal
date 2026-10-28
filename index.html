@@ -1186,9 +1186,9 @@ const STYLES = {
   storm:   { name:'Storm Breathing',    col:'#FFE14D', price:800,  pass:'Move speed +10%',
              forms:[['Flash Step',30],['Chain Bolt',50],['Thunder Fall',55],['Static Field',55],["Heaven's Judgement",85]],
              desc:'Lightning style. Teleport straight through enemies and chain between them.' },
-  gale:    { name:'Gale Breathing',     col:'#9EF0B8', price:700,  pass:'Jump 18% higher',
+  gale:    { name:'Typhoon Breathing',     col:'#9EF0B8', price:700,  pass:'Jump 18% higher',
              forms:[['Wind Blade',25],['Cyclone',45],['Sky Rend',45],['Updraft',50],['Tempest',80]],
-             desc:'Wind style. Piercing ranged blades, a cyclone that drags enemies in and lifts them, and blades that cut arrows out of the air.' },
+             desc:'Typhoon style. A cross-shaped wind blade, piercing ranged blades, a cyclone that drags enemies in and lifts them, and blades that cut arrows out of the air.' },
   crescent:{ name:'Crescent Breathing', col:'#C9A8FF', price:1000, unlock:10, pass:'Your slashes cut one extra enemy',
              forms:[['Moon Arc',30],['Twin Moons',45],['Full Moon Cage',60],['Moonfall',60],['Lunar Eclipse',85]],
              desc:'Moon style. Crescents linger in the air and keep cutting.' },
@@ -1646,8 +1646,8 @@ function choreo0(C, F){
       else { o.a = -1.57 + (F.phase === 'hang' ? Math.sin(t*44)*0.04 : 0); o.b = -1.57; o.w = ramp(t, 0, 0.08); o.two = true; o.crackle = F.phase === 'hang'; }
       break;
     /* ---- Gale: wind turns on the spot like a top, light on its feet, the blade flat and flowing ---- */
-    case 'windDraw':       // Wind Blade: a quick step and a flat draw cut (the clip), the coat of wind turning half round
-      o.spin = Math.PI*FC_EASE(q)*0.35; o.w = 0; break;
+    case 'windDraw':       // Wind Blade: two crossing diagonal cuts (the clip) — square to the front, no turn, so the X reads clearly
+      o.w = 0; break;
     case 'cyclone':        // Cyclone: spinning on the spot like a top, the blade held flat straight out, round and round
       o.spin = d*TAU*n*q; o.a = 0.05; o.b = 0; o.lean = 0.05; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.08)*(1 - ramp(q, 0.9, 1)); o.windRing = true; break;
     case 'spinCut':        // Sky Rend: one fast full turn, the three blades leave at the end of it
@@ -1868,12 +1868,14 @@ function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot')
 function webTouchBtn(){
   const box = $('extraBtns'); if (!box) return;
   let b = document.getElementById('webBtn');
-  if (G.mode !== 'spider'){ if (b) b.remove(); for (const id of ['netBtn', 'climbBtn']){ const nb = document.getElementById(id); if (nb) nb.remove(); } return; }
+  if (G.mode !== 'spider'){ if (b) b.remove(); for (const id of ['netBtn', 'climbBtn', 'swingBtn']){ const nb = document.getElementById(id); if (nb) nb.remove(); } return; }
   if (b) return;
   b = document.createElement('button'); b.id = 'webBtn'; b.className = 'tb sm'; b.dataset.k = 'web'; b.textContent = 'Web'; b.style.setProperty('--sc', '#FFFFFF');
-  b.setAttribute('aria-label', 'Web shooter: tap to shoot or yank, hold to swing or spin, release to throw'); box.appendChild(b); bindTouch(b);
+  b.setAttribute('aria-label', 'Web at enemies: tap to catch or yank, hold to spin, release to throw'); box.appendChild(b); bindTouch(b);
   const n = document.createElement('button'); n.id = 'netBtn'; n.className = 'tb sm'; n.dataset.k = 'webnet'; n.textContent = 'Net'; n.style.setProperty('--sc', '#FFFFFF');
   n.setAttribute('aria-label', 'Web net: wrap everyone in front, or hang the one on your line'); box.appendChild(n); bindTouch(n);
+  const sw = document.createElement('button'); sw.id = 'swingBtn'; sw.className = 'tb sm'; sw.dataset.k = 'kunai'; sw.textContent = 'Swing'; sw.style.setProperty('--sc', '#FFFFFF');
+  sw.setAttribute('aria-label', 'Swing: web to a building, pole or wire; hold to keep swinging'); box.appendChild(sw); bindTouch(sw);
   const cl = document.createElement('button'); cl.id = 'climbBtn'; cl.className = 'tb sm'; cl.dataset.k = 'climb'; cl.textContent = 'Climb'; cl.style.setProperty('--sc', '#FFFFFF');
   cl.setAttribute('aria-label', 'Climb the building, house or pole you are standing in front of'); box.appendChild(cl); bindTouch(cl);
 }
@@ -1889,8 +1891,8 @@ function webDrop(P){
 }
 function webShoot(P, up){
   const h = webHandPt(P);
-  let best = null, bd = WEBS.range;   // aim at the nearest enemy in front
-  for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
+  let best = null, bd = WEBS.range;   // aim at the nearest enemy in front (not for a swing web)
+  if (!up) for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
     const dx = (e.x - P.x)*P.face; if (dx < -10 || dx > bd || Math.abs(e.y - P.y) > 260) continue; bd = dx; best = e; }
   let tx = best ? best.x : P.x + P.face*WEBS.range*(up ? 0.7 : 1), ty = best ? best.y - 32*best.size : P.y - 70 - (up ? WEBS.range*0.75 : 0);
   if (best){   // lead the target: aim where it will be, and a little high so the drop brings the web onto it
@@ -1900,7 +1902,7 @@ function webShoot(P, up){
     }
   }
   const dx = tx - h[0], dy = ty - h[1], L = Math.hypot(dx, dy) || 1;
-  P.wg = { st:'shot', x:h[0], y:h[1], vx:dx/L*WEBS.speed, vy:dy/L*WEBS.speed, t:0, free:!best };
+  P.wg = { st:'shot', x:h[0], y:h[1], vx:dx/L*WEBS.speed, vy:dy/L*WEBS.speed, t:0, free:!best, key:up ? 'kunai' : 'web' };
   sfx('whoosh');
 }
 function webTick(P, dt){
@@ -1908,18 +1910,21 @@ function webTick(P, dt){
   if (!webOn() || P.dead){ if (P.wg) webDrop(P); return; }
   const W = P.wg;
   if (!W){
-    if (pressed.web && !P.form && !(P.stunT > 0) && !P.ride){
-      const near = webFoeNear(P, 260);
-      if (held.down || (!P.onG && near)){ if (webZipStrike(P)) return; }
-      if (held.down && fcZipLedge(P)) return;   // nobody to hit: zip up to a roof
-      if (P.onG && webFoeNear(P, WEBS.range, true)) webShoot(P);
-      else webSwingStart(P);
+    if (P.form || P.stunT > 0 || P.ride) return;
+    // Q: a web for getting around — to a building, pole or wire. It never goes for enemies, so they can't stop your swing
+    P.qT = (P.qT || 0) - dt;
+    if (pressed.kunai || (held.kunai && P.qT <= 0)){   // keep Q held and it keeps firing new lines
+      P.qT = 0.3;
+      if (pressed.kunai && held.down && fcZipLedge(P)) return;   // S + Q: zip up to a roof edge
+      webSwingStart(P); return;
     }
+    // X: a web for enemies only
+    if (pressed.web) webEnemyKey(P);
     return;
   }
   if (W.st === 'shot'){
     W.t += dt; W.vy += WEBS.drop*dt; W.x += W.vx*dt; W.y += W.vy*dt;
-    for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
+    if (W.key !== 'kunai') for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
       if (Math.hypot(e.x - W.x, (e.y - 32*e.size) - W.y) > 28*e.size + 8) continue;
       if (isBoss(e) || e.size > 1.6){   // too heavy to lift: you are the lighter one, so the line pulls YOU in
         damageEnemy(e, 12, { src:'web', kb:0, dir:P.face, launch:0, stun:1.0 }); pop(e.x, e.y - 110*e.size, 'Too heavy!', '#FFFFFF');
@@ -1936,10 +1941,10 @@ function webTick(P, dt){
     const hit = (W.free && G.fc && W.t > 0.05) ? fcPointHit(W.x, W.y) : null;
     if (hit){
       fcSplat(hit[0], hit[1]);
-      if (held.web && hit[1] < P.y - 110 && hit[1] < GROUND - 200){   // still holding X: swing from it
+      if (held[W.key || 'web'] && hit[1] < P.y - 110 && hit[1] < GROUND - 200){   // still holding the key: swing from it
         if (P.onG){ P.vy = -700; P.vx = P.face*Math.max(Math.abs(P.vx), 380); P.onG = false; }
         P.climb = null;
-        P.wg = { st:'swing', ax:hit[0], ay:hit[1], L:Math.hypot(P.x - hit[0], P.y - 70 - hit[1]), t:0, shoot:1, taut:0 }; P.fly = false; sfx('swish');
+        P.wg = { st:'swing', ax:hit[0], ay:hit[1], L:Math.hypot(P.x - hit[0], P.y - 70 - hit[1]), t:0, shoot:1, taut:0, key:W.key || 'kunai' }; P.fly = false; sfx('swish');
       } else P.wg = null;
       return;
     }
@@ -1949,7 +1954,14 @@ function webTick(P, dt){
   if (W.st === 'swing'){
     W.t += dt; W.shoot = Math.min(1, (W.shoot || 0) + dt*12);
     if (pressed.jump){ webRelease(P, true); return; }
-    if (!held.web || pressed.block || P.hurtT > 0 || (P.onG && W.t > 0.15) || W.t > 8){ webRelease(P, false); return; }
+    if (pressed.web){ webRelease(P, false); webEnemyKey(P); return; }   // X mid-swing: let go and go for an enemy
+    // keep holding Q and a direction: at the top of the forward swing, let go and fire the next line ahead
+    const mvS = (held.right?1:0) - (held.left?1:0);
+    if (mvS && held[W.key || 'web'] && W.t > 0.35 && (W.shoot || 0) >= 1){
+      const upFwd = P.vx*mvS > 250 && P.vy < -80 && (P.x - W.ax)*mvS > W.L*0.2;   // past the anchor, rising: the best moment to let go
+      const back = P.vx*mvS < -60 && W.t > 1.1;                                      // swinging back the wrong way: grab a new line ahead
+      if (upFwd || back){ webRelease(P, false); P.qT = 0.12; return; } }
+    if (!held[W.key || 'web'] || pressed.block || P.hurtT > 0 || (P.onG && W.t > 0.15) || W.t > 8){ webRelease(P, false); return; }
     if (Math.hypot(P.vx, P.vy) > 650 && FXL() > 0 && Math.random() < 0.5)
       G.echoes.push({ snap:heroSnap(P, { atk:null, form:null, blockT:-1 }), life:0.14, max:0.3, col:'#FFFFFF' });
     return;
@@ -2089,6 +2101,13 @@ function webFoeNear(P, r, ahead){
   return best;
 }
 /* ----- swinging: the anchor goes ahead of where you are moving, so a chain of swings keeps your momentum ----- */
+function webEnemyKey(P){
+  const near = webFoeNear(P, 260);
+  if ((held.down || !P.onG) && near && webZipStrike(P)) return;   // S + X, or X in the air near someone: Web Strike
+  if (webFoeNear(P, WEBS.range, true)){ webShoot(P); return; }
+  if (held.down && webZipStrike(P)) return;
+  pop(P.x, P.y - 110, 'No enemy in range', 'rgba(255,255,255,0.75)');
+}
 function webSwingStart(P){
   const sp = Math.abs(P.vx), mvIn = (held.right?1:0) - (held.left?1:0), dir = mvIn || (sp > 120 ? sign(P.vx) : P.face);   // the way you push, else the way you are moving
   P.face = dir;
@@ -2100,7 +2119,7 @@ function webSwingStart(P){
   ax = fa[0]; ay = fa[1];
   if (P.onG){ P.vy = -820; P.vx = dir*Math.max(sp, 460); P.onG = false; burst(P.x, P.y, 6, '#2a1418', 140, 3); }
   P.climb = null;
-  P.wg = { st:'swing', ax, ay, L:Math.hypot(P.x - ax, P.y - 70 - ay), t:0, shoot:0, taut:0 };
+  P.wg = { st:'swing', ax, ay, L:Math.min(Math.hypot(P.x - ax, P.y - 70 - ay), Math.max(150, GROUND - 120 - ay)), t:0, shoot:0, taut:0, key:'kunai' };
   P.fly = false; sfx('whoosh');
 }
 function webRelease(P, jumped){
@@ -2136,6 +2155,7 @@ function webSwingStep(P, dt){
   // A / D pump the swing along the tangent, strongest at the bottom of the arc
   const mv = (held.right?1:0) - (held.left?1:0);
   if (mv && ny > 0){ if (tx*mv < 0){ tx = -tx; ty = -ty; } const a = 760*ny; P.vx += tx*a*dt; P.vy += ty*a*dt; }
+  if (mv) P.vx += mv*260*dt;   // A / D also steer you along, wherever you are on the arc
   // a stretchy web: a stiff spring past its length, then a hard stop at +7 %
   if (d > W.L){
     const over = d - W.L, vr = P.vx*nx + P.vy*ny, acc = over*420 + Math.max(0, vr)*18;
@@ -2238,26 +2258,27 @@ function fcNew(){
 function fcGen(C, until){
   while (C.genX < until){
     const x = C.genX, r = Math.random();
-    if (r < 0.3){
+    if (r < 0.12){
       const w = Math.round(rnd(150, 230)), h = Math.round(rnd(95, 130));
       C.S.push({ k:'house', x, w, top:GROUND - h, rh:Math.round(rnd(40, 60)), door:Math.random() < 0.5 ? 0.25 : 0.65, seed:Math.random()*1e4 });
       C.genX = x + w;
-    } else if (r < 0.72){
-      const w = Math.round(rnd(170, 290)), h = Math.round(rnd(230, 360));
+    } else if (r < 0.86){
+      // towers: most are far taller than the screen, so there is always something high to web to
+      const w = Math.round(rnd(200, 340)), h = Math.round(Math.random() < 0.7 ? rnd(520, 820) : Math.random() < 0.5 ? rnd(380, 520) : rnd(820, 1100));
       C.S.push({ k:'bld', x, w, top:GROUND - h, seed:Math.random()*1e4, tank:Math.random() < 0.45, ant:Math.random() < 0.4 });
       C.genX = x + w;
     } else {
       // a row of electric poles with wires slung between them — you can walk the wires
       const n = 2 + (Math.random() < 0.55 ? 1 : 0); let px = x + 30, prev = null;
       for (let i = 0; i < n; i++){
-        const p = { k:'pole', x:px, w:0, top:Math.round(GROUND - rnd(250, 300)), lamp:Math.random() < 0.5 };
+        const p = { k:'pole', x:px, w:0, top:Math.round(GROUND - rnd(280, 340)), lamp:Math.random() < 0.5 };
         C.S.push(p);
         if (prev) C.S.push({ k:'wire', x1:prev.x + 34, y1:prev.top + 12, x2:p.x - 34, y2:p.top + 12, sag:Math.round(rnd(14, 26)) });
         prev = p; px += Math.round(rnd(250, 330));
       }
       C.genX = prev.x + 30;
     }
-    C.genX += Math.round(rnd(260, 470));   // a stretch of open street to fight in
+    C.genX += Math.round(rnd(130, 320));   // a stretch of open street to fight in
   }
 }
 /* the surface you can stand on at x, or null */
@@ -2300,7 +2321,7 @@ function fcFloor(P, preY, dt){
     const c = P.climb, s = c.s;
     if (P.ride || P.fly || P.dead || (P.wg && (P.wg.st === 'swing' || P.wg.st === 'zip' || P.wg.st === 'zipL'))) P.climb = null;
     else {
-      const vy = held.jump ? -320 : held.down ? 380 : 0;
+      const vy = held.jump ? -440 : held.down ? 480 : 0;
       P.jumpsLeft = Math.max(P.jumpsLeft || 0, 1); P.climbT = (P.climbT || 0) + dt*(vy || mv ? 1 : 0);
       if (s.k === 'pole'){
         if (mv){ P.climb = null; P.vx = mv*420; P.vy = -560; P.face = mv; P.webFly = 0.5; sfx('swish'); }   // leap off the pole
@@ -2367,7 +2388,10 @@ function fcSplat(x, y){ const C = G.fc; if (C) C.fx.push({ k:'splat', x1:x, y1:y
 function fcAnchors(x, y, r){
   const out = [];
   for (const s of fcNear(x, r)){
-    if (s.k === 'bld'){ out.push([s.x - 8, s.top + 4, s, -1], [s.x + s.w + 8, s.top + 4, s, 1]); }
+    if (s.k === 'bld'){ out.push([s.x - 8, s.top + 4, s, -1], [s.x + s.w + 8, s.top + 4, s, 1]);
+      const wy = Math.max(s.top + 10, GROUND - 230);   // webbed to the wall itself, low down
+      out.push([s.x - 6, wy, s, -1], [s.x + s.w + 6, wy, s, 1]);
+      if (x > s.x + 10 && x < s.x + s.w - 10) out.push([x, wy, s, 0]); }
     else if (s.k === 'house'){ out.push([s.x - 16, s.top + 2, s, -1], [s.x + s.w + 16, s.top + 2, s, 1]); }
     else if (s.k === 'pole'){ out.push([s.x - 30, s.top + 14, s, -1], [s.x + 30, s.top + 14, s, 1]); }
     else if (s.k === 'wire'){ const ax = clamp(x, s.x1 + 12, s.x2 - 12); out.push([ax, fcTop(s, ax) + 2, s, 0]); }
@@ -2493,16 +2517,17 @@ function fcZipTick(P, W, dt){
 }
 /* a swing anchor on a building, pole or wire ahead, if there is a good one */
 function fcSwingAnchor(P, dir, ax, ay){
+  // best: a point ahead, well above you. Building faces work anywhere up to the roof, so tall towers are the best to swing from
   let best = null, bd = 1e9;
-  const hiY = Math.min(P.y - 140, GROUND - 240);
-  for (const s of fcNear(P.x + dir*260, 320)){
+  const hiY = Math.min(P.y - 120, GROUND - 220);
+  for (const s of fcNear(P.x + dir*300, 420)){
     let x, y;
     if (s.k === 'bld'){ x = clamp(ax, s.x + 6, s.x + s.w - 6); y = Math.max(s.top + 10, ay); }
     else if (s.k === 'pole'){ x = s.x; y = s.top + 14; }
     else if (s.k === 'wire'){ x = clamp(ax, s.x1 + 10, s.x2 - 10); y = fcTop(s, x) + 2; }
     else continue;
-    const dx = (x - P.x)*dir; if (dx < -40 || dx > 560 || y > hiY) continue;
-    const d = Math.abs(x - ax) + Math.abs(y - ay)*0.5 + (dx < 110 ? 220 : 0);   // ahead is best, straight above still works
+    const dx = (x - P.x)*dir; if (dx < -60 || dx > 680 || y > hiY) continue;
+    const d = Math.abs(x - ax) + Math.abs(y - ay)*0.5 + (dx < 120 ? 260 : 0) + (s.k === 'bld' ? 0 : 60);
     if (d < bd){ bd = d; best = [x, y]; }
   }
   return best;
@@ -2610,8 +2635,8 @@ function startSpider(){
   for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
-    isTouch ? 'Web: swing / catch · Climb: crawl up any wall · Net: wrap everyone / hang them'
-            : 'X: swing / catch · Z: crawl a wall (W S A D) · C: Web Net / hang · S+X: zip to roof', '#E8202A'); }, 1200);
+    isTouch ? 'Swing: web to buildings · Web: catch enemies · Climb: crawl a wall · Net: wrap / hang'
+            : 'Hold Q + D: swing building to building · X: web enemies · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
   setScreen(null); G.running = true; webTouchBtn();
 }
 /* endless street fight: more enemies and tougher types the more you take down */
@@ -4355,7 +4380,7 @@ function updatePlayer(dt){
   // breathing forms
   for (let i=0;i<MAXF;i++) if (pressed['form'+i]) tryForm(i);
   // abilities
-  if (pressed.kunai && hasAbil('kunai') && P.kunai > 0 && !P.form){
+  if (pressed.kunai && G.mode !== 'spider' && hasAbil('kunai') && P.kunai > 0 && !P.form){   // in Spider mode Q is the swing web
     P.kunai--; G.proj.push({ kind:'kunai', x:P.x+P.face*14, y:P.y-44, vx:P.face*980, vy:0, dmg:16*ST.formMult, pierce:1, hit:new Set(), life:0.75, col:'#ddd' });
   }
   if (pressed.dashSlash && !P.form) tryDashSlash();
@@ -4835,7 +4860,7 @@ const FORM_DESC = {
   tide1:'A forward rush with three quick water cuts that keep enemies in front of you, then a heavy fourth cut that stuns and throws them back.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones, each harder than the last. Every counter heals you a little; the third bursts outward. Arrows are sent back.', tide4:'Throws a whirlpool that drags enemies in (bosses too, more slowly) and cuts them for 3 s, then erupts as a geyser that launches everyone inside.', tide5:'Spin forward while the blade sprays water bullets to both sides. Every turn spins faster and fires faster, harder and more. Hold the key to keep spinning (it burns breath); when you let go, a last fan of heavy bullets flies forward.',
   ember1:'Rising uppercut that launches enemies into the air and sets them burning.', ember2:'A burning wheel: spin forward in the air, leaving fire on the ground.', ember3:'Wind up, then a huge explosion in front of you with heavy knockback. The ground burns.', ember4:'A dragon of fire leaves your blade and swims through the air. Its strength follows your breath: on a full breath it burns up to 50 enemies, from 70 up to 32, below 70 up to 18. Bosses take a heavy hit.', ember5:'Four pillars of fire erupt in a line ahead of you, each one launching whoever stands in it.',
   storm1:'Flash Step: teleport 9 m forward, striking everyone on the way.', storm2:'Chain Bolt: teleport from enemy to enemy, up to four in a row.', storm3:'Leap up, then slam down as lightning. Everyone near the landing is hit.', storm4:'Static Field: for 4 s lightning jumps from you to anyone who comes close.', storm5:"Heaven's Judgement: bolts rain on every enemy on screen, then one great strike.",
-  gale1:'A piercing blade of wind. It cuts arrows out of the air on its way.', gale2:'Cyclone: enemies around you are dragged in and lifted off the ground.', gale3:'Sky Rend: a leaping slash that carries you up and across.', gale4:'Updraft: launch everyone nearby and float for a moment while they fall.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
+  gale1:'Two crossing cuts throw an X of wind that pierces the line. It cuts arrows out of the air on its way.', gale2:'Cyclone: enemies around you are dragged in and lifted off the ground.', gale3:'Sky Rend: a leaping slash that carries you up and across.', gale4:'Updraft: launch everyone nearby and float for a moment while they fall.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
   crescent1:'Moon Arc: a crescent that lingers in the air and keeps cutting whoever walks into it.', crescent2:'Twin Moons: two crescents, one ahead and one behind.', crescent3:'Full Moon Cage: crescents orbit you for 3 s, cutting anyone who comes close.', crescent4:'Moonfall: a crescent drops from above on the nearest enemy.', crescent5:'Lunar Eclipse: the whole screen fills with lingering crescents.',
   stone1:'Boulder Strike: a heavy blow that breaks brute and boss armour.', stone2:'Quake: stamp the ground and stun everyone standing on it.', stone3:'Iron Body: for 4 s you take half damage and cannot be interrupted.', stone4:'Stone Pillars rise ahead of you, launching enemies and blocking arrows.', stone5:'Mountain Fall: a jumping slam that cracks the whole arena.',
   frost1:'Frost Edge: a cold cut that freezes the first enemy it touches.', frost2:'Glacier: a wall of ice that blocks enemies and arrows until it is broken.', frost3:'Absolute Zero: everyone within 7 m freezes solid for 2 s. Frozen enemies take 50% more and shatter when they die.', frost4:'Icicle Storm: icicles fall across the area ahead.', frost5:'Permafrost: freeze the whole screen, then shatter them all.',
@@ -4984,7 +5009,7 @@ const FORMS = {
         bolt(P.x, 0, P.x, P.y - 40); ringFx(P.x, P.y, 200, '#FFE14D', true); cracks(P.x, 200, '#FFE14D');
         G.shake = 18; G.hitstop = 0.08; flash('#FFF6B0', 0.55); zoomPunch(1.09); sfx('boom'); sfx('storm'); vib(90); } } },
   /* ---- Gale ---- */
-  gale1:{ dur:0.26, pose:'swipe', update(P,dt,F){ if (F.t>=0.07 && !F.shot){ F.shot=true; G.proj.push({kind:'wind', x:P.x+P.face*30, y:P.y-42, vx:P.face*860, vy:0, dmg:45*FM(), pierce:5, hit:new Set(), life:1.0, col:'#9EF0B8', cutArrows:true}); } } },
+  gale1:{ dur:0.36, pose:'swipe', update(P,dt,F){ if (F.t>=0.2 && !F.shot){ F.shot=true; G.proj.push({kind:'wind', xBlade:true, x:P.x+P.face*34, y:P.y-40, vx:P.face*860, vy:0, dmg:45*FM(), pierce:5, hit:new Set(), life:1.0, col:'#9EF0B8', cutArrows:true}); sfx('whoosh'); } } },
   gale2:{ dur:0.9, pose:'spin', start(P,F){ F.tick = 0; },
     update(P,dt,F){ P.vx = lerp(P.vx, ((held.right?1:0)-(held.left?1:0))*260, Math.min(1, dt*6));   // you can walk the cyclone around
       for (const e of G.E){ if (e.dead) continue; const d = e.x - P.x;
@@ -6172,7 +6197,13 @@ const FORM_MAP = {
             up:(k) => ({ h:[10,-33], th:-1.62, phi:0.15, lean:-0.1, cr:2 }),
             hit:(k) => ({ h:[13,-28], th:-1.15 + (k%2)*0.1, phi:0.15, lean:0.05, cr:5, pr:2, legs:FC_LEG.ready }) } },
   /* Gale: wide, light, horizontal arcs and lift */
-  gale1:{ c:'wave',     v:{ imp:0.07, cut:'yoko', phi:1.15 } },
+  gale1:{ c:'invoke', v:{ keys:[   // Wind Blade: an X. The blade keeps nearly the same angle while the hands travel, so its tip draws two straight crossing lines
+    { pre:0.55, h:[-12, -35], th:-1.15, phi:0.45, lean:-0.08, cr:4, pr:-3, legs:FC_LEG.step, off:[-6,-14], two:true },
+    { t:0.035, h:[-12, -35], th:-1.15, phi:0.45, lean:-0.06, cr:4 },
+    { t:0.09, h:[24, -4], th:0.45, phi:0.45, lean:0.3, cr:8, pr:4, legs:FC_LEG.lunge, off:[-10,-8], imp:true },   // first line: high-back to low-front
+    { t:0.13, h:[-6, -6], th:0.55, phi:0.45, lean:0.18, cr:8 },                                                    // hands slide back along the bottom
+    { t:0.2, h:[24, -33], th:-0.7, phi:0.45, lean:0.12, cr:4, pr:4, imp:true },                                    // second line: low-back to high-front, crossing the first
+    { t:0.27, h:[18, -33], th:-0.95, phi:0.45, lean:0.02, cr:3 } ] } },
   gale2:{ c:'whirl',    v:{ turns:3, y:-18, r:14, ry:-3, phi:1.38, cr:3, lean:0.25, t1:0.7, legs:FC_LEG.ready }, walk:true },
   gale3:{ c:'wave',     v:{ imp:0.08, cut:'gyaku', phi:0.75, legs:FC_LEG.step } },
   gale4:{ c:'rising',   v:{ imp:0, phi:0.15, th0:2.0, top:[12,-30], thTop:-1.55, offTop:[0,-28] } },
@@ -8515,6 +8546,20 @@ function drawDebris(){
   }
   ctx.globalAlpha=1;
 }
+/* Wind Blade: two curved slashes of wind crossed into an X */
+function drawXBlade(x, y, r, f, col){
+  ctx.save(); ctx.translate(x, y); ctx.scale(f, 1); ctx.globalCompositeOperation = 'lighter';
+  const blade = (k, w) => { ctx.beginPath(); ctx.moveTo(-r*k, 0); ctx.quadraticCurveTo(r*0.15*k, -r*w*k, r*k, 0); ctx.quadraticCurveTo(r*0.15*k, -r*w*0.3*k, -r*k, 0); ctx.fill(); };
+  for (const a of [0.82, -0.82]){
+    ctx.save(); ctx.rotate(a); if (a < 0) ctx.scale(1, -1);   // both slashes bulge toward the front
+    ctx.fillStyle = col; ctx.globalAlpha = 0.28; blade(1.35, 0.55);
+    ctx.globalAlpha = 0.95; blade(1, 0.42);
+    ctx.fillStyle = '#FFFFFF'; ctx.globalAlpha = 0.85; blade(0.82, 0.2);
+    ctx.restore();
+  }
+  ctx.fillStyle = '#FFFFFF'; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(0, 0, r*0.16, 0, 6.283); ctx.fill();   // where they cross
+  ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
 function drawCrescent(x,y,r,rot,col,alpha){
   ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
   const shape = (k) => { ctx.beginPath(); ctx.arc(0,0,r*k,-Math.PI/2,Math.PI/2,false); ctx.arc(-r*0.35*k,0,r*0.82*k,Math.PI/2,-Math.PI/2,true); ctx.fill(); };
@@ -8636,6 +8681,7 @@ function drawProj(){
       ctx.fillStyle = p.col; ctx.beginPath(); ctx.ellipse(p.x, p.y, 5, 8, Math.atan2(p.vy, p.vx)+1.57, 0, 6.283); ctx.fill();
     } else {
       const f = sign(p.vx);
+      if (p.xBlade){ drawXBlade(p.x, p.y, 26, f || 1, p.col); continue; }
       ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(Math.atan2(p.vy, Math.abs(p.vx)) * f);
       drawCrescent(0,0,22, f>0?0:Math.PI, p.col, 0.85); ctx.restore();
     }
@@ -8893,7 +8939,7 @@ function renderScene(){
   const heads = [];
   let onN = 0; for (const e of G.E){ if (!e.dead && e.x > G.camX - 160 && e.x < G.camX + VW + 160) onN++; }
   G.onN = onN;
-  const crowdDraw = onN > 60, fast = [];
+  const crowdDraw = onN > 24, fast = [];   // from about two dozen on screen, ordinary bodies take the batched path
   for (const e of G.E){
     if (e.dead) continue;
     // in a crowd every ordinary body takes the fast batched path, including the ones flashing from a hit or tinted (zombies, elites):
@@ -12581,6 +12627,9 @@ function frameBody(now){
   if (G.running && !G.paused){
     if ((G.mode === 'coop' || G.mode === 'duel') && raw > 0.034){   // online: never fall behind real time, or the two screens drift apart
       let left = Math.min(raw, 0.25), first = true;
+      while (left > 0.0005){ const d = Math.min(0.033, left); step(d); left -= d; if (first){ first = false; for (const k in pressed) pressed[k] = false; } }
+    } else if (raw > 0.034){   // a slow frame (a big crowd on a weaker device): catch up in steps so the game keeps real speed instead of going slow-motion
+      let left = Math.min(raw, 0.1), first = true;
       while (left > 0.0005){ const d = Math.min(0.033, left); step(d); left -= d; if (first){ first = false; for (const k in pressed) pressed[k] = false; } }
     } else step(dt);
   }
