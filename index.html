@@ -1202,7 +1202,7 @@ const STYLES = {
              forms:[['Shadow Step',30],['Shadow Snare',45],['Phantom Dance',60],['Shadow Chains',60],['Midnight Requiem',85]],
              desc:'Night style. Sink into your shadow, bind enemies with theirs, send shadow clones through them, and end it all at midnight.' },
   blood:   { name:'Blood Breathing',    col:'#E0283E', price:1200, unlock:14, hpCost:true, pass:'Every kill returns 4 health',
-             forms:[['Crimson Vault',12],['Blood Javelin',16],['Blood Marionette',22],['Crimson Frenzy',20],['Heart Impaler',40]],
+             forms:[['Scarlet Piercer',12],['Blood Grip',16],['Crimson Brawler',20],['Blood Rampage',24],['Blood Massacre',40]],
              desc:'Costs health instead of breath. The weaker you are, the harder it hits, and bleeding enemies feed you back.' },
   sun:     { name:'Sun Breathing',      col:'#FFD23F', price:2500, unlock:20, needBeat:20, pass:'All damage +6%',
              forms:[['Dance',35],['Setting Sun',50],['Beneficent Radiance',65],['Solar Flare',70],['Dawn of the Twelfth',100]],
@@ -1482,7 +1482,7 @@ const FORM_CHOREO = {
   /* Blood: feral, shaking, wild arcs */
   blood1:{ t:'windDraw' },
   blood2:{ t:'windDraw' },
-  blood3:{ t:'windDraw' },
+  blood3:{ t:'brawl' },                                                 // Crimson Brawler: a full turn for the spinning heel kick
   blood4:{ t:'windDraw' },
   blood5:{ t:'windDraw' },
   /* Sun: kagura. A sacred dance: rhythm, big circles, upright and proud */
@@ -1650,6 +1650,8 @@ function choreo0(C, F){
       o.w = 0; break;
     case 'cyclone':        // Cyclone: spinning on the spot like a top, the blade held flat straight out, round and round
       o.spin = d*TAU*n*q; o.a = 0.05; o.b = 0; o.lean = 0.05; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.08)*(1 - ramp(q, 0.9, 1)); o.windRing = true; break;
+    case 'brawl':          // Crimson Brawler: one full turn, only for the heel kick
+      o.spin = TAU*FC_EASE(clamp((q - 0.36)/0.2, 0, 1)); o.w = 0; break;
     case 'lateSpin':       // a full turn only at the end of the form
       o.spin = d*TAU*FC_EASE(clamp((q - 0.5)/0.3, 0, 1)); o.w = 0; break;
     case 'spinCut':        // Sky Rend: one fast full turn, the three blades leave at the end of it
@@ -4869,7 +4871,7 @@ const FORM_DESC = {
   stone1:'Boulder Crusher: a heavy step and a two-handed blow that breaks armour and knocks them flat. A heartbeat later the ground ahead erupts in a fan of boulders and a shockwave.', stone2:'Earth Splitter: drive the blade into the ground; a crack races ahead and stone spikes burst up along it, pinning everyone in place.', stone3:'Granite Skin: for 6 s your body is covered in stone. Half damage, no flinching, and whoever hits you is hurt and stunned.', stone4:'Boulder Hurl: tear a huge boulder out of the ground, lift it overhead and throw it. It bounces, then rolls a long way through the whole line before it shatters.', stone5:'Falling Mountain: leap and bring a mountain down with you. It bursts over your head and great boulders fall from the sky on every enemy in sight.',
   frost1:'Ice Fang: crouch, lunge and cut. Then fangs of ice come down from above and up from the ground and bite shut on everyone ahead.', frost2:'Frozen Lotus: hop up and plant the blade. A great ice lotus blooms round you and freezes everyone near, then its petals break off and fly as icicles.', frost3:'Absolute Zero: raise the blade, then lower it slowly. Frost spreads along the ground for 7 m and everyone it reaches freezes inside a pillar of ice.', frost4:'Icicle Rain: thrust the blade at the sky, then point it at them. A sweeping line of icicles rains down, pinning and freezing everyone ahead.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
   shadow1:'Shadow Step: sink into your own shadow and glide under the enemies, unseen and untouchable, then rise behind the last one with a cut from behind. Your next slash is an Ambush.', shadow2:'Shadow Snare: stab your own shadow. Black tendrils rise from the shadows of everyone near, wrap round them and hold them for 2.5 s.', shadow3:'Phantom Dance: three shadow clones burst out of you and dash through the nearest enemies from both sides, cutting each from behind.', shadow4:'Shadow Chains: chains of shadow shoot out to everyone in range and drag them to you, then one turning cut takes them all.', shadow5:'Midnight Requiem: night falls. You flicker behind each enemy in turn and mark them; when you sheathe the blade every mark opens at once.',
-  blood1:'Crimson Vault: costs health, not breath. Vault right over an enemy, cutting down from above, again from behind as you land and once more as you turn. Each cut leaves a wound; a second later the wounds burst and splash everyone near. The lower your health, the harder every Blood form hits.', blood2:'Blood Javelin: your blood hardens into a spear in your free hand and you throw it. It pins the first enemy it meets, then bursts into thorns that cut everyone beside them.', blood3:'Blood Marionette: threads of blood from your fingers catch up to four enemies. You lift them like puppets, smash them into each other, then into the ground.', blood4:'Crimson Frenzy: a roar that throws everyone back, then 6 s of frenzy: your sword cuts 40% harder and every hit heals you.', blood5:'Heart Impaler: rush the strongest enemy, run them through and lift them up on the blade; their blood rains on everyone around. Then you slam them into the ground.',
+  blood1:'Scarlet Piercer: costs health, not breath. Ten stabs in a blur while you press forward, then one twisting thrust that blows them away. The lower your health, the harder every Blood form hits.', blood2:'Blood Grip: lunge in and seize the enemy by the throat, stab them three times, then hurl them into the others.', blood3:'Crimson Brawler: a front kick, a spinning heel kick, then a leaping two-handed chop straight down.', blood4:'Blood Rampage: for 1.4 s you charge like a beast, cutting wildly at everything in reach. A and D steer.', blood5:'Blood Massacre: you run down up to six enemies one after another, a different brutal strike for each, then flick the blood off the blade and every one of them bursts.',
   sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
   serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
   kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: an untouchable burning spin that leaves fire and water behind and launches enemies.', kaal3:'Still Eternity: time stops for everyone but you for 2.6 s. Every enemy and projectile freezes, and your hits on a frozen world deal +50%. Static field and iron body stay on you for 3 s.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
@@ -5346,77 +5348,83 @@ const FORMS = {
           styleImpact('shadow', e.x, e.y-36*e.size, true); }
         flash('#FFFFFF', 0.35); G.shake = 18; G.hitstop = Math.max(G.hitstop, 0.14); sfx('clang'); sfx('boom', 0.04); vib(90); } } },
   /* ---- Blood ---- */
-  blood1:{ dur:0.85, pose:'strike', start(P,F){
-      const ahead = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*P.face > -10 && (e.x - P.x)*P.face < 240 && Math.abs(e.y - P.y) < 120).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x));
-      F.tg = ahead[0] || null; F.x0 = P.x; F.dir = P.face; F.x1 = clamp((F.tg ? F.tg.x : P.x + P.face*120) + P.face*60, 30, G.worldW - 30); P.inv = 0.6; },
-    update(P,dt,F){
-      const cut = (n, dir) => { const m = bloodMult(P), hit = new Set();   // every cut leaves a wound that will burst
-        areaHit(P.x + dir*40, P.y - 40, 60, 70, 18*m*FM(), {kb:30, src:'form', bleed:10, dir}, hit);
-        if (F.tg && !F.tg.dead) hit.add(F.tg);
-        for (const e of hit){ if (e.dead) continue; let W = G.wounds.find(w => w.e === e); if (!W){ W = { e, n:0, t0:G.time }; G.wounds.push(W); } W.n++; W.t0 = G.time; }
-        sfx('swish'); emit(P.x + dir*40, P.y - 40, {n:8, col:STYLE_FX.blood.cols, spd:260, size:3.5, life:0.6, kind:'drop', g:1.4}); };
-      if (F.t < 0.1){ P.vx = 0; }
-      else if (F.t < 0.38){ const u = (F.t - 0.1)/0.28;   // the vault: up and right over them
-        P.x = lerp(F.x0, F.x1, u); P.y = GROUND - Math.sin(u*Math.PI)*120; P.vx = 0; P.vy = 0; P.onG = false;
-        if (u >= 0.45 && !F.c1){ F.c1 = true; cut(1, F.dir); } }
-      else { if (!F.landed){ F.landed = true; P.x = F.x1; P.y = GROUND; P.onG = true; P.face = -F.dir; burst(P.x, GROUND - 4, 6, '#8A0A1A', 200, 3); }
-        P.vx *= Math.pow(0.001, dt);
-        if (F.t >= 0.44 && !F.c2){ F.c2 = true; cut(2, P.face); }   // from behind as you land
-        if (F.t >= 0.62 && !F.c3){ F.c3 = true; cut(3, P.face); } }   // and once more as you turn
-    } },
-  blood2:{ dur:0.7, pose:'cast', update(P,dt,F){ P.vx *= 0.8;
-      F.grow = clamp(F.t/0.22, 0, 1);   // the spear of blood forming in the free hand
-      if (F.t >= 0.3 && !F.thrown){ F.thrown = true;
-        G.proj.push({kind:'bloodspear', custom:true, x:P.x + P.face*20, y:P.y - 60, vx:P.face*1150, vy:-140, g:500, len:90, dmg:60*bloodMult(P)*FM(), hit:new Set(), pierce:1, life:1.2, face:P.face, col:'#E0283E'});
-        sfx('whoosh'); vib(25); } } },
-  blood3:{ dur:1.0, pose:'cast', start(P,F){
-      F.cx = P.x + P.face*130;
-      F.puppets = G.E.filter(e => !e.dead && !e.remote && !isBoss(e) && Math.abs(e.x - P.x) < 330 && Math.abs(e.y - P.y) < 200).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 4).map((e, k) => ({ e, x0:e.x, y0:e.y, side:k % 2 ? -1 : 1 }));
-      sfx('blood'); },
-    update(P,dt,F){ P.vx *= 0.8;
-      for (const p of F.puppets){ const e = p.e; if (e.dead) continue;
-        e.vx = 0; e.vy = 0; e.state = 'stun'; e.timer = 0.3; e.atk = null; e.onG = false;
-        if (F.t < 0.4){ const u = FC_EASE(clamp((F.t - 0.1)/0.3, 0, 1)); e.x = lerp(p.x0, F.cx + p.side*70, u); e.y = lerp(p.y0, GROUND - 90, u); }   // lifted on the threads
-        else if (F.t < 0.47){ const u = (F.t - 0.4)/0.07; e.x = lerp(F.cx + p.side*70, F.cx + p.side*14, u); e.y = GROUND - 90; }   // smashed into each other
-        else if (F.t < 0.62){ const u = clamp((F.t - 0.5)/0.1, 0, 1); e.x = F.cx + p.side*20; e.y = lerp(GROUND - 90, GROUND, u*u); }   // and into the ground
-        else { e.y = GROUND; e.onG = true; } }
-      const m = bloodMult(P);
-      if (F.t >= 0.47 && !F.smash){ F.smash = true;
-        for (const p of F.puppets){ if (p.e.dead) continue; damageEnemy(p.e, 35*m*FM(), {kb:0, src:'form', bleed:10, noStop:true}); }
-        if (F.puppets.length) { emit(F.cx, GROUND - 90, {n:22, col:STYLE_FX.blood.cols, spd:360, size:4, life:0.7, kind:'drop', g:1.4}); G.shake = Math.max(G.shake, 8); sfx('kill'); } }
-      if (F.t >= 0.6 && !F.slam){ F.slam = true;
-        for (const p of F.puppets){ if (p.e.dead) continue; damageEnemy(p.e, 55*m*FM(), {kb:120, heavy:true, src:'form', bleed:14, knockdown:1.2, dir:p.side}); }
-        if (F.puppets.length){ ringFx(F.cx, GROUND, 140, '#E0283E', true); burst(F.cx, GROUND - 4, 20, '#8A0A1A', 360, 4, true); cracks(F.cx, 80, '#8A0A1A'); G.shake = 14; G.hitstop = Math.max(G.hitstop, 0.1); sfx('boom'); vib(60); } } } },
-  blood4:{ dur:0.6, pose:'cast', update(P,dt,F){ P.vx *= 0.8;
-      if (F.t >= 0.12 && !F.roar){ F.roar = true; P.frenzyT = 6;   // the roar
-        for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - P.x) > 220 || Math.abs(e.y - P.y) > 160) continue; damageEnemy(e, 15*FM(), {kb:340, kbAway:true, src:'form', stun:0.8, dir:sign(e.x - P.x) || 1, quiet:true}); }
-        ringFx(P.x, P.y - 40, 230, '#E0283E'); ringFx(P.x, P.y - 40, 140, '#FF8A9A');
-        emit(P.x, P.y - 40, {n:30, col:STYLE_FX.blood.cols, spd:420, size:5, life:0.8, kind:'mist', g:-0.2});
-        G.shake = 12; flash('#E0283E', 0.3); zoomPunch(1.06); sfx('boom'); sfx('blood', 0.02); vib(60); } } },
-  blood5:{ dur:1.35, pose:'thrust', start(P,F){
-      const pool = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 460 && Math.abs(e.y - P.y) < 200);
-      F.tg = pool.sort((a, b) => (isBoss(b) - isBoss(a)) || (b.hp - a.hp))[0] || null;   // the strongest one
-      F.x0 = P.x; if (F.tg) P.face = sign(F.tg.x - P.x) || P.face; F.tick = 0; P.inv = 1.0; },
+  blood1:{ dur:0.85, pose:'thrust', start(P,F){ F.n = 0; },
+    update(P,dt,F){ const m = bloodMult(P);
+      P.vx = (F.t > 0.05 && F.t < 0.64) ? P.face*90 : P.vx*Math.pow(0.002, dt);   // pressing forward through the stabs
+      const k = Math.floor((F.t - 0.08)/0.06);
+      if (F.t >= 0.08 && k < 10 && k >= F.n){ F.n = k + 1;   // a stab
+        const y = P.y - 40 + ((k % 3) - 1)*10;
+        bloodSlash(P.x + P.face*70, y, P.face > 0 ? 0 : Math.PI, 0, 'thrust');
+        for (const e of G.E){ if (e.dead || e.remote) continue; const dx = (e.x - P.x)*P.face; if (dx < 5 || dx > 135 || Math.abs(e.y - P.y) > 90) continue;
+          damageEnemy(e, 11*m*FM(), {kb:20, dir:P.face, src:'form', bleed:6, noStop:true, quiet:true}); bloodSpray(e, P.face, 6); }
+        if (k % 2 === 0) sfx('swish'); }
+      if (F.t >= 0.72 && !F.fin){ F.fin = true;   // the twisting thrust
+        for (const e of G.E){ if (e.dead || e.remote) continue; const dx = (e.x - P.x)*P.face; if (dx < 5 || dx > 160 || Math.abs(e.y - P.y) > 100) continue;
+          damageEnemy(e, 75*m*FM(), {kb:420, dir:P.face, src:'form', heavy:true, bleed:18}); bloodSpray(e, P.face, 24); }
+        bloodSlash(P.x + P.face*90, P.y - 40, P.face > 0 ? 0 : Math.PI, 70, 'thrust', true);
+        G.shake = 12; G.hitstop = Math.max(G.hitstop, 0.1); flash('#E0283E', 0.2); sfx('kill'); vib(55); } } },
+  blood2:{ dur:1.0, pose:'thrust', start(P,F){
+      const c = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*P.face > -10 && (e.x - P.x)*P.face < 170 && Math.abs(e.y - P.y) < 100).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x));
+      F.tg = c[0] || null; F.x0 = P.x; F.stabs = 0; },
     update(P,dt,F){ const e = F.tg, m = bloodMult(P);
-      if (F.t < 0.2){ if (e && !e.dead){ const tx = clamp(e.x - P.face*42, 30, G.worldW - 30); P.x = lerp(F.x0, tx, FC_EASE(F.t/0.2)); } P.vx = 0; }
+      if (F.t < 0.12){ if (e && !e.dead) P.x = lerp(F.x0, clamp(e.x - P.face*34, 30, G.worldW - 30), FC_EASE(F.t/0.12)); P.vx = 0; }
       else P.vx *= Math.pow(0.001, dt);
-      if (F.t >= 0.2 && !F.stab){ F.stab = true;
-        if (e && !e.dead){ damageEnemy(e, 60*m*FM(), {kb:0, src:'form', bleed:20, noStop:true}); emit(e.x, e.y - 40*(e.size || 1), {n:16, col:STYLE_FX.blood.cols, spd:320, size:4, life:0.6, kind:'drop', g:1.4}); }
-        G.shake = Math.max(G.shake, 6); sfx('kill'); }
-      const held = e && !e.dead && !isBoss(e) && F.t >= 0.2 && F.t < 0.98;
-      if (held){ const u = FC_EASE(clamp((F.t - 0.2)/0.25, 0, 1));   // lifted up on the blade
-        e.x = P.x + P.face*lerp(30, 14, u); e.y = lerp(GROUND, P.y - 70, u); e.vx = 0; e.vy = 0; e.onG = false; e.state = 'stun'; e.timer = 0.3; e.atk = null; e.webRoll = 0; }
-      if (F.t > 0.4 && F.t < 0.95){ F.tick -= dt;   // their blood rains on everyone around
-        if (F.tick <= 0){ F.tick = 0.1;
-          for (const o of G.E){ if (o === e || o.dead || o.remote || Math.abs(o.x - P.x) > 260) continue; damageEnemy(o, 9*m*FM(), {kb:0, src:'form', bleed:6, quiet:true, noStop:true}); } }
-        if (e && FXL() > 0) for (let k = 0; k < 3; k++) G.parts.push({x:P.x + rnd(-250, 250), y:P.y - rnd(140, 220), vx:rnd(-20, 20), vy:rnd(350, 520), life:0.5, max:0.5, col:Math.random() < 0.5 ? '#E0283E' : '#8A0A1A', size:3, real:true}); }
-      if (F.t >= 1.0 && !F.slam){ F.slam = true;   // and slammed into the ground
-        if (e && !e.dead){ if (!isBoss(e)){ e.x = P.x + P.face*40; e.y = GROUND; e.onG = true; } damageEnemy(e, 120*m*FM(), {kb:160, heavy:true, src:'form', bleed:20, knockdown:1.4, dir:P.face}); }
-        const cx = P.x + P.face*40;
-        for (const o of G.E){ if (o === e || o.dead || o.remote || Math.abs(o.x - cx) > 150) continue; damageEnemy(o, 45*m*FM(), {kb:260, src:'form', heavy:true, bleed:10, dir:sign(o.x - cx) || 1}); }
-        P.hp = Math.min(P.maxHp, P.hp + 30); pop(P.x, P.y - 110, '+30', '#FF8A9A');
-        ringFx(cx, GROUND, 180, '#E0283E', true); burst(cx, GROUND - 4, 30, '#8A0A1A', 460, 5, true); cracks(cx, 140, '#8A0A1A');
-        G.shake = 18; G.hitstop = Math.max(G.hitstop, 0.13); flash('#E0283E', 0.35); zoomPunch(1.08); sfx('boom'); vib(80); } } },
+      const grab = e && !e.dead && !isBoss(e) && F.t >= 0.12 && F.t < 0.76;
+      if (grab){ e.x = P.x + P.face*30; e.y = GROUND - 14; e.vx = 0; e.vy = 0; e.onG = false; e.state = 'stun'; e.timer = 0.3; e.atk = null; e.face = -P.face; }   // held up by the throat
+      for (const [i, tt] of [[1, 0.25], [2, 0.4], [3, 0.55]]) if (F.t >= tt && F.stabs < i){ F.stabs = i;
+        if (e && !e.dead){ damageEnemy(e, 32*m*FM(), {kb:0, src:'form', bleed:12, noStop:true}); bloodSpray(e, P.face, 16); bloodSlash(e.x, e.y - 34*(e.size || 1), P.face > 0 ? 0 : Math.PI, 30, 'thrust'); }
+        G.shake = Math.max(G.shake, 5); sfx('kill', 0.01); }
+      if (F.t >= 0.76 && !F.toss){ F.toss = true;   // and hurled into the others
+        if (e && !e.dead){ damageEnemy(e, 50*m*FM(), {kb:0, src:'form', heavy:true, bleed:12, noStop:true});
+          if (!isBoss(e)){ e.vx = P.face*820; e.vy = -260; e.onG = false; e.state = 'hurt'; e.timer = 1.2; e.webThrown = { t:0, hit:new Set(), m:webMass(e), pvy:e.vy }; }
+          bloodSlash(e.x, e.y - 34*(e.size || 1), P.face > 0 ? -0.6 : Math.PI + 0.6, 60, 'arc', true); bloodSpray(e, P.face, 26); }
+        G.shake = 12; G.hitstop = Math.max(G.hitstop, 0.08); sfx('whoosh'); sfx('kill'); vib(50); } } },
+  blood3:{ dur:0.85, pose:'strike', update(P,dt,F){ const m = bloodMult(P);
+      F.kickW = F.t < 0.06 ? 0 : F.t < 0.12 ? (F.t - 0.06)/0.06 : F.t < 0.2 ? 1 - (F.t - 0.12)/0.08 : (F.t > 0.36 && F.t < 0.54) ? Math.sin((F.t - 0.36)/0.18*Math.PI) : 0;
+      F.kickAng = F.t < 0.25 ? 1.45 : 1.6;
+      P.vx = F.t < 0.12 ? P.face*160 : P.vx*Math.pow(0.01, dt);
+      const band = (lo, hi, dmg, o) => { for (const e of G.E){ if (e.dead || e.remote) continue; const dx = (e.x - P.x)*P.face; if (dx < lo || dx > hi || Math.abs(e.y - P.y) > 100) continue; damageEnemy(e, dmg, Object.assign({dir:P.face, src:'form'}, o)); bloodSpray(e, P.face, 10); } };
+      if (F.t >= 0.12 && !F.k1){ F.k1 = true; band(0, 95, 30*m*FM(), {kb:280, stun:0.6}); bloodSlash(P.x + P.face*60, P.y - 40, P.face > 0 ? 0 : Math.PI, 30, 'impact'); G.shake = Math.max(G.shake, 6); sfx('punch'); }   // front kick
+      if (F.t >= 0.45 && !F.k2){ F.k2 = true;   // spinning heel kick: both sides
+        for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - P.x) > 105 || Math.abs(e.y - P.y) > 100) continue; damageEnemy(e, 40*m*FM(), {kb:320, dir:sign(e.x - P.x) || 1, src:'form', stun:0.7}); bloodSpray(e, sign(e.x - P.x) || 1, 10); }
+        bloodSlash(P.x, P.y - 45, 0, 90, 'ring'); G.shake = Math.max(G.shake, 8); sfx('punch'); sfx('whoosh', 0.02); }
+      if (F.t >= 0.5 && !F.hop){ F.hop = true; if (P.onG){ P.vy = -380; P.onG = false; } }
+      if (F.t >= 0.66 && !F.chop){ F.chop = true;   // the leaping chop
+        band(-10, 125, 75*m*FM(), {kb:200, heavy:true, bleed:18, knockdown:1.2});
+        bloodSlash(P.x + P.face*55, P.y - 40, P.face > 0 ? 1.57 : 1.57, 70, 'arc', true);
+        G.shake = 14; G.hitstop = Math.max(G.hitstop, 0.1); flash('#E0283E', 0.2); sfx('kill'); sfx('boom', 0.02); vib(60); } } },
+  blood4:{ dur:1.4, pose:'swipe', start(P,F){ F.tick = 0; },
+    update(P,dt,F){ const m = bloodMult(P), mv = (held.right?1:0) - (held.left?1:0);
+      if (mv) P.face = mv;
+      if (F.t > 0.05 && F.t < 1.32){ P.vx = P.face*480;   // the charge
+        F.tick -= dt;
+        if (F.tick <= 0){ F.tick = 0.07; let n = 0;
+          for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - (P.x + P.face*30)) > 78 || Math.abs(e.y - P.y) > 100) continue;
+            damageEnemy(e, 13*m*FM(), {kb:60, dir:P.face, src:'form', bleed:6, noStop:true, quiet:true}); bloodSpray(e, P.face, 5); n++; }
+          if (n){ bloodSlash(P.x + P.face*45, P.y - 40 + rnd(-14, 14), rnd(-1.2, 1.2) + (P.face > 0 ? 0 : Math.PI), 34, 'arc'); sfx('swish'); G.shake = Math.max(G.shake, 3); } } }
+      else P.vx *= Math.pow(0.002, dt);
+      if (FXL() > 0 && Math.random() < 0.6) G.echoes.push({ snap:heroSnap(P), life:0.12, max:0.25, col:'#E0283E' }); } },
+  blood5:{ dur:2.0, pose:'swipe', start(P,F){
+      F.list = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 520 && Math.abs(e.y - P.y) < 200).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 6);
+      F.hitList = []; F.k = -1; P.inv = 2.0; sfx('blood'); },
+    update(P,dt,F){ const m = bloodMult(P);
+      const k = Math.floor((F.t - 0.05)/0.26);
+      if (k >= 0 && k < 6){ const e = F.list[k], t0 = 0.05 + k*0.26;
+        if (k !== F.k){ F.k = k; F.x0 = P.x; F.struck = false; }
+        if (e && !e.dead){
+          const dir = sign(e.x - F.x0) || P.face, tx = clamp(e.x - dir*38, 30, G.worldW - 30);
+          if (F.t < t0 + 0.09){ P.x = lerp(F.x0, tx, FC_EASE((F.t - t0)/0.09)); P.face = dir; P.vx = 0;   // run to them
+            if (FXL() > 0 && Math.random() < 0.8) G.echoes.push({ snap:heroSnap(P), life:0.12, max:0.25, col:'#E0283E' }); }
+          if (F.t >= t0 + 0.14 && !F.struck){ F.struck = true; F.hitList.push(e);   // a different strike for each
+            const type = ['thrust', 'arc', 'arc', 'arc'][k % 4], ang = [0, 1.57, -1.0, 0.05][k % 4];
+            damageEnemy(e, 60*m*FM(), {kb:120, dir:P.face, src:'form', heavy:true, bleed:16, stun:1.6});
+            bloodSlash(e.x, e.y - 34*(e.size || 1), P.face > 0 ? ang : Math.PI - ang, 55, type, true); bloodSpray(e, P.face, 22);
+            G.shake = Math.max(G.shake, 7); G.hitstop = Math.max(G.hitstop, 0.04); sfx('kill', 0.01); } } }
+      if (F.t >= 1.78 && !F.end){ F.end = true;   // the flick that shakes the blood off the blade, and they all burst
+        for (const e of F.hitList){ if (e.dead) continue; damageEnemy(e, 70*m*FM(), {kb:200, heavy:true, src:'form', bleed:20, dir:sign(e.x - P.x) || 1}); bloodSpray(e, sign(e.x - P.x) || 1, 30);
+          bloodSlash(e.x, e.y - 34*(e.size || 1), rnd(0, 3.14), 70, 'arc', true); }
+        emit(P.x + P.face*30, P.y - 30, {n:14, col:STYLE_FX.blood.cols, spd:300, size:4, life:0.6, kind:'drop', g:1.6, vx:P.face*200});
+        flash('#E0283E', 0.4); G.shake = 18; G.hitstop = Math.max(G.hitstop, 0.14); sfx('boom'); sfx('kill', 0.03); vib(90); } } },
   /* ---- Sun ---- */
   sun1:{ dur:0.6, pose:'flurry', start(P,F){ F.tick = 0; F.n = 0; },
     update(P,dt,F){ P.vx = P.face*300; F.tick -= dt;
@@ -6539,38 +6547,98 @@ const FORM_MAP = {
     { t:1.18, h:[2,-14], th:2.9, phi:0.3, lean:0.2, cr:8 },
     { t:1.3, h:[2,-14], th:2.9, phi:0.3, lean:0.15, cr:6 } ] } },
   /* Blood: sacrificial, wide, the off hand bare */
-  blood1:{ c:'invoke', v:{ keys:[   // Crimson Vault: crouch, spring up tucked with the blade raised, cut down from the top of the vault, land low, cut back, turn and cut
-    { pre:0.45, h:[6,-8], th:1.6, phi:0.4, lean:0.35, cr:15, pr:-2, legs:FC_LEG.deep, off:[-6,-10] },
-    { t:0.12, h:[8,-37], th:-1.6, phi:0.4, lean:-0.1, cr:4, legs:FC_LEG.tall },
-    { t:0.24, h:[18,-6], th:1.35, phi:0.3, lean:0.45, cr:6, pr:4, imp:true },
-    { t:0.38, h:[10,-6], th:1.6, phi:0.3, lean:0.35, cr:15, legs:FC_LEG.deep },
-    { t:0.44, h:[21,-15], th:0.05, phi:1.2, lean:0.4, cr:10, pr:5, legs:FC_LEG.lunge, imp:true },
-    { t:0.56, h:[-4,-14], th:2.9, phi:1.2, lean:0.2, cr:9 },
-    { t:0.62, h:[22,-20], th:-0.2, phi:1.2, lean:0.45, cr:8, pr:5, imp:true },
-    { t:0.78, h:[16,-22], th:-0.6, phi:1.0, lean:0.2, cr:6 } ] } },
-  blood2:{ c:'invoke', v:{ keys:[   // Blood Javelin: sword held low behind, lean back with the free hand up and back, then step through and throw
-    { pre:0.45, h:[-4,-10], th:2.6, phi:0.3, lean:0.05, cr:5, pr:-2, legs:FC_LEG.ready, off:[-6,-20] },
-    { t:0.22, h:[-6,-10], th:2.7, phi:0.3, lean:-0.3, cr:6, pr:-4, legs:FC_LEG.back, off:[-20,-34] },
-    { t:0.3, h:[-2,-12], th:2.6, phi:0.3, lean:0.45, cr:8, pr:6, legs:FC_LEG.lunge, off:[26,-26], imp:true },
-    { t:0.55, h:[0,-12], th:2.6, phi:0.3, lean:0.3, cr:7, off:[20,-22] } ] } },
-  blood3:{ c:'invoke', v:{ keys:[   // Blood Marionette: blade and free hand raised wide like a puppeteer, a twitch to smash them together, then both hands yanked down
-    { pre:0.45, h:[10,-24], th:-0.8, phi:0.3, lean:0, cr:4, pr:0, legs:FC_LEG.ready, off:[-8,-18] },
-    { t:0.12, h:[6,-38], th:-1.75, phi:0.3, lean:-0.2, cr:2, legs:FC_LEG.step, off:[-18,-36] },
-    { t:0.42, h:[4,-37], th:-1.4, phi:0.3, lean:-0.15, cr:3, off:[-10,-38], imp:true },
-    { t:0.6, h:[18,-6], th:1.25, phi:0.3, lean:0.45, cr:14, pr:4, legs:FC_LEG.horse, off:[10,-4], imp:true },
-    { t:0.9, h:[16,-6], th:1.2, phi:0.3, lean:0.4, cr:13, off:[8,-6] } ] } },
-  blood4:{ c:'invoke', v:{ keys:[   // Crimson Frenzy: the body arches back, arms thrown wide, a roar; then a hungry, low stance
-    { pre:0.4, h:[10,-20], th:-0.4, phi:0.3, lean:0.1, cr:6, pr:0, legs:FC_LEG.ready, off:[-6,-14] },
-    { t:0.12, h:[-8,-32], th:-2.5, phi:0.3, lean:-0.45, cr:3, pr:-5, legs:FC_LEG.horse, off:[-22,-30], imp:true },
-    { t:0.35, h:[-8,-32], th:-2.5, phi:0.3, lean:-0.42, cr:3, off:[-22,-30] },
-    { t:0.5, h:[16,-10], th:0.6, phi:0.6, lean:0.45, cr:13, pr:3, legs:FC_LEG.low, off:[6,-10] } ] } },
-  blood5:{ c:'invoke', v:{ keys:[   // Heart Impaler: a running thrust, lift them overhead on the blade, hold, slam down
-    { pre:0.4, h:[8,-18], th:0.1, phi:0.2, lean:0.3, cr:8, pr:0, legs:FC_LEG.lunge, off:[-6,-12], two:true },
-    { t:0.2, h:[25,-20], th:0.0, phi:0.2, lean:0.55, cr:9, pr:7, imp:true },
-    { t:0.45, h:[12,-38], th:-1.57, phi:0.2, lean:-0.1, cr:6, legs:FC_LEG.horse },
-    { t:0.9, h:[11,-38], th:-1.6, phi:0.2, lean:-0.12, cr:6 },
-    { t:1.0, h:[22,-6], th:1.15, phi:0.2, lean:0.5, cr:15, pr:5, legs:FC_LEG.lunge, imp:true },
-    { t:1.3, h:[20,-6], th:1.2, phi:0.2, lean:0.45, cr:13 } ] } },
+  blood1:{ c:'invoke', v:{ keys:[   // Scarlet Piercer: a blur of stabs, then a deep twisting thrust
+    { pre:0.4, h:[8,-18], th:0.0, phi:0.2, lean:0.35, cr:9, pr:2, legs:FC_LEG.lunge, off:[-8,-12] },
+    { t:0.055, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.080, h:[25,-26], th:-0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.115, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.140, h:[25,-20], th:0.00, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.175, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.200, h:[25,-14], th:0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.235, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.260, h:[25,-26], th:-0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.295, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.320, h:[25,-20], th:0.00, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.355, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.380, h:[25,-14], th:0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.415, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.440, h:[25,-26], th:-0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.475, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.500, h:[25,-20], th:0.00, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.535, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.560, h:[25,-14], th:0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.595, h:[10,-18], th:0.0, phi:0.2, lean:0.32, cr:9 },
+    { t:0.620, h:[25,-26], th:-0.12, phi:0.2, lean:0.45, cr:9, pr:5, imp:true },
+    { t:0.66, h:[0,-16], th:0.0, phi:0.2, lean:0.05, cr:11, pr:-4 },
+    { t:0.72, h:[27,-18], th:0.0, phi:0.2, lean:0.62, cr:10, pr:7, imp:true },
+    { t:0.84, h:[24,-18], th:0.05, phi:0.2, lean:0.5, cr:9 } ] } },
+  blood2:{ c:'invoke', v:{ keys:[   // Blood Grip: lunge with the free hand out, hold them by the throat, the blade pulled back and driven in three times, then the shove
+    { pre:0.35, h:[6,-18], th:0.0, phi:0.2, lean:0.3, cr:7, pr:2, legs:FC_LEG.lunge, off:[16,-28] },
+    { t:0.12, h:[-2,-16], th:0.0, phi:0.2, lean:0.4, cr:8, pr:4, off:[26,-34] },
+    { t:0.22, h:[-6,-16], th:0.0, phi:0.2, lean:0.1, cr:8, off:[26,-34] },
+    { t:0.25, h:[22,-22], th:0.0, phi:0.2, lean:0.45, cr:9, pr:5, off:[26,-34], imp:true },
+    { t:0.36, h:[-6,-16], th:0.0, phi:0.2, lean:0.1, cr:8, off:[26,-34] },
+    { t:0.4, h:[22,-18], th:0.08, phi:0.2, lean:0.45, cr:9, pr:5, off:[26,-34], imp:true },
+    { t:0.51, h:[-6,-16], th:0.0, phi:0.2, lean:0.1, cr:8, off:[26,-34] },
+    { t:0.55, h:[22,-26], th:-0.1, phi:0.2, lean:0.5, cr:9, pr:5, off:[26,-34], imp:true },
+    { t:0.7, h:[4,-30], th:-1.4, phi:0.6, lean:-0.1, cr:6, off:[20,-30] },
+    { t:0.76, h:[22,-12], th:0.6, phi:0.6, lean:0.55, cr:10, pr:6, off:[28,-22], imp:true },
+    { t:0.95, h:[18,-14], th:0.3, phi:0.6, lean:0.4, cr:8 } ] } },
+  blood3:{ c:'invoke', v:{ keys:[   // Crimson Brawler: blade held back while the legs work, then raised and brought down two-handed
+    { pre:0.35, h:[-6,-14], th:2.6, phi:0.3, lean:0.0, cr:4, pr:-2, legs:FC_LEG.ready, off:[10,-26] },
+    { t:0.12, h:[-8,-16], th:2.7, phi:0.3, lean:-0.25, cr:3, off:[8,-28] },
+    { t:0.45, h:[-6,-16], th:2.7, phi:0.3, lean:-0.2, cr:3, off:[-10,-24] },
+    { t:0.58, h:[8,-38], th:-1.6, phi:0.3, lean:-0.1, cr:2, two:true },
+    { t:0.66, h:[22,-6], th:1.2, phi:0.3, lean:0.55, cr:14, pr:6, legs:FC_LEG.lunge, imp:true },
+    { t:0.82, h:[20,-6], th:1.25, phi:0.3, lean:0.5, cr:13 } ] } },
+  blood4:{ c:'invoke', v:{ keys:[   // Crimson Rampage: wild cuts up and down while running (no leg keys, so the run cycle shows)
+    { pre:0.3, h:[10,-20], th:-0.6, phi:0.4, lean:0.4, cr:6, pr:2, off:[-6,-14] },
+    { t:0.06, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.11, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.16, h:[20,-8], th:1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.21, h:[22,-30], th:-1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.26, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.31, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.36, h:[20,-8], th:1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.41, h:[22,-30], th:-1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.46, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.51, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.56, h:[20,-8], th:1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.61, h:[22,-30], th:-1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.66, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.71, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.76, h:[20,-8], th:1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.81, h:[22,-30], th:-1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.86, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:0.91, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:0.96, h:[20,-8], th:1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:1.01, h:[22,-30], th:-1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:1.06, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:1.11, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:1.16, h:[20,-8], th:1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:1.21, h:[22,-30], th:-1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true },
+    { t:1.26, h:[20,-30], th:-1.0, phi:0.5, lean:0.4, cr:7, pr:4 },
+    { t:1.31, h:[22,-8], th:1.0, phi:0.5, lean:0.45, cr:8, pr:5, imp:true }, ] } },
+  blood5:{ c:'invoke', v:{ keys:[   // Bloodstorm Massacre: run in, strike (thrust, chop, rising, flat), run to the next; then the flick that shakes the blood off
+    { pre:0.4, h:[8,-18], th:-0.4, phi:0.3, lean:0.3, cr:7, pr:0, legs:FC_LEG.ready, off:[-6,-12] },
+    { t:0.13, h:[-4,-14], th:2.6, phi:0.4, lean:0.55, cr:8, pr:-2, legs:FC_LEG.lunge },
+    { t:0.19, h:[25,-20], th:0.0, phi:0.6, lean:0.5, cr:10, pr:6, imp:true },
+    { t:0.39, h:[-4,-14], th:2.6, phi:0.4, lean:0.55, cr:8, pr:-2, legs:FC_LEG.lunge },
+    { t:0.42, h:[8,-38], th:-1.6, phi:0.3, lean:-0.1, cr:4 },
+    { t:0.45, h:[22,-6], th:1.2, phi:0.25, lean:0.5, cr:10, pr:6, imp:true },
+    { t:0.65, h:[-4,-14], th:2.6, phi:0.4, lean:0.55, cr:8, pr:-2, legs:FC_LEG.lunge },
+    { t:0.68, h:[6,-4], th:2.2, phi:0.6, lean:0.3, cr:12 },
+    { t:0.71, h:[20,-32], th:-1.1, phi:0.6, lean:0.5, cr:10, pr:6, imp:true },
+    { t:0.91, h:[-4,-14], th:2.6, phi:0.4, lean:0.55, cr:8, pr:-2, legs:FC_LEG.lunge },
+    { t:0.97, h:[22,-15], th:0.05, phi:1.2, lean:0.5, cr:10, pr:6, imp:true },
+    { t:1.17, h:[-4,-14], th:2.6, phi:0.4, lean:0.55, cr:8, pr:-2, legs:FC_LEG.lunge },
+    { t:1.23, h:[25,-20], th:0.0, phi:0.6, lean:0.5, cr:10, pr:6, imp:true },
+    { t:1.43, h:[-4,-14], th:2.6, phi:0.4, lean:0.55, cr:8, pr:-2, legs:FC_LEG.lunge },
+    { t:1.46, h:[8,-38], th:-1.6, phi:0.3, lean:-0.1, cr:4 },
+    { t:1.49, h:[22,-6], th:1.2, phi:0.25, lean:0.5, cr:10, pr:6, imp:true },
+    { t:1.72, h:[22,-14], th:0.5, phi:0.4, lean:0.3, cr:7 },
+    { t:1.78, h:[16,-8], th:1.3, phi:0.4, lean:0.35, cr:9, imp:true },
+    { t:1.95, h:[16,-8], th:1.3, phi:0.4, lean:0.3, cr:8 } ] } },
   /* Sun: sweeping, two-handed, radiant */
   sun1:{ c:'flurry',  v:{ n:4, dt:0.12, seq:['down','rise'], phi:0.3, lean:0.2, cr:5, two:true, legs:FC_LEG.step } },
   sun2:{ c:'rising',  v:{ imp:0.1, phi:0.3, th0:2.9, two:true, set:true, top:[11,-31], thTop:-1.8 } },
@@ -6907,6 +6975,7 @@ function getPose(e){
   }
   if (e.isPlayer && e.landT > 0 && !e.form){ const q = landWeight(e); crouch = Math.max(crouch, 16*q); lean = Math.max(lean, 0.6*q); a = lerp(a, 1.3, q*0.7); a2 = lerp(a2, 1.5, q*0.7); }   // superhero landing crouch
   const P_ = {a,b,crouch,lean,red,a2,b2,ext,ext2,kick,kickAng,kL,exs:1,exs2:1};
+  if (e.isPlayer && e.form && e.form.kickW > 0){ P_.kick = e.form.kickW; P_.kickAng = e.form.kickAng || 1.4; }   // forms that kick (Crimson Brawler)
   if (e.isPlayer && e.climb && !e.atk){   // wall crawl: hands reach up in turn, knees drawn up like a frog
     const ph = Math.sin((e.climbT || 0)*10), pole = e.climb.s && e.climb.s.k === 'pole';
     P_.lean = pole ? 0.12 : 0.15; P_.crouch = 6; P_.roll = 0;
@@ -8951,6 +9020,23 @@ function snareTick(dt){
 }
 /* Blood forms hit harder the more health you have lost (up to 2.5x) */
 function bloodMult(P){ return 1 + 1.5*clamp(1 - P.hp/P.maxHp, 0, 1); }
+/* big anime-style blood slashes, and blood spraying out of a wound */
+function bloodSlash(x, y, ang, r, kind, big){ (G.bslash = G.bslash || []).push({ x, y, ang, r:r || 40, kind:kind || 'arc', big:!!big, t0:G.time, life:big ? 0.32 : 0.22 }); }
+function bloodSpray(e, dir, n){ if (FXL() <= 0 && n > 8) n = 8; emit(e.x, e.y - 36*(e.size || 1), {n, col:STYLE_FX.blood.cols, spd:180 + n*12, size:3 + Math.min(4, n/8), life:0.7, kind:'drop', g:1.5, vx:dir*160, vy:-160}); }
+function drawBloodSlashes(){
+  if (!G.bslash || !G.bslash.length) return;
+  G.bslash = G.bslash.filter(b => G.time - b.t0 < b.life);
+  ctx.save(); ctx.lineCap = 'round';
+  for (const b of G.bslash){ const u = (G.time - b.t0)/b.life, a = 1 - u, g = Math.min(1, u*5), W = b.big ? 1.6 : 1;
+    ctx.globalAlpha = a;
+    if (b.kind === 'thrust'){ const L = (b.big ? 150 : 70 + b.r)*g, dx = Math.cos(b.ang), dy = Math.sin(b.ang);   // a straight streak
+      for (const [c, w] of [['#5A0A16', 9*W], ['#E0283E', 5*W], ['#FFE0E4', 1.6*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(b.x - dx*L*0.5, b.y - dy*L*0.5); ctx.lineTo(b.x + dx*L*0.5, b.y + dy*L*0.5); ctx.stroke(); } }
+    else if (b.kind === 'ring'){ for (const [c, w] of [['#5A0A16', 10], ['#E0283E', 5], ['#FFE0E4', 1.6]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(b.x, b.y, b.r*g, b.r*0.35*g, 0, 0, 6.283); ctx.stroke(); } }
+    else if (b.kind === 'impact'){ ctx.fillStyle = '#E0283E'; for (let k = 0; k < 8; k++){ const aa = k*0.785, L = b.r*(0.6 + 0.4*(k % 2))*g; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(aa - 0.12)*L*0.3, b.y + Math.sin(aa - 0.12)*L*0.3); ctx.lineTo(b.x + Math.cos(aa)*L, b.y + Math.sin(aa)*L); ctx.lineTo(b.x + Math.cos(aa + 0.12)*L*0.3, b.y + Math.sin(aa + 0.12)*L*0.3); ctx.fill(); } }
+    else { const R = b.r*W*(0.6 + 0.4*g), a0 = b.ang - 1.1, a1 = b.ang + 1.1*g;   // a thick crescent of a cut
+      for (const [c, w] of [['#5A0A16', 13*W], ['#E0283E', 7*W], ['#FFE0E4', 2*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(b.x - Math.cos(b.ang)*R*0.6, b.y - Math.sin(b.ang)*R*0.6, R, a0, a1); ctx.stroke(); } } }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function bloodSpearTick(p, dt){
   if (!p.stuck){
     p.ang = Math.atan2(p.vy, p.vx);
@@ -9626,6 +9712,7 @@ function renderScene(){
     if (P.form && P.form.id==='frost5' && !P.form.wait) drawBlizzard(P);
     if (P.form && !P.form.wait && (P.form.id==='frost2' || P.form.id==='frost3' || P.form.id==='frost4')) drawFrostForm(P);
     drawShadowForms(P);
+    drawBloodSlashes();
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
     drawParts(true);
