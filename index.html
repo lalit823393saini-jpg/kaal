@@ -4397,7 +4397,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dodgeT = (P.dodgeT || 0) - dt; P.matrixT = (P.matrixT || 0) - dt; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dodgeT = (P.dodgeT || 0) - dt; P.matrixT = (P.matrixT || 0) - dt; P.flipT = (P.flipT || 0) - dt; P.hopT = (P.hopT || 0) - dt; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -6007,11 +6007,17 @@ function arrowDodgeCheck(P, q){
 }
 function arrowDodge(P, q){
   q.dodged = true;
-  P.matrixT = 0.6; P.inv = Math.max(P.inv, 0.35); P.evadeT = G.time;
-  G.mo = { kind:'dodge', t:0, end:0.65, depth:0.12 };   // very slow, so you can watch it pass
-  for (let k = 0; k < 3; k++) G.echoes.push({ snap:heroSnap(P), life:0.25 + k*0.1, max:0.5, col:'#DCF3FF' });
-  speedLines(q.x, q.y, 10, '#FFFFFF', 0.25);
-  pop(P.x, P.y - 110, 'Dodged!', '#DCF3FF'); sfx('whoosh'); ringFx(P.x, P.y - 40, 60, '#FFFFFF');
+  const front = sign(q.vx) === -P.face, low = q.y > P.y - 30;
+  P.inv = Math.max(P.inv, 0.45); P.evadeT = G.time; P.dodgeT = 0; P.matrixT = 0; P.flipT = 0; P.hopT = 0;
+  let name;
+  if (!front){ P.flipT = 0.42; P.flipDir = P.face; if (P.onG){ P.vy = -560; P.onG = false; } P.vx = P.face*220; name = 'Front flip!'; }   // from behind: a handspring forward over it
+  else if (low){ P.hopT = 0.36; if (P.onG){ P.vy = -620; P.onG = false; } name = 'Jumped it!'; }                                       // low and in front: tuck and hop over
+  else { P.matrixT = 0.38; name = 'Dodged!'; }                                                                                         // high and in front: bend back under it
+  G.mo = { kind:'dodge', t:0, end:1.15, depth:0.06 };   // nearly stopped, so you can watch it go past
+  zoomPunch(1.06);
+  for (let k = 0; k < 3; k++) G.echoes.push({ snap:heroSnap(P), life:0.3 + k*0.12, max:0.6, col:'#DCF3FF' });
+  speedLines(q.x, q.y, 12, '#FFFFFF', 0.4);
+  pop(P.x, P.y - 115, name, '#DCF3FF'); sfx('whoosh'); ringFx(P.x, P.y - 40, 60, '#FFFFFF');
 }
 /* enemy projectile touches the player */
 function projHitPlayer(q){
@@ -6130,10 +6136,10 @@ function autoDodge(P, e){
   if (!(P.atk || (P.form && !P.form.wait) || G.time - (P.lastAtkT ?? -9) < 0.35)) return false;
   P.evadeT = G.time; P.inv = Math.max(P.inv, 0.25);
   const away = -(sign((e.x ?? P.x) - P.x) || P.face);
-  P.dodgeT = 0.35; P.dodgeDir = away;
+  P.dodgeT = 0.35; P.dodgeDir = away; P.matrixT = 0; P.flipT = 0; P.hopT = 0;
   if (!P.form) P.x = clamp(P.x + away*24, 30, G.worldW - 30);   // a slip out of the line of the blade (forms keep their own footwork)
   G.echoes.push({ snap:heroSnap(P), life:0.3, max:0.4, col:'#DCF3FF' });
-  G.mo = { kind:'dodge', t:0, end:0.45, depth:0.2 };   // time slows for the moment of the dodge
+  G.mo = { kind:'dodge', t:0, end:0.7, depth:0.12 };   // time slows right down for the moment of the dodge
   pop(P.x, P.y - 100, 'Evade', '#DCF3FF'); sfx('swish'); ringFx(P.x, P.y - 40, 50, '#FFFFFF');
   if (e.T) sparks(P.x - away*14, P.y - 44);   // their blade cuts only air
   return true;
@@ -7187,7 +7193,12 @@ function getPose(e){
     if (O.p.offT && !gunAim(e) && !e.vthrow && !e.gsum && !(e.sword && e.sword.dual)){ P_.offT = O.p.offT; P_.offW = (O.p.offW || 0)*(1 - k); P_.offHand = O.p.offHand; P_.offCurl = O.p.offCurl; }
     if (O.p.legs && e.onG !== false){ P_.legs = O.p.legs; P_.legW = (O.p.legW || 0)*(1 - k); }
   }
-  if (e.isPlayer && e.matrixT > 0){ const w = Math.sin(clamp((0.6 - e.matrixT)/0.6, 0, 1)*Math.PI);   // the bend: back nearly flat, knees deep, arms out for balance, the blade still out
+  const hold = (left, tot) => { const p = clamp((tot - left)/tot, 0, 1); return Math.min(1, p/0.2)*(1 - clamp((p - 0.8)/0.2, 0, 1)); };   // in quick, held, out quick
+  if (e.isPlayer && e.flipT > 0){ const p = clamp((0.42 - e.flipT)/0.42, 0, 1);   // front flip: hands to the ground, the body goes over, lands facing the same way
+    P_.roll = Math.PI*2*FC_EASE(p);   // forward, whichever way you face P_.crouch = Math.max(P_.crouch || 0, 16*Math.sin(p*Math.PI));
+    if (p < 0.45){ P_.a = 1.45; P_.a2 = 1.5; P_.ext = P_.ext2 = 1; } P_.lean = 0.3; }
+  else if (e.isPlayer && e.hopT > 0){ const w = hold(e.hopT, 0.36); P_.crouch = Math.max(P_.crouch || 0, 6*w); P_.legs = [1.3, 2.4, 1.0, 2.2]; P_.legW = w; P_.legAir = true; P_.lean = lerp(P_.lean || 0, 0.25, w); }   // knees tucked to the chest
+  else if (e.isPlayer && e.matrixT > 0){ const w = hold(e.matrixT, 0.38);   // the bend: back nearly flat, knees deep, arms out for balance, the blade still out
     P_.lean = lerp(P_.lean || 0, -1.25, w); P_.crouch = Math.max(P_.crouch || 0, 18*w); P_.roll = lerp(P_.roll || 0, -0.55, w);
     P_.a2 = lerp(P_.a2, -2.6, w); P_.ext2 = 1; }
   else if (e.isPlayer && e.dodgeT > 0){ const w = Math.sin(clamp((0.35 - e.dodgeT)/0.35, 0, 1)*Math.PI);   // the dodge: the body sways back from the blade
@@ -8906,6 +8917,7 @@ function drawEProj(){
     switch (q.kind){
       case 'arrow': case 'kunai':
         ctx.rotate(ang);
+        if (q.dodged){ ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = '#FFFFFF'; ctx.globalAlpha = 0.6; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-90, 0); ctx.lineTo(0, 0); ctx.stroke(); ctx.globalAlpha = 0.25; ctx.lineWidth = 10; ctx.stroke(); }   // the dodged shot leaves a bright trail
         ctx.globalCompositeOperation='lighter'; ctx.strokeStyle = '#FF3B2F'; ctx.globalAlpha = 0.35; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(4,0); ctx.stroke();
         ctx.globalCompositeOperation='source-over'; ctx.globalAlpha = 1;
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(8,0); ctx.stroke();
