@@ -1195,9 +1195,9 @@ const STYLES = {
   stone:   { name:'Stone Breathing',    col:'#C9A27A', price:900,  pass:'Blocking takes 15% less damage',
              forms:[['Boulder Crusher',35],['Earth Splitter',45],['Granite Skin',40],['Boulder Hurl',55],['Falling Mountain',85]],
              desc:'Earth style. Crush armour, split the ground open, turn your skin to granite, hurl boulders and bring a mountain down.' },
-  frost:   { name:'Frost Breathing',    col:'#9FD3F0', price:1100, unlock:8, pass:'Every hit has a small chance to freeze',
-             forms:[['Frost Edge',30],['Glacier',45],['Absolute Zero',60],['Icicle Storm',60],['Permafrost',85]],
-             desc:'Ice style. Freezes enemies solid: they cannot move, take 50% more, and shatter when they die.' },
+  frost:   { name:'Blizzard Breathing', col:'#9FD3F0', price:1100, unlock:8, pass:'Every hit has a small chance to freeze',
+             forms:[['Ice Fang',30],['Frozen Lotus',45],['Absolute Zero',60],['Icicle Rain',60],['Eternal Winter',85]],
+             desc:'Ice style. Freezes enemies solid: they cannot move, take 50% more, and shatter into ice when they die.' },
   shadow:  { name:'Shadow Breathing',   col:'#9B8CFF', price:1300, unlock:12, pass:'Hits from behind deal +25%',
              forms:[['Vanishing Step',30],['Shadow Bind',45],['Dance of Shades',60],['Umbral Chains',60],['Night Execution',85]],
              desc:'Night style. Disappear, root enemies to the ground with their own shadows, and strike from behind.' },
@@ -4863,8 +4863,8 @@ const FORM_DESC = {
   storm1:'Flash Step: teleport 9 m forward, striking everyone on the way.', storm2:'Chain Bolt: teleport from enemy to enemy, up to four in a row.', storm3:'Leap up, then slam down as lightning. Everyone near the landing is hit.', storm4:'Static Field: for 4 s lightning jumps from you to anyone who comes close.', storm5:"Heaven's Judgement: bolts rain on every enemy on screen, then one great strike.",
   gale1:'Two crossing cuts throw an X of wind that pierces the line. It cuts arrows out of the air on its way.', gale2:'Cyclone: you spin so fast with the blade that a whirlwind forms. Everyone near is sucked in, whirled round and cut again and again, then thrown out.', gale3:'Sky Rend: the blade comes from behind your back, over your head and down in front, and throws three blades of wind.', gale4:'Gale Rush: you become the wind and shoot straight through the line. A heartbeat later everyone you passed is cut to pieces at once.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
   crescent1:'Crescent Slash: one rising crescent cut that breaks into five small moon blades fanning out ahead.', crescent2:'Moonlit Dance: three gliding steps forward, a crescent cut on each, every one leaving a small moon that keeps cutting.', crescent3:'Full Moon Ring: the blade draws a full moon round you; it bursts outward, throwing everyone back and scattering eight moon blades in every direction.', crescent4:'Lunar Descent: leap high and fall like the moon. The landing cuts everyone near and sends two great crescents racing along the ground.', crescent5:'Thousand Moons: night falls, a great full moon rises behind you and rains crescent blades on every enemy on screen, then one cut crosses the whole screen.',
-  stone1:'Boulder Crusher: a heavy step and a two-handed blow that breaks armour and knocks them flat. A heartbeat later the ground ahead erupts in a fan of boulders and a shockwave.', stone2:'Earth Splitter: drive the blade into the ground; a crack races ahead and stone spikes burst up along it, pinning everyone in place.', stone3:'Granite Skin: for 6 s your body is covered in stone. Half damage, no flinching, and whoever hits you is hurt and stunned.', stone4:'Boulder Hurl: tear a huge boulder out of the ground, lift it overhead and throw it. It bounces, then rolls a long way through the whole line before it shatters.', stone5:'Falling Mountain: leap and bring a mountain down with you. The ground splits, spikes ring the impact, and rocks rain on every enemy in sight.',
-  frost1:'Frost Edge: a cold cut that freezes the first enemy it touches.', frost2:'Glacier: a wall of ice that blocks enemies and arrows until it is broken.', frost3:'Absolute Zero: everyone within 7 m freezes solid for 2 s. Frozen enemies take 50% more and shatter when they die.', frost4:'Icicle Storm: icicles fall across the area ahead.', frost5:'Permafrost: freeze the whole screen, then shatter them all.',
+  stone1:'Boulder Crusher: a heavy step and a two-handed blow that breaks armour and knocks them flat. A heartbeat later the ground ahead erupts in a fan of boulders and a shockwave.', stone2:'Earth Splitter: drive the blade into the ground; a crack races ahead and stone spikes burst up along it, pinning everyone in place.', stone3:'Granite Skin: for 6 s your body is covered in stone. Half damage, no flinching, and whoever hits you is hurt and stunned.', stone4:'Boulder Hurl: tear a huge boulder out of the ground, lift it overhead and throw it. It bounces, then rolls a long way through the whole line before it shatters.', stone5:'Falling Mountain: leap and bring a mountain down with you. It bursts over your head and great boulders fall from the sky on every enemy in sight.',
+  frost1:'Ice Fang: a fast draw cut; a row of ice shards grows out along its path and freezes whoever it touches.', frost2:'Frozen Lotus: plant the blade and an ice lotus blooms round you, freezing everyone near; then its petals fly off as icicles.', frost3:'Absolute Zero: the cold spreads 7 m around you. Everyone freezes solid inside a pillar of ice for 2 s and takes 50% more.', frost4:'Icicle Rain: point the blade at the sky and icicles rain down on the enemies ahead, pinning and freezing them.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
   shadow1:'Vanishing Step: disappear for 2 s. Your next slash is an Ambush for double damage.', shadow2:'Shadow Bind: roots enemies to the ground with their own shadows.', shadow3:'Dance of Shades: a flurry of cuts that always lands from behind.', shadow4:'Umbral Chains: chain every enemy in range to the ground, then cut them.', shadow5:'Night Execution: teleport behind each enemy in turn and strike.',
   blood1:'Crimson Cut: costs health, not breath. The lower your health, the harder it hits.', blood2:'Blood Mist: for 5 s, bleeding enemies around you feed you health.', blood3:'Red Lotus: a bloom of blades around you that makes everyone bleed.', blood4:'Scarlet Chains: pull enemies in and drain them.', blood5:'Final Offering: spend most of your health for one enormous strike. A kill gives 50 back.',
   sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
@@ -5191,52 +5191,63 @@ const FORMS = {
       if (F.mtn) F.mtn.rot += dt*2;
       if (F.phase === 'down' && P.onG && F.landed == null && F.t > 0.1){ F.landed = F.t; F.mtn = null;   // the mountain comes down
         areaHit(P.x, P.y-30, 230, 100, 110*FM(), {kb:420, kbAway:true, heavy:true, src:'form', breakArmor:6, knockdown:1.4}, F.set);
-        for (const d of [-180, -120, -60, 60, 120, 180]) G.haz.push({kind:'spike', x:P.x + d, w:rnd(24, 32), H:rnd(90, 140) - Math.abs(d)*0.15, life:0.7, max:0.7, tick:99, every:99, dmg:0, lean:sign(d)*0.25});
         cracks(P.x, 320, '#C9A27A'); ringFx(P.x, GROUND, 300, '#C9A27A', true); ringFx(P.x, GROUND - 40, 180, '#E5D3BC');
-        emit(P.x, GROUND-6, {n:40, col:STYLE_FX.stone.cols, spd:560, size:8, life:1.1, kind:'rock', g:1.8, vy:-360, real:true});
+        emit(P.x, P.y - 120, {n:30, col:STYLE_FX.stone.cols, spd:420, size:8, life:1.1, kind:'rock', g:1.8, real:true});   // the mountain bursts apart over your head
         G.shake = 20; G.hitstop = 0.12; sfx('boom'); sfx('stone', 0.05); flash('#E5D3BC', 0.3); zoomPunch(1.1); vib(90); }
       if (F.landed != null){
         const e0 = F.t - F.landed;
-        if (e0 < 1.0){ F.rainT -= dt;   // the sky keeps falling: rocks on every enemy in sight
-          if (F.rainT <= 0){ F.rainT = 0.022;
+        if (e0 < 1.2){ F.rainT -= dt;   // the sky keeps falling: great stones on every enemy in sight
+          if (F.rainT <= 0){ F.rainT = 0.035;
             const view = G.E.filter(e => !e.dead && !e.remote && e.x > G.camX && e.x < G.camX + VW);
             const tg = view.length && Math.random() < 0.8 ? view[(Math.random()*view.length)|0] : null;
             const x = tg ? tg.x + rnd(-30, 30) : G.camX + rnd(40, VW - 40);
             const dx = rnd(-140, 140);   // they come in fast and slanting
-            G.proj.push({kind:'rock', x:x - dx*0.45, y:(G.camY || 0) - 40, vx:dx*2.2, vy:rnd(1400, 1900), g:1800, r:rnd(8, 17), rot:0, spin:rnd(-14, 14), seed:rnd(0, 99), dmg:11*FM(), pierce:1, hit:new Set(), life:1.2, kb:100, streak:true}); } }
+            const big = Math.random() < 0.45;   // great boulders among the stones
+            G.proj.push({kind:'rock', x:x - dx*0.45, y:(G.camY || 0) - 60, vx:dx*2.2, vy:rnd(1400, 1900), g:1800, r:big ? rnd(24, 36) : rnd(12, 20), rot:0, spin:rnd(-10, 10), seed:rnd(0, 99), dmg:(big ? 22 : 12)*FM(), pierce:big ? 3 : 1, hit:new Set(), life:1.2, kb:big ? 220 : 100, big, noLaunch:true, streak:true}); } }   // stones from above knock them down, not up
         else F.done = true;
       } } },
   /* ---- Frost ---- */
-  frost1:{ dur:0.35, pose:'swipe', update(P,dt,F){ if (F.t>=0.1 && !F.hitOnce){ F.hitOnce = true;
-      areaHit(P.x+P.face*55, P.y-35, 90, 65, 30*FM(), {kb:80, src:'form', freeze:1.6}, F.set, 3);
-      emit(P.x+P.face*60, P.y-40, {n:20, col:STYLE_FX.frost.cols, spd:360, size:4, life:0.6, kind:'star', g:0.4});
-      ringFx(P.x+P.face*55, P.y-38, 90, '#DCF3FF'); sfx('frost'); vib(25); } } },
-  frost2:{ dur:0.4, pose:'cast', start(P){
-      const x = P.x + P.face*95;
-      G.haz.push({kind:'wall', x, y:GROUND, r:14, h:110, hp:6, life:9, tick:0, dmg:0, every:9});
-      emit(x, GROUND-60, {n:22, col:STYLE_FX.frost.cols, spd:280, size:5, life:0.8, kind:'star', g:0.8});
-      ringFx(x, GROUND-40, 90, '#DCF3FF'); sfx('frost'); vib(30); }, update(P){ P.vx *= 0.85; } },
+  frost1:{ dur:0.45, pose:'swipe', update(P,dt,F){ if (F.t>=0.1 && !F.hitOnce){ F.hitOnce = true;   // the cut, and a row of ice shards grows out along it
+      for (let k = 0; k < 5; k++) G.haz.push({kind:'shard', x:P.x + P.face*(55 + k*48), y:P.y - 42 + rnd(-8, 8), a:(P.face > 0 ? 0 : Math.PI) + rnd(-0.35, 0.35), L:rnd(34, 48) - k*2, delay:k*0.035, life:0.75 + k*0.035, max:0.75 + k*0.035, tick:99, every:99, dmg:0});
+      areaHit(P.x+P.face*150, P.y-40, 135, 40, 30*FM(), {kb:40, src:'form', freeze:1.5}, F.set, 4);
+      emit(P.x+P.face*60, P.y-40, {n:14, col:STYLE_FX.frost.cols, spd:300, size:4, life:0.6, kind:'star', g:0.4});
+      sfx('frost'); vib(25); } } },
+  frost2:{ dur:0.65, pose:'cast', update(P,dt,F){ P.vx *= 0.8;
+      if (F.t >= 0.12 && !F.bloom){ F.bloom = true;   // the lotus blooms: ice petals rise in a ring
+        for (const d of [-170, -125, -80, -40, 40, 80, 125, 170]) G.haz.push({kind:'spike', ice:true, x:P.x + d, w:rnd(20, 28), H:rnd(70, 100) - Math.abs(d)*0.2, life:0.6, max:0.6, tick:99, every:99, dmg:0, lean:sign(d)*(0.35 + Math.abs(d)/400)});
+        for (const e of G.E){ if (e.dead || e.remote || !sameLayer(e)) continue; if (Math.abs(e.x - P.x) < 185 && Math.abs(e.y - P.y) < 120) damageEnemy(e, 30*FM(), {kb:0, src:'form', freeze:1.6}); }
+        ringFx(P.x, GROUND, 190, '#DCF3FF', true); emit(P.x, GROUND - 20, {n:24, col:STYLE_FX.frost.cols, spd:320, size:4, life:0.8, kind:'star', g:0.3});
+        sfx('frost'); vib(35); }
+      if (F.t >= 0.42 && !F.fly){ F.fly = true;   // and the petals break off and fly
+        for (const d of [-1, 1]) for (const a of [0.25, 0.6, 0.95]) G.proj.push({kind:'icicle', x:P.x + d*60, y:P.y - 40, vx:d*Math.cos(a)*720, vy:-Math.sin(a)*720, g:900, dmg:18*FM(), pierce:2, hit:new Set(), life:1.2, kb:60, freeze:0.8, len:26});
+        sfx('swish'); } } },
   frost3:{ dur:0.6, pose:'cast', start(P,F){
       let n = 0;
-      for (const e of G.E){ if (e.dead) continue; damageEnemy(e, 25*FM(), {kb:0, src:'form', freeze:2.0, quiet:n>4}); n++; }
-      flash('#DCF3FF', 0.45); ringFx(P.x, P.y-40, 420, '#9FD3F0', true); G.hitstop = 0.1;
+      for (const e of G.E){ if (e.dead || e.remote) continue; if (Math.abs(e.x - P.x) > 420 || Math.abs(e.y - P.y) > 220) continue;
+        damageEnemy(e, 25*FM(), {kb:0, src:'form', freeze:2.0, quiet:n>4}); n++;
+        G.haz.push({kind:'spike', ice:true, x:e.x, w:44*(e.size || 1), H:92*(e.size || 1), life:2.0, max:2.0, tick:99, every:99, dmg:0, lean:0, pillar:true}); }   // a pillar of ice closes round each of them
+      flash('#DCF3FF', 0.45); ringFx(P.x, P.y-40, 420, '#9FD3F0', true); ringFx(P.x, GROUND, 420, '#DCF3FF', true); G.hitstop = 0.1;
       emit(P.x, P.y-40, {n:30, col:STYLE_FX.frost.cols, spd:420, size:5, life:1, kind:'star', g:0.3});
       sfx('frost'); sfx('boom', 0.05); vib(60); }, update(P){ P.vx *= 0.85; } },
-  frost4:{ dur:0.9, pose:'cast', start(P,F){ F.tick = 0; F.n = 0; F.cx = P.x + P.face*110; },
+  frost4:{ dur:1.0, pose:'cast', start(P,F){ F.tick = 0; F.n = 0; },
     update(P,dt,F){ P.vx *= 0.88; F.tick -= dt;
-      if (F.tick <= 0 && F.n < 8){ F.tick = 0.09; F.n++;
-        const x = F.cx + rnd(-90, 90);
-        areaHit(x, GROUND-40, 34, 70, 28*FM(), {kb:60, src:'form', freeze: F.n % 3 === 0 ? 1.2 : 0}, new Set(), 2);
-        for (let k=0;k<4;k++) G.parts.push({x:x+rnd(-8,8), y:GROUND-rnd(0,90), vx:rnd(-30,30), vy:420, life:0.3, max:0.3, col:'#DCF3FF', size:3, real:true});
-        burst(x, GROUND-10, 6, '#DCF3FF', 200, 3); sfx('swish'); } } },
-  frost5:{ dur:0.7, pose:'strike', wind:0.28, start(P,F){ F.hitOnce = false; },
+      if (F.t > 0.2 && F.t < 0.85 && F.tick <= 0){ F.tick = 0.045; F.n++;   // icicles rain on the enemies ahead
+        const ahead = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*P.face > 20 && (e.x - P.x)*P.face < 560);
+        const tg = ahead.length && Math.random() < 0.75 ? ahead[(Math.random()*ahead.length)|0] : null;
+        const x = tg ? tg.x + rnd(-18, 18) : P.x + P.face*rnd(60, 520);
+        G.proj.push({kind:'icicle', x, y:(G.camY || 0) - 40, vx:rnd(-40, 40), vy:rnd(1300, 1600), g:600, dmg:20*FM(), pierce:2, hit:new Set(), life:1.2, kb:30, freeze:0.9, len:rnd(26, 40), stick:true});
+        if (F.n % 3 === 0) sfx('swish'); } } },
+  frost5:{ dur:1.5, pose:'strike', wind:0.28, start(P,F){ F.tick = 0; F.done5 = false; },
     update(P,dt,F){ P.vx *= 0.85;
-      if (F.t >= 0.3 && !F.hitOnce){ F.hitOnce = true;
-        for (const e of G.E){ if (e.dead) continue;
-          const frozen = e.frozenT > 0;
+      const view = G.E.filter(e => !e.dead && !e.remote && e.x > G.camX - 40 && e.x < G.camX + VW + 40);
+      if (F.t > 0.3 && F.t < 0.95){ F.tick -= dt;   // the blizzard freezes everyone in it, a few at a time
+        if (F.tick <= 0){ F.tick = 0.12; let n = 0;
+          for (const e of view){ if (e.frozenT > 1.2) continue; damageEnemy(e, 10*FM(), {kb:0, src:'form', freeze:3.0, quiet:n > 3, noStop:true}); n++; } } }
+      if (F.t >= 1.05 && !F.done5){ F.done5 = true;   // winter's end: every frozen body shatters
+        for (const e of view){ const frozen = e.frozenT > 0;
           damageEnemy(e, (frozen ? 150 : 55)*FM(), {kb:200, kbAway:true, heavy:true, src:'form', freeze: frozen ? 0 : 2.5, dir:sign(e.x-P.x)||1});
           if (frozen){ emit(e.x, e.y-40*e.size, {n:18, col:STYLE_FX.frost.cols, spd:420, size:5, life:0.8, kind:'star', g:1.4, real:true}); ringFx(e.x, e.y-40*e.size, 80, '#FFFFFF'); } }
-        flash('#FFFFFF', 0.35); G.shake = 16; G.hitstop = 0.12; ringFx(P.x, P.y-40, 300, '#DCF3FF', true);
+        flash('#FFFFFF', 0.4); G.shake = 16; G.hitstop = 0.12; ringFx(P.x, P.y-40, 300, '#DCF3FF', true);
         sfx('boom'); sfx('frost', 0.04); zoomPunch(1.08); vib(70); } } },
   /* ---- Shadow ---- */
   shadow1:{ dur:0.3, pose:'cast', start(P){
@@ -6383,7 +6394,7 @@ const FORM_MAP = {
             p0:{ h:[16,-24], th:-0.75, phi:0.2, lean:0.05, cr:3, pr:2, legs:FC_LEG.ready, off:[-2,-26] },
             up:(k) => ({ h:[16,-25], th:-0.8, phi:0.2, lean:0.05, cr:3 }),
             hit:(k) => ({ h:[18,-22], th:-0.45 + (k%2)*0.08, phi:0.2, lean:0.12, cr:4, pr:3 }) } },
-  frost5:{ c:'drive',  v:{ imp:0.3, two:true, x:16, y:-5, cr:14, legs:FC_LEG.kneel } },
+  frost5:{ c:'drive',  v:{ imp:0.3, two:true, x:16, y:-5, cr:14, legs:FC_LEG.kneel } },   // Eternal Winter: the blade stays in the ground while the blizzard blows
   /* Shadow: low, reversed, behind */
   shadow1:{ c:'vanish', v:{ keys:[ { pre:0.4, h:[11,-15], th:-0.4, phi:0.2, lean:0.1, cr:5, pr:0, legs:FC_LEG.ready, off:[-6,-8] },
                                    { t:0, h:[-3,-9], th:2.95, phi:0.25, lean:0.5, cr:13, pr:-2, legs:FC_LEG.low, off:[10,-8], imp:true },
@@ -8704,16 +8715,53 @@ function drawRock(x, y, r, rot, seed){
   ctx.beginPath(); ctx.moveTo(pts[1][0]*0.6, pts[1][1]*0.6); ctx.lineTo(0, r*0.1); ctx.lineTo(pts[5][0]*0.55, pts[5][1]*0.55); ctx.stroke();
   ctx.restore();
 }
-/* a stone spike bursting out of the ground and sinking back */
+/* a spike bursting out of the ground and sinking back: stone, or ice (h.ice) */
 function drawSpike(h){
   const age = h.max - h.life, up = Math.min(1, age/0.08), down = Math.min(1, h.life/0.18), k = up*down;
   if (k <= 0) return;
   const H = h.H*k, w = h.w, x = h.x, tipX = x + Math.sin(h.lean || 0)*H;
+  const C = h.ice ? ['rgba(95,168,216,0.82)', 'rgba(220,243,255,0.9)', '#1E4A6B'] : ['#5E4532', '#A58463', '#24170F'];
   ctx.save();
-  ctx.fillStyle = '#5E4532'; ctx.beginPath(); ctx.moveTo(x - w/2, GROUND + 2); ctx.lineTo(x - w*0.2, GROUND - H*0.55); ctx.lineTo(tipX, GROUND - H); ctx.lineTo(x + w*0.25, GROUND - H*0.5); ctx.lineTo(x + w/2, GROUND + 2); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#A58463'; ctx.beginPath(); ctx.moveTo(x - w*0.1, GROUND + 2); ctx.lineTo(x - w*0.2, GROUND - H*0.55); ctx.lineTo(tipX, GROUND - H); ctx.lineTo(x + w*0.05, GROUND - H*0.3); ctx.closePath(); ctx.fill();   // lit face
-  ctx.strokeStyle = '#24170F'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - w/2, GROUND + 2); ctx.lineTo(x - w*0.2, GROUND - H*0.55); ctx.lineTo(tipX, GROUND - H); ctx.lineTo(x + w*0.25, GROUND - H*0.5); ctx.lineTo(x + w/2, GROUND + 2); ctx.stroke();
+  if (h.pillar){   // a block of ice round a frozen body: wide, flat-topped, see-through
+    ctx.globalAlpha = 0.55*k; ctx.fillStyle = '#9FD3F0'; ctx.fillRect(x - w/2, GROUND - H, w, H);
+    ctx.globalAlpha = 0.8*k; ctx.strokeStyle = '#DCF3FF'; ctx.lineWidth = 2; ctx.strokeRect(x - w/2, GROUND - H, w, H);
+    ctx.beginPath(); ctx.moveTo(x - w*0.3, GROUND - H + 6); ctx.lineTo(x - w*0.1, GROUND - H*0.5); ctx.moveTo(x + w*0.2, GROUND - H + 10); ctx.lineTo(x + w*0.35, GROUND - H*0.3); ctx.stroke();
+    ctx.restore(); return; }
+  ctx.fillStyle = C[0]; ctx.beginPath(); ctx.moveTo(x - w/2, GROUND + 2); ctx.lineTo(x - w*0.2, GROUND - H*0.55); ctx.lineTo(tipX, GROUND - H); ctx.lineTo(x + w*0.25, GROUND - H*0.5); ctx.lineTo(x + w/2, GROUND + 2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = C[1]; ctx.beginPath(); ctx.moveTo(x - w*0.1, GROUND + 2); ctx.lineTo(x - w*0.2, GROUND - H*0.55); ctx.lineTo(tipX, GROUND - H); ctx.lineTo(x + w*0.05, GROUND - H*0.3); ctx.closePath(); ctx.fill();   // lit face
+  ctx.strokeStyle = C[2]; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - w/2, GROUND + 2); ctx.lineTo(x - w*0.2, GROUND - H*0.55); ctx.lineTo(tipX, GROUND - H); ctx.lineTo(x + w*0.25, GROUND - H*0.5); ctx.lineTo(x + w/2, GROUND + 2); ctx.stroke();
   ctx.restore();
+}
+/* Ice Fang: a crystal of ice hanging in the air along the cut; it grows, then shatters */
+function drawShard(h){
+  const age = h.max - h.life - (h.delay || 0); if (age < 0) return;
+  const g = Math.min(1, age/0.08), fade = Math.min(1, h.life/0.15), L = h.L*g, W = L*0.28;
+  if (h.life < 0.03 && !h.burst){ h.burst = true; emit(h.x, h.y, {n:6, col:STYLE_FX.frost.cols, spd:200, size:3, life:0.4, kind:'star', g:0.8}); }
+  ctx.save(); ctx.translate(h.x, h.y); ctx.rotate(h.a); ctx.globalAlpha = fade;
+  ctx.fillStyle = 'rgba(95,168,216,0.85)'; ctx.beginPath(); ctx.moveTo(-L*0.45, 0); ctx.lineTo(0, -W); ctx.lineTo(L*0.55, 0); ctx.lineTo(0, W); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(244,251,255,0.95)'; ctx.beginPath(); ctx.moveTo(-L*0.45, 0); ctx.lineTo(0, -W); ctx.lineTo(L*0.55, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#1E4A6B'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-L*0.45, 0); ctx.lineTo(0, -W); ctx.lineTo(L*0.55, 0); ctx.lineTo(0, W); ctx.closePath(); ctx.stroke();
+  ctx.restore();
+}
+/* an icicle in flight, point first */
+function drawIcicle(x, y, L, ang){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.fillStyle = 'rgba(95,168,216,0.9)'; ctx.beginPath(); ctx.moveTo(L*0.5, 0); ctx.lineTo(-L*0.5, -L*0.14); ctx.lineTo(-L*0.5, L*0.14); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#F4FBFF'; ctx.beginPath(); ctx.moveTo(L*0.5, 0); ctx.lineTo(-L*0.5, -L*0.14); ctx.lineTo(-L*0.45, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(220,243,255,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-L*0.5, 0); ctx.lineTo(-L*1.4, 0); ctx.stroke();   // a cold streak behind it
+  ctx.restore();
+}
+/* Eternal Winter: snow blowing hard across the whole screen, the world turning blue-white */
+function drawBlizzard(P){
+  const F = P.form, q = clamp((F.t - 0.25)/0.25, 0, 1)*(1 - clamp((F.t - 1.15)/0.3, 0, 1)), t = G.time;
+  if (q <= 0) return;
+  const x0 = G.camX - 60, y0 = (G.camY || 0) - 100;
+  ctx.save();
+  ctx.fillStyle = `rgba(200,230,250,${0.28*q})`; ctx.fillRect(x0, y0, VW + 120, VH + 400);
+  ctx.fillStyle = '#FFFFFF';
+  for (let k = 0; k < 140; k++){ const sp = 500 + (k % 7)*90, sx = x0 + (((k*97.3) + t*sp) % (VW + 120)), sy = y0 + 100 + ((k*53.7 + t*(80 + k % 5*30)) % (VH + 40)), r = 1 + (k % 4)*0.7;
+    ctx.globalAlpha = q*(0.5 + (k % 3)*0.2); ctx.fillRect(sx, sy, r*3, r); }
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 /* Granite Skin: plates of stone over the body */
 function drawGranite(P){
@@ -8813,6 +8861,7 @@ function drawCrescent(x,y,r,rot,col,alpha){
 function drawHazards(){
   for (const h of G.haz){
     if (h.kind === 'spike'){ drawSpike(h); continue; }
+    if (h.kind === 'shard'){ drawShard(h); continue; }
     const a = Math.min(1, h.life/0.4);
     if (h.kind==='fire'){
       if (!LOWFX){ ctx.globalCompositeOperation='lighter'; const fg = ctx.createRadialGradient(h.x, GROUND-6, 4, h.x, GROUND-6, 70); fg.addColorStop(0, `rgba(255,140,50,${0.22*a})`); fg.addColorStop(1, 'rgba(255,100,30,0)'); ctx.fillStyle = fg; ctx.fillRect(h.x-70, GROUND-50, 140, 70); ctx.globalCompositeOperation='source-over'; }
@@ -8924,6 +8973,7 @@ function drawProj(){
     } else {
       const f = sign(p.vx);
       if (p.xBlade){ drawXBlade(p.x, p.y, 26, f || 1, p.col); continue; }
+      if (p.kind === 'icicle'){ drawIcicle(p.x, p.y, p.len || 30, Math.atan2(p.vy, p.vx)); continue; }
       if (p.kind === 'rock' || p.kind === 'boulder'){
         if (p.streak){ ctx.save(); ctx.strokeStyle = 'rgba(229,211,188,0.45)'; ctx.lineWidth = p.r*0.9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x - p.vx*0.05, p.y - p.vy*0.05); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.restore(); }   // speed streak
         drawRock(p.x, p.y, p.r, p.rot || 0, p.seed || 1); continue; }
@@ -9281,6 +9331,7 @@ function renderScene(){
     // the wind cyclone: back half behind the body
     if (P.form && P.form.id==='gale2' && !P.form.wait) drawCyclone(P, false);
     if (P.form && P.form.id==='crescent5' && !P.form.wait) drawEclipse(P);
+    if (P.form && P.form.id==='frost5' && !P.form.wait) drawBlizzard(P);
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
     drawParts(true);
@@ -13061,7 +13112,7 @@ function step(dt){
     p.life -= pdt; if (p.g) p.vy += p.g*pdt; p.x += p.vx*pdt; p.y += p.vy*pdt;
     if (p.kind==='king'){ p.ph += pdt*9; p.y = GROUND - 62 + Math.sin(p.ph)*34; if (pdt>0) emit(p.x - sign(p.vx)*20, p.y, {n:2, col:STYLE_FX.serpent.cols, spd:60, size:4, life:0.45, kind:'mist', g:-0.2, jy:14}); }
     if ((p.kind==='rock' || p.kind==='boulder') && pdt>0) p.rot = (p.rot || 0) + (p.kind==='boulder' ? p.vx/p.r : (p.spin || 0))*pdt;
-    if (p.kind==='rock' && p.y > GROUND - p.r){ p.life = 0; emit(p.x, GROUND - 4, {n:5, col:STYLE_FX.stone.cols, spd:200, size:4, life:0.5, kind:'rock', g:1.8, vy:-140}); if (p.r > 13) G.shake = Math.max(G.shake, 3); }
+    if (p.kind==='rock' && p.y > GROUND - p.r){ p.life = 0; emit(p.x, GROUND - 4, {n:p.r > 20 ? 10 : 5, col:STYLE_FX.stone.cols, spd:p.r > 20 ? 300 : 200, size:p.r > 20 ? 6 : 4, life:0.5, kind:'rock', g:1.8, vy:-140}); if (p.r > 13) G.shake = Math.max(G.shake, p.r > 20 ? 6 : 3); if (p.r > 22){ cracks(p.x, 40, '#C9A27A'); if (Math.random() < 0.4) sfx('stone'); } }
     if (p.kind==='boulder' && pdt>0){
       if (p.y > GROUND - p.r){ p.y = GROUND - p.r; if (p.vy > 140){ p.vy = -p.vy*0.42; G.shake = Math.max(G.shake, 6); sfx('stone'); burst(p.x, GROUND-4, 8, '#C9A27A', 260, 4, true); } else p.vy = 0;
         p.vx *= Math.pow(0.82, pdt); p.roll += Math.abs(p.vx)*pdt;   // rolling: slow friction
@@ -13073,6 +13124,10 @@ function step(dt){
         emit(p.x, p.y, {n:22, col:STYLE_FX.stone.cols, spd:420, size:7, life:0.9, kind:'rock', g:1.8, vy:-260, real:true});
         G.shake = Math.max(G.shake, 10); sfx('boom'); sfx('stone', 0.04); cracks(p.x, 70, '#C9A27A'); }
     }
+    if (p.kind==='icicle'){
+      if (pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.frost.cols, spd:20, size:2.5, life:0.3, kind:'star', g:0});
+      if (p.y > GROUND - 10){ p.life = 0; emit(p.x, GROUND - 4, {n:7, col:STYLE_FX.frost.cols, spd:220, size:3.5, life:0.5, kind:'star', g:1.2, vy:-120});
+        if (p.stick) G.haz.push({kind:'spike', ice:true, x:p.x, w:10, H:p.len*0.9, life:0.8, max:0.8, tick:99, every:99, dmg:0, lean:Math.atan2(p.vx, p.vy)*0.5}); } }   // it stays stuck in the ground a moment
     if (p.kind==='moonlet' && pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.crescent.cols, spd:20, size:2.5, life:0.3, kind:'star', g:0});
     if (p.kind==='venom' && pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.serpent.cols, spd:30, size:3, life:0.35, kind:'drop', g:0.4});
     if (p.kind==='wind' && pdt>0 && Math.random()<0.7) emit(p.x, p.y, {n:1, col:p.serpent?['#FF7A2A','#FFE14D']:['#9EF0B8','#FFFFFF'], spd:30, size:p.serpent?4:2, life:p.serpent?0.4:0.25, kind:p.serpent?'ember':'streak', g:0, vx:-p.vx*0.3});
@@ -13100,7 +13155,7 @@ function step(dt){
           if (p.boom){ p.life = 0; p.pierce = 0; shellBoom(p, e.x, e.y-36*e.size); break; }
           if (p.chain){ let k = 0; for (const o of nearestEnemies(e.x, 260)){ if (o === e || o.vanish) continue; if (k++ >= p.chain) break; bolt(e.x, e.y-36*e.size, o.x, o.y-36*o.size); damageEnemy(o, p.dmg*0.6, {kb:80, src:'proj', quiet:true, stun:0.25, dir:sign(o.x-e.x)||1}); emit(o.x, o.y-36*o.size, {n:6, col:STYLE_FX.storm.cols, spd:360, size:2.5, life:0.3, kind:'spark', g:0}); } if (k) sfx('zap'); } }
         if (p.kind==='water'){ if (FXL() > 0) emit(p.x, p.y, { n:4, col:['#0A2A5C','#2C7BD6','#F4FBFF'], spd:180, size:2.6, life:0.35, kind:'drop', g:1.2 }); }
-        damageEnemy(e, p.dmg, {kb:p.kb || (p.kind==='kunai'?60:160), src:(p.kind==='kunai'||p.kind==='bullet')?'proj':'form', dir:sign(p.vx), burn:p.burn||0, freeze:p.freeze||0, poison:p.poison||0, heavy:!!p.big || !!p.gunHeavy, launch:p.big?380:0, guardBreak:!!p.guardBreak, breakArmor:p.breakArmor||0, unblockable:!!p.gunHeavy});
+        damageEnemy(e, p.dmg, {kb:p.kb || (p.kind==='kunai'?60:160), src:(p.kind==='kunai'||p.kind==='bullet')?'proj':'form', dir:sign(p.vx), burn:p.burn||0, freeze:p.freeze||0, poison:p.poison||0, heavy:!!p.big || !!p.gunHeavy, launch:(p.big && !p.noLaunch)?380:0, guardBreak:!!p.guardBreak, breakArmor:p.breakArmor||0, unblockable:!!p.gunHeavy});
       }
     }
     if (p.pierce <= 0 || p.x < 0 || p.x > G.worldW) p.life = 0;
