@@ -1468,10 +1468,10 @@ const FORM_CHOREO = {
   stone4:{ t:'windDraw' },                                               // Boulder Hurl: the clip does the lift and the throw
   stone5:{ t:'heavyFall' },                                              // Mountain Fall: overhead going up, the whole mountain coming down
   /* Frost: iaido. Almost nothing moves, then one clean line, then stillness */
-  frost1:{ t:'keys', k:[[0,1.2,2.9,8,0.2],[0.22,0.0,0.0,9,0.45],[0.5,-0.4,-0.6,8,0.4],[1,-0.3,-0.5,8,0.35]] },                      // Frost Edge: a draw cut out of the scabbard, then frozen
-  frost2:{ t:'keys', two:true, legs:'kneel', k:[[0,-1.2,1.57,6,0],[0.5,1.0,1.57,18,0.2],[1,1.0,1.57,18,0.2]] },                     // Glacier: kneel and set the blade in the ground
-  frost3:{ t:'keys', k:[[0,-0.9,-1.57,2,0],[1,-0.9,-1.57,2,0]], still:true },                                                     // Absolute Zero: blade upright before the face, not a breath of movement
-  frost4:{ t:'keys', k:[[0,0.5,0.2,3,0],[0.3,-1.57,-1.57,0,-0.1],[0.75,-1.57,-1.57,0,-0.1],[0.9,-0.2,-0.1,4,0.3],[1,-0.2,-0.1,4,0.3]] },   // Icicle Storm: point at the sky, then at them
+  frost1:{ t:'windDraw' },
+  frost2:{ t:'windDraw' },
+  frost3:{ t:'windDraw' },
+  frost4:{ t:'windDraw' },
   frost5:{ t:'keys', two:true, legs:'kneel', k:[[0,-1.5,1.57,6,0,8],[0.45,1.1,1.57,18,0.3],[1,1.1,1.57,18,0.3]] },                  // Permafrost: down on one knee, the blade plunged in
   /* Shadow: ninjutsu. Low, reversed blade, there and gone */
   shadow1:{ t:'keys', k:[[0,0.9,2.8,16,0.75],[0.8,0.9,2.8,16,0.75],[1,0.6,2.5,10,0.5]] },                                           // Vanishing Step: almost lying on the ground, blade reversed along the arm
@@ -4864,7 +4864,7 @@ const FORM_DESC = {
   gale1:'Two crossing cuts throw an X of wind that pierces the line. It cuts arrows out of the air on its way.', gale2:'Cyclone: you spin so fast with the blade that a whirlwind forms. Everyone near is sucked in, whirled round and cut again and again, then thrown out.', gale3:'Sky Rend: the blade comes from behind your back, over your head and down in front, and throws three blades of wind.', gale4:'Gale Rush: you become the wind and shoot straight through the line. A heartbeat later everyone you passed is cut to pieces at once.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
   crescent1:'Crescent Slash: one rising crescent cut that breaks into five small moon blades fanning out ahead.', crescent2:'Moonlit Dance: three gliding steps forward, a crescent cut on each, every one leaving a small moon that keeps cutting.', crescent3:'Full Moon Ring: the blade draws a full moon round you; it bursts outward, throwing everyone back and scattering eight moon blades in every direction.', crescent4:'Lunar Descent: leap high and fall like the moon. The landing cuts everyone near and sends two great crescents racing along the ground.', crescent5:'Thousand Moons: night falls, a great full moon rises behind you and rains crescent blades on every enemy on screen, then one cut crosses the whole screen.',
   stone1:'Boulder Crusher: a heavy step and a two-handed blow that breaks armour and knocks them flat. A heartbeat later the ground ahead erupts in a fan of boulders and a shockwave.', stone2:'Earth Splitter: drive the blade into the ground; a crack races ahead and stone spikes burst up along it, pinning everyone in place.', stone3:'Granite Skin: for 6 s your body is covered in stone. Half damage, no flinching, and whoever hits you is hurt and stunned.', stone4:'Boulder Hurl: tear a huge boulder out of the ground, lift it overhead and throw it. It bounces, then rolls a long way through the whole line before it shatters.', stone5:'Falling Mountain: leap and bring a mountain down with you. It bursts over your head and great boulders fall from the sky on every enemy in sight.',
-  frost1:'Ice Fang: a fast draw cut; a row of ice shards grows out along its path and freezes whoever it touches.', frost2:'Frozen Lotus: plant the blade and an ice lotus blooms round you, freezing everyone near; then its petals fly off as icicles.', frost3:'Absolute Zero: the cold spreads 7 m around you. Everyone freezes solid inside a pillar of ice for 2 s and takes 50% more.', frost4:'Icicle Rain: point the blade at the sky and icicles rain down on the enemies ahead, pinning and freezing them.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
+  frost1:'Ice Fang: crouch, lunge and cut. Then fangs of ice come down from above and up from the ground and bite shut on everyone ahead.', frost2:'Frozen Lotus: hop up and plant the blade. A great ice lotus blooms round you and freezes everyone near, then its petals break off and fly as icicles.', frost3:'Absolute Zero: raise the blade, then lower it slowly. Frost spreads along the ground for 7 m and everyone it reaches freezes inside a pillar of ice.', frost4:'Icicle Rain: thrust the blade at the sky, then point it at them. A sweeping line of icicles rains down, pinning and freezing everyone ahead.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
   shadow1:'Vanishing Step: disappear for 2 s. Your next slash is an Ambush for double damage.', shadow2:'Shadow Bind: roots enemies to the ground with their own shadows.', shadow3:'Dance of Shades: a flurry of cuts that always lands from behind.', shadow4:'Umbral Chains: chain every enemy in range to the ground, then cut them.', shadow5:'Night Execution: teleport behind each enemy in turn and strike.',
   blood1:'Crimson Cut: costs health, not breath. The lower your health, the harder it hits.', blood2:'Blood Mist: for 5 s, bleeding enemies around you feed you health.', blood3:'Red Lotus: a bloom of blades around you that makes everyone bleed.', blood4:'Scarlet Chains: pull enemies in and drain them.', blood5:'Final Offering: spend most of your health for one enormous strike. A kill gives 50 back.',
   sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
@@ -5207,36 +5207,54 @@ const FORMS = {
         else F.done = true;
       } } },
   /* ---- Frost ---- */
-  frost1:{ dur:0.45, pose:'swipe', update(P,dt,F){ if (F.t>=0.1 && !F.hitOnce){ F.hitOnce = true;   // the cut, and a row of ice shards grows out along it
-      for (let k = 0; k < 5; k++) G.haz.push({kind:'shard', x:P.x + P.face*(55 + k*48), y:P.y - 42 + rnd(-8, 8), a:(P.face > 0 ? 0 : Math.PI) + rnd(-0.35, 0.35), L:rnd(34, 48) - k*2, delay:k*0.035, life:0.75 + k*0.035, max:0.75 + k*0.035, tick:99, every:99, dmg:0});
-      areaHit(P.x+P.face*150, P.y-40, 135, 40, 30*FM(), {kb:40, src:'form', freeze:1.5}, F.set, 4);
-      emit(P.x+P.face*60, P.y-40, {n:14, col:STYLE_FX.frost.cols, spd:300, size:4, life:0.6, kind:'star', g:0.4});
-      sfx('frost'); vib(25); } } },
-  frost2:{ dur:0.65, pose:'cast', update(P,dt,F){ P.vx *= 0.8;
-      if (F.t >= 0.12 && !F.bloom){ F.bloom = true;   // the lotus blooms: ice petals rise in a ring
-        for (const d of [-170, -125, -80, -40, 40, 80, 125, 170]) G.haz.push({kind:'spike', ice:true, x:P.x + d, w:rnd(20, 28), H:rnd(70, 100) - Math.abs(d)*0.2, life:0.6, max:0.6, tick:99, every:99, dmg:0, lean:sign(d)*(0.35 + Math.abs(d)/400)});
-        for (const e of G.E){ if (e.dead || e.remote || !sameLayer(e)) continue; if (Math.abs(e.x - P.x) < 185 && Math.abs(e.y - P.y) < 120) damageEnemy(e, 30*FM(), {kb:0, src:'form', freeze:1.6}); }
+  frost1:{ dur:0.55, pose:'swipe', update(P,dt,F){
+      if (F.t < 0.08) P.vx = 0;
+      else if (F.t < 0.18){ P.vx = P.face*1100;   // the lunge, cutting through whoever is in the way
+        areaHit(P.x + P.face*20, P.y-40, 50, 50, 14*FM(), {kb:20, src:'form'}, F.set);
+        if (Math.random() < 0.8) emit(P.x - P.face*20, P.y - rnd(10, 60), {n:1, col:STYLE_FX.frost.cols, spd:40, size:3, life:0.4, kind:'star', g:0}); }
+      else P.vx *= Math.pow(0.001, dt);
+      if (F.t >= 0.2 && !F.bite){ F.bite = true; const cx = P.x + P.face*85;   // the fangs: ice comes down from above and up from below and bites shut
+        for (let k = 0; k < 5; k++){ const x = cx + P.face*(k*34 - 50);
+          G.haz.push({kind:'shard', x, y:P.y - 96, a:Math.PI/2 + rnd(-0.12, 0.12), L:rnd(42, 52), delay:k*0.02, life:0.6 + k*0.02, max:0.6 + k*0.02, tick:99, every:99, dmg:0});
+          G.haz.push({kind:'spike', ice:true, x, w:rnd(16, 22), H:rnd(48, 60), life:0.6, max:0.6, tick:99, every:99, dmg:0, lean:rnd(-0.1, 0.1)}); }
+        F.bit = new Set(); areaHit(cx, P.y-45, 115, 60, 40*FM(), {kb:30, src:'form', freeze:1.6}, F.bit);
+        emit(cx, P.y-45, {n:22, col:STYLE_FX.frost.cols, spd:320, size:4, life:0.6, kind:'star', g:0.4});
+        G.shake = Math.max(G.shake, 7); sfx('frost'); sfx('swish'); vib(30); } } },
+  frost2:{ dur:0.95, pose:'cast', start(P,F){ if (P.onG){ P.vy = -380; P.onG = false; } },
+    update(P,dt,F){ P.vx *= 0.8;
+      if (F.t >= 0.12 && (P.onG || F.t > 0.45) && !F.bloom){ F.bloom = true; F.lotus = { x:P.x, t0:F.t }; F.fly0 = F.t + 0.32;   // lands, plants the blade, the lotus blooms   // the blade goes in and an ice lotus blooms round it
+        for (const d of [-170, -125, -80, -40, 40, 80, 125, 170]) G.haz.push({kind:'spike', ice:true, x:P.x + d, w:rnd(20, 28), H:rnd(70, 100) - Math.abs(d)*0.2, life:0.55, max:0.55, tick:99, every:99, dmg:0, lean:sign(d)*(0.35 + Math.abs(d)/400)});
+        for (const e of G.E){ if (e.dead || e.remote || !sameLayer(e)) continue; if (Math.abs(e.x - P.x) < 185 && Math.abs(e.y - P.y) < 120) damageEnemy(e, 32*FM(), {kb:0, src:'form', freeze:1.8}); }
         ringFx(P.x, GROUND, 190, '#DCF3FF', true); emit(P.x, GROUND - 20, {n:24, col:STYLE_FX.frost.cols, spd:320, size:4, life:0.8, kind:'star', g:0.3});
-        sfx('frost'); vib(35); }
-      if (F.t >= 0.42 && !F.fly){ F.fly = true;   // and the petals break off and fly
-        for (const d of [-1, 1]) for (const a of [0.25, 0.6, 0.95]) G.proj.push({kind:'icicle', x:P.x + d*60, y:P.y - 40, vx:d*Math.cos(a)*720, vy:-Math.sin(a)*720, g:900, dmg:18*FM(), pierce:2, hit:new Set(), life:1.2, kb:60, freeze:0.8, len:26});
-        sfx('swish'); } } },
-  frost3:{ dur:0.6, pose:'cast', start(P,F){
-      let n = 0;
-      for (const e of G.E){ if (e.dead || e.remote) continue; if (Math.abs(e.x - P.x) > 420 || Math.abs(e.y - P.y) > 220) continue;
-        damageEnemy(e, 25*FM(), {kb:0, src:'form', freeze:2.0, quiet:n>4}); n++;
-        G.haz.push({kind:'spike', ice:true, x:e.x, w:44*(e.size || 1), H:92*(e.size || 1), life:2.0, max:2.0, tick:99, every:99, dmg:0, lean:0, pillar:true}); }   // a pillar of ice closes round each of them
-      flash('#DCF3FF', 0.45); ringFx(P.x, P.y-40, 420, '#9FD3F0', true); ringFx(P.x, GROUND, 420, '#DCF3FF', true); G.hitstop = 0.1;
-      emit(P.x, P.y-40, {n:30, col:STYLE_FX.frost.cols, spd:420, size:5, life:1, kind:'star', g:0.3});
-      sfx('frost'); sfx('boom', 0.05); vib(60); }, update(P){ P.vx *= 0.85; } },
-  frost4:{ dur:1.0, pose:'cast', start(P,F){ F.tick = 0; F.n = 0; },
-    update(P,dt,F){ P.vx *= 0.88; F.tick -= dt;
-      if (F.t > 0.2 && F.t < 0.85 && F.tick <= 0){ F.tick = 0.045; F.n++;   // icicles rain on the enemies ahead
-        const ahead = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*P.face > 20 && (e.x - P.x)*P.face < 560);
-        const tg = ahead.length && Math.random() < 0.75 ? ahead[(Math.random()*ahead.length)|0] : null;
-        const x = tg ? tg.x + rnd(-18, 18) : P.x + P.face*rnd(60, 520);
-        G.proj.push({kind:'icicle', x, y:(G.camY || 0) - 40, vx:rnd(-40, 40), vy:rnd(1300, 1600), g:600, dmg:20*FM(), pierce:2, hit:new Set(), life:1.2, kb:30, freeze:0.9, len:rnd(26, 40), stick:true});
-        if (F.n % 3 === 0) sfx('swish'); } } },
+        G.shake = Math.max(G.shake, 8); sfx('frost'); vib(35); }
+      if (F.bloom && F.t >= F.fly0 && !F.fly){ F.fly = true;   // the petals break off and fly as icicles
+        const lx = F.lotus ? F.lotus.x : P.x;
+        for (const d of [-1, 1]) for (const a of [0.2, 0.55, 0.9, 1.2]) G.proj.push({kind:'icicle', x:lx + d*30, y:GROUND - 50, vx:d*Math.cos(a)*760, vy:-Math.sin(a)*760, g:900, dmg:18*FM(), pierce:2, hit:new Set(), life:1.2, kb:60, freeze:0.8, len:28});
+        emit(lx, GROUND - 50, {n:20, col:STYLE_FX.frost.cols, spd:360, size:4, life:0.6, kind:'star', g:0.6}); sfx('swish'); sfx('frost', 0.03); } } },
+  frost3:{ dur:0.9, pose:'cast', start(P,F){ F.r = 0; F.got = new Set(); flash('#DCF3FF', 0.3); sfx('frost'); vib(40); },
+    update(P,dt,F){ P.vx *= 0.85;
+      if (F.t > 0.1){ F.r = Math.min(430, F.r + 900*dt);   // the cold spreads out along the ground; everything it reaches freezes
+        let n = 0;
+        for (const e of G.E){ if (e.dead || e.remote || F.got.has(e)) continue;
+          if (Math.abs(e.x - P.x) > F.r || Math.abs(e.y - P.y) > 220) continue;
+          F.got.add(e); damageEnemy(e, 25*FM(), {kb:0, src:'form', freeze:2.0, quiet:n > 3, noStop:true}); n++;
+          G.haz.push({kind:'spike', ice:true, x:e.x, w:44*(e.size || 1), H:92*(e.size || 1), life:2.0, max:2.0, tick:99, every:99, dmg:0, lean:0, pillar:true});
+          emit(e.x, e.y - 40*(e.size || 1), {n:8, col:STYLE_FX.frost.cols, spd:200, size:4, life:0.6, kind:'star', g:0.2}); }
+        if (n) sfx('frost', 0.02); } } },
+  frost4:{ dur:1.05, pose:'cast', start(P,F){ F.tick = 0; F.n = 0; sfx('frost'); },
+    update(P,dt,F){ P.vx *= 0.88;
+      if (F.t > 0.32 && F.t < 0.92){ F.tick -= dt;   // the icicles come down in a line that sweeps away from you
+        if (F.tick <= 0){ F.tick = 0.03; F.n++;
+          const u = (F.t - 0.32)/0.6, bx = P.x + P.face*(80 + u*480);
+          const near = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - bx) < 90);
+          F.aimed = F.aimed || new Set();
+          const fresh = near.find(e => !F.aimed.has(e));   // everyone the line passes gets at least one icicle of their own
+          const tg = fresh || (near.length && Math.random() < 0.7 ? near[(Math.random()*near.length)|0] : null);
+          if (tg) F.aimed.add(tg);
+          const top = (G.camY || 0) - 40, vy0 = rnd(1500, 1700), fall = Math.max(0.05, ((tg ? tg.y - 40 : GROUND - 40) - top)/vy0);
+          const x = tg ? tg.x + (tg.vx || 0)*fall + rnd(-8, 8) : bx + rnd(-45, 45);   // aimed where they will be when it lands
+          G.proj.push({kind:'icicle', x, y:top, vx:0, vy:vy0, g:600, dmg:18*FM(), pierce:2, hit:new Set(), life:1.2, kb:20, freeze:0.9, len:rnd(28, 44), stick:true});
+          if (F.n % 3 === 0) sfx('swish'); } } } },
   frost5:{ dur:1.5, pose:'strike', wind:0.28, start(P,F){ F.tick = 0; F.done5 = false; },
     update(P,dt,F){ P.vx *= 0.85;
       const view = G.E.filter(e => !e.dead && !e.remote && e.x > G.camX - 40 && e.x < G.camX + VW + 40);
@@ -6385,15 +6403,29 @@ const FORM_MAP = {
     { t:0.55, h:[18,-8], th:1.0, phi:0.2, lean:0.3, cr:11 } ] } },
   stone5:{ c:'plunge',   v:{ two:true, dh:[12,-10], dth:1.57 } },
   /* Frost: precise, low, still */
-  frost1:{ c:'wave',   v:{ imp:0.1, cut:'yoko', phi:1.25, dy:6, cr:11, legs:FC_LEG.low } },
-  frost2:{ c:'drive',  v:{ imp:0, x:19, y:-8, thD:1.1, cr:8, legs:FC_LEG.lunge } },
-  frost3:{ c:'invoke', v:{ keys:[ { pre:0.55, h:[6,-6], th:2.1, phi:0.2, lean:0.05, cr:8, pr:-3, legs:FC_LEG.deep, off:[-6,-12], two:true },
-                                   { t:0, h:[13,-25], th:-1.57, lean:-0.05, cr:4, pr:0, legs:FC_LEG.ready, imp:true },
-                                   { t:0.45, h:[13,-24], th:-1.55 } ] } },
-  frost4:{ c:'barrage', v:{ n:8, dt:0.09,
-            p0:{ h:[16,-24], th:-0.75, phi:0.2, lean:0.05, cr:3, pr:2, legs:FC_LEG.ready, off:[-2,-26] },
-            up:(k) => ({ h:[16,-25], th:-0.8, phi:0.2, lean:0.05, cr:3 }),
-            hit:(k) => ({ h:[18,-22], th:-0.45 + (k%2)*0.08, phi:0.2, lean:0.12, cr:4, pr:3 }) } },
+  frost1:{ c:'invoke', v:{ keys:[   // Ice Fang: crouched with the blade low behind, a lunge, a flat draw cut across
+    { pre:0.55, h:[-6,-6], th:2.7, phi:0.3, lean:0.35, cr:14, pr:-2, legs:FC_LEG.deep, off:[-4,-12] },
+    { t:0.08, h:[-8,-8], th:2.8, phi:0.3, lean:0.5, cr:12, legs:FC_LEG.lunge },
+    { t:0.15, h:[22,-16], th:0.0, phi:1.2, lean:0.55, cr:10, pr:5, imp:true },
+    { t:0.22, h:[18,-26], th:-0.9, phi:1.2, lean:0.35, cr:8 },
+    { t:0.42, h:[16,-24], th:-0.8, phi:1.0, lean:0.3, cr:8 } ] } },
+  frost2:{ c:'invoke', v:{ keys:[   // Frozen Lotus: a hop with the blade raised, then planted point-first, down on one knee
+    { pre:0.5, h:[10,-34], th:-1.57, phi:0.2, lean:-0.05, cr:3, pr:-2, legs:FC_LEG.ready, off:[-6,-16], two:true },
+    { t:0.1, h:[12,-36], th:-1.65, phi:0.2, lean:-0.1, cr:2 },
+    { t:0.17, h:[16,-4], th:1.5, phi:0.2, lean:0.3, cr:16, pr:4, legs:FC_LEG.kneel, imp:true },
+    { t:0.62, h:[16,-4], th:1.5, phi:0.2, lean:0.28, cr:16 } ] } },
+  frost3:{ c:'invoke', v:{ keys:[   // Absolute Zero: blade upright before the face, then lowered slowly to the ground as the cold spreads
+    { pre:0.55, h:[6,-6], th:2.1, phi:0.2, lean:0.05, cr:8, pr:-3, legs:FC_LEG.deep, off:[-6,-12], two:true },
+    { t:0, h:[13,-27], th:-1.57, phi:0.2, lean:-0.05, cr:4, pr:0, legs:FC_LEG.ready, imp:true },
+    { t:0.12, h:[13,-27], th:-1.55, phi:0.2 },
+    { t:0.6, h:[17,-6], th:1.45, phi:0.2, lean:0.2, cr:10, legs:FC_LEG.deep },
+    { t:0.82, h:[17,-6], th:1.45, phi:0.2, lean:0.2, cr:10 } ] } },
+  frost4:{ c:'invoke', v:{ keys:[   // Icicle Rain: thrust the blade at the sky, hold it there, then bring it down to point at them
+    { pre:0.5, h:[14,-20], th:-0.6, phi:0.2, lean:0.05, cr:4, pr:0, legs:FC_LEG.ready, off:[-6,-16] },
+    { t:0.05, h:[11,-38], th:-1.57, phi:0.2, lean:-0.12, cr:0, imp:true },
+    { t:0.3, h:[11,-38], th:-1.57, phi:0.2, lean:-0.12, cr:0 },
+    { t:0.42, h:[20,-26], th:-0.55, phi:0.2, lean:0.15, cr:3, imp:true },
+    { t:0.95, h:[21,-20], th:-0.2, phi:0.2, lean:0.2, cr:4 } ] } },
   frost5:{ c:'drive',  v:{ imp:0.3, two:true, x:16, y:-5, cr:14, legs:FC_LEG.kneel } },   // Eternal Winter: the blade stays in the ground while the blizzard blows
   /* Shadow: low, reversed, behind */
   shadow1:{ c:'vanish', v:{ keys:[ { pre:0.4, h:[11,-15], th:-0.4, phi:0.2, lean:0.1, cr:5, pr:0, legs:FC_LEG.ready, off:[-6,-8] },
@@ -8751,6 +8783,34 @@ function drawIcicle(x, y, L, ang){
   ctx.strokeStyle = 'rgba(220,243,255,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-L*0.5, 0); ctx.lineTo(-L*1.4, 0); ctx.stroke();   // a cold streak behind it
   ctx.restore();
 }
+/* Blizzard Breathing forms 2-4: the ice lotus, the frost spreading on the ground, the beam of cold to the sky */
+function drawFrostForm(P){
+  const F = P.form; ctx.save();
+  if (F.id === 'frost2' && F.lotus){
+    const age = F.t - F.lotus.t0, g = FC_EASE(Math.min(1, age/0.18)), fade = 1 - clamp((age - 0.32)/0.08, 0, 1);
+    if (fade > 0){ const x = F.lotus.x, y = GROUND - 4;
+      for (let layer = 0; layer < 3; layer++){ const n = [9, 7, 5][layer], L = [120, 88, 56][layer]*g, Wd = [26, 22, 16][layer]*g, spread = [0.3, 0.34, 0.4][layer];
+        for (let i = 0; i < n; i++){ const a = -Math.PI/2 + (i - (n - 1)/2)*spread;
+          ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(L*0.45, -Wd, L, 0); ctx.quadraticCurveTo(L*0.45, Wd, 0, 0);   // a pointed petal
+          ctx.globalAlpha = 0.75*fade; ctx.fillStyle = ['#5FA8D8', '#9FD3F0', '#E8F7FF'][layer]; ctx.fill();
+          ctx.globalAlpha = 0.95*fade; ctx.strokeStyle = '#F4FBFF'; ctx.lineWidth = 1.5; ctx.stroke();
+          ctx.globalAlpha = 0.5*fade; ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(L*0.85, 0); ctx.stroke();   // the vein
+          ctx.restore(); } } } }
+  if (F.id === 'frost3' && F.r > 0){
+    const r = F.r, q = 1 - clamp((F.t - 0.75)/0.15, 0, 1);
+    ctx.globalAlpha = 0.55*q; ctx.fillStyle = '#BFE6FA'; ctx.fillRect(P.x - r, GROUND - 3, r*2, 9);   // a skin of frost on the ground
+    ctx.fillStyle = '#F4FBFF';
+    for (let x = P.x - r + 8; x < P.x + r - 8; x += 18){ const h = 5 + ((x*7.31) % 7); ctx.beginPath(); ctx.moveTo(x - 4, GROUND - 1); ctx.lineTo(x, GROUND - 1 - h); ctx.lineTo(x + 4, GROUND - 1); ctx.fill(); }   // little crystals
+    for (const d of [-1, 1]){ const ex = P.x + d*r, g = ctx.createLinearGradient(0, GROUND, 0, GROUND - 80);   // the cold front: a wall of mist at each edge
+      g.addColorStop(0, `rgba(220,243,255,${0.6*q})`); g.addColorStop(1, 'rgba(220,243,255,0)'); ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(ex - 10, GROUND - 80, 20, 82); } }
+  if (F.id === 'frost4' && F.t < 0.42){
+    const q = Math.min(1, F.t/0.08)*(1 - clamp((F.t - 0.32)/0.1, 0, 1)), tip = formBladeTip(P), top = (G.camY || 0) - 50;
+    const g = ctx.createLinearGradient(tip[0] - 22, 0, tip[0] + 22, 0); g.addColorStop(0, 'rgba(159,211,240,0)'); g.addColorStop(0.5, `rgba(244,251,255,${0.85*q})`); g.addColorStop(1, 'rgba(159,211,240,0)');
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(tip[0] - 22, top, 44, tip[1] - top);   // a beam of cold straight up into the sky
+    ctx.globalAlpha = 0.5*q; ctx.fillStyle = '#DCF3FF'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 12, 0, 6.283); ctx.fill(); }
+  ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
 /* Eternal Winter: snow blowing hard across the whole screen, the world turning blue-white */
 function drawBlizzard(P){
   const F = P.form, q = clamp((F.t - 0.25)/0.25, 0, 1)*(1 - clamp((F.t - 1.15)/0.3, 0, 1)), t = G.time;
@@ -9332,6 +9392,7 @@ function renderScene(){
     if (P.form && P.form.id==='gale2' && !P.form.wait) drawCyclone(P, false);
     if (P.form && P.form.id==='crescent5' && !P.form.wait) drawEclipse(P);
     if (P.form && P.form.id==='frost5' && !P.form.wait) drawBlizzard(P);
+    if (P.form && !P.form.wait && (P.form.id==='frost2' || P.form.id==='frost3' || P.form.id==='frost4')) drawFrostForm(P);
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
     drawParts(true);
