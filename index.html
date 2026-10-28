@@ -1186,9 +1186,9 @@ const STYLES = {
   storm:   { name:'Storm Breathing',    col:'#FFE14D', price:800,  pass:'Move speed +10%',
              forms:[['Flash Step',30],['Chain Bolt',50],['Thunder Fall',55],['Static Field',55],["Heaven's Judgement",85]],
              desc:'Lightning style. Teleport straight through enemies and chain between them.' },
-  gale:    { name:'Typhoon Breathing',     col:'#9EF0B8', price:700,  pass:'Jump 18% higher',
-             forms:[['Wind Blade',25],['Cyclone',45],['Sky Rend',45],['Updraft',50],['Tempest',80]],
-             desc:'Typhoon style. A cross-shaped wind blade, piercing ranged blades, a cyclone that drags enemies in and lifts them, and blades that cut arrows out of the air.' },
+  gale:    { name:'Wind Breathing',     col:'#9EF0B8', price:700,  pass:'Jump 18% higher',
+             forms:[['Wind Blade',25],['Cyclone',45],['Sky Rend',45],['Gale Rush',50],['Tempest',80]],
+             desc:'Wind style. A cross-shaped wind blade, a cyclone of blades that sucks enemies in and cuts them to pieces, piercing ranged blades, a cyclone that drags enemies in and lifts them, and blades that cut arrows out of the air.' },
   crescent:{ name:'Crescent Breathing', col:'#C9A8FF', price:1000, unlock:10, pass:'Your slashes cut one extra enemy',
              forms:[['Moon Arc',30],['Twin Moons',45],['Full Moon Cage',60],['Moonfall',60],['Lunar Eclipse',85]],
              desc:'Moon style. Crescents linger in the air and keep cutting.' },
@@ -1454,7 +1454,7 @@ const FORM_CHOREO = {
   /* Storm: tai chi sword and iai. Still, then sudden straight lines (kept as tuned) */
   storm1:{ t:'zanshin' }, storm2:{ t:'chainHop' }, storm3:{ t:'thunderFall' }, storm4:{ t:'absorb' }, storm5:{ t:'judgement' },
   /* Gale: Bagua. Light on the toes, turning on the spot, the blade flat */
-  gale1:{ t:'windDraw' }, gale2:{ t:'cyclone', n:3, d:1 }, gale3:{ t:'spinCut', d:1 }, gale4:{ t:'drillUp', n:2.5 }, gale5:{ t:'flourish' },
+  gale1:{ t:'windDraw' }, gale2:{ t:'cyclone', n:9, d:1 }, gale3:{ t:'windDraw' }, gale4:{ t:'windDraw' }, gale5:{ t:'flourish' },
   /* Crescent: graceful arcs, the back bends like the moon */
   crescent1:{ t:'keys', k:[[0,1.6,2.4,6,0.2],[0.45,-1.4,-1.95,2,-0.38],[0.8,0.5,1.0,6,0.3],[1,0.4,0.9,5,0.25]] },                  // Moon Arc: one great crescent from low behind, over, to the front
   crescent2:{ t:'keys', k:[[0,1.3,1.8,5,0.2],[0.3,-1.4,-2.2,2,-0.32],[0.55,1.0,1.6,6,0.35],[0.8,-1.0,-1.8,3,-0.22],[1,0.2,0.2,4,0.2]] },   // Twin Moons: up, down, up
@@ -4214,7 +4214,7 @@ function damageEnemy(e, dmg, o){
   e.shakeAmp = 3 + 7*W;
   // bullets land many times a second: they must not freeze or shake the game the way a sword blow does
   const shot = o.src === 'proj';
-  if (!o.fist) G.hitstop = Math.max(G.hitstop, (o.src === 'slash' || o.src === 'form') ? (0.025 + 0.11*W) : shot ? ((o.heavy && G.time - (G.shotStopT ?? -9) > 0.3) ? (G.shotStopT = G.time, 0.025) : 0) : 0.02 + 0.05*W);
+  if (!o.fist && !o.noStop) G.hitstop = Math.max(G.hitstop, (o.src === 'slash' || o.src === 'form') ? (0.025 + 0.11*W) : shot ? ((o.heavy && G.time - (G.shotStopT ?? -9) > 0.3) ? (G.shotStopT = G.time, 0.025) : 0) : 0.02 + 0.05*W);
   if (!o.fist){ G.shake = Math.max(G.shake, shot ? 1.5 + 4*W : 3 + 13*W);
   if (W > 0.45 && !shot) zoomPunch(1 + 0.05*W); }
   if (shot) e.freezeT = Math.min(e.freezeT, 0.05);
@@ -4836,6 +4836,7 @@ function tryForm(i){
   P.atk = null; P.blockT = -1; P.dashT = 0; P.queued = false;
   const id = sid + (i+1);
   if (G.mode !== 'duel' && !SV.set.noFormCards && !SV.seenForms.includes(id)){ SV.seenForms.push(id); save(); showFormIntro(st, i, id); }
+  P.sheath = null;   // a form always fights with the sword in hand, even if it was just being put away
   const F = { id, sid, t:0, dur:FORMS[id].dur, col:st.col, set:new Set(), done:false, wait:true };
   P.formKey = (P.formKey || 0) + 1;
   P.form = F;
@@ -4860,7 +4861,7 @@ const FORM_DESC = {
   tide1:'A forward rush with three quick water cuts that keep enemies in front of you, then a heavy fourth cut that stuns and throws them back.', tide2:'Spin forward, untouchable for the whole spin. Leaves slowing water behind you.', tide3:'Hold a counter stance. The next three attacks that reach you are answered automatically, even red ones, each harder than the last. Every counter heals you a little; the third bursts outward. Arrows are sent back.', tide4:'Throws a whirlpool that drags enemies in (bosses too, more slowly) and cuts them for 3 s, then erupts as a geyser that launches everyone inside.', tide5:'Spin forward while the blade sprays water bullets to both sides. Every turn spins faster and fires faster, harder and more. Hold the key to keep spinning (it burns breath); when you let go, a last fan of heavy bullets flies forward.',
   ember1:'Rising uppercut that launches enemies into the air and sets them burning.', ember2:'A burning wheel: spin forward in the air, leaving fire on the ground.', ember3:'Wind up, then a huge explosion in front of you with heavy knockback. The ground burns.', ember4:'A dragon of fire leaves your blade and swims through the air. Its strength follows your breath: on a full breath it burns up to 50 enemies, from 70 up to 32, below 70 up to 18. Bosses take a heavy hit.', ember5:'Four pillars of fire erupt in a line ahead of you, each one launching whoever stands in it.',
   storm1:'Flash Step: teleport 9 m forward, striking everyone on the way.', storm2:'Chain Bolt: teleport from enemy to enemy, up to four in a row.', storm3:'Leap up, then slam down as lightning. Everyone near the landing is hit.', storm4:'Static Field: for 4 s lightning jumps from you to anyone who comes close.', storm5:"Heaven's Judgement: bolts rain on every enemy on screen, then one great strike.",
-  gale1:'Two crossing cuts throw an X of wind that pierces the line. It cuts arrows out of the air on its way.', gale2:'Cyclone: enemies around you are dragged in and lifted off the ground.', gale3:'Sky Rend: a leaping slash that carries you up and across.', gale4:'Updraft: launch everyone nearby and float for a moment while they fall.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
+  gale1:'Two crossing cuts throw an X of wind that pierces the line. It cuts arrows out of the air on its way.', gale2:'Cyclone: you spin so fast with the blade that a whirlwind forms. Everyone near is sucked in, whirled round and cut again and again, then thrown out.', gale3:'Sky Rend: the blade comes from behind your back, over your head and down in front, and throws three blades of wind.', gale4:'Gale Rush: you become the wind and shoot straight through the line. A heartbeat later everyone you passed is cut to pieces at once.', gale5:'Tempest: a storm of wind blades in every direction for 2 s.',
   crescent1:'Moon Arc: a crescent that lingers in the air and keeps cutting whoever walks into it.', crescent2:'Twin Moons: two crescents, one ahead and one behind.', crescent3:'Full Moon Cage: crescents orbit you for 3 s, cutting anyone who comes close.', crescent4:'Moonfall: a crescent drops from above on the nearest enemy.', crescent5:'Lunar Eclipse: the whole screen fills with lingering crescents.',
   stone1:'Boulder Strike: a heavy blow that breaks brute and boss armour.', stone2:'Quake: stamp the ground and stun everyone standing on it.', stone3:'Iron Body: for 4 s you take half damage and cannot be interrupted.', stone4:'Stone Pillars rise ahead of you, launching enemies and blocking arrows.', stone5:'Mountain Fall: a jumping slam that cracks the whole arena.',
   frost1:'Frost Edge: a cold cut that freezes the first enemy it touches.', frost2:'Glacier: a wall of ice that blocks enemies and arrows until it is broken.', frost3:'Absolute Zero: everyone within 7 m freezes solid for 2 s. Frozen enemies take 50% more and shatter when they die.', frost4:'Icicle Storm: icicles fall across the area ahead.', frost5:'Permafrost: freeze the whole screen, then shatter them all.',
@@ -5010,21 +5011,74 @@ const FORMS = {
         G.shake = 18; G.hitstop = 0.08; flash('#FFF6B0', 0.55); zoomPunch(1.09); sfx('boom'); sfx('storm'); vib(90); } } },
   /* ---- Gale ---- */
   gale1:{ dur:0.36, pose:'swipe', update(P,dt,F){ if (F.t>=0.2 && !F.shot){ F.shot=true; G.proj.push({kind:'wind', xBlade:true, x:P.x+P.face*34, y:P.y-40, vx:P.face*860, vy:0, dmg:45*FM(), pierce:5, hit:new Set(), life:1.0, col:'#9EF0B8', cutArrows:true}); sfx('whoosh'); } } },
-  gale2:{ dur:0.9, pose:'spin', start(P,F){ F.tick = 0; },
-    update(P,dt,F){ P.vx = lerp(P.vx, ((held.right?1:0)-(held.left?1:0))*260, Math.min(1, dt*6));   // you can walk the cyclone around
-      for (const e of G.E){ if (e.dead) continue; const d = e.x - P.x;
-        if (Math.abs(d) < 270 && Math.abs(d) > 30) e.x -= sign(d)*230*dt;
-        if (Math.abs(d) < 110 && e.onG && !isBoss(e) && Math.random() < dt*3){ e.vy = -300; e.onG = false; e.lowG = 0.8; e.state='hurt'; e.timer=0.4; } }
-      F.tick -= dt; if (F.tick <= 0){ F.tick = 0.18; areaHit(P.x, P.y-35, 95, 70, 20*FM(), {kb:0, src:'form'}, new Set()); }
-      for (let k=0;k<2;k++){ const a=rnd(0,Math.PI*2), r=rnd(40,140); G.parts.push({x:P.x+Math.cos(a)*r,y:P.y-40+Math.sin(a)*r*0.5,vx:-Math.sin(a)*300,vy:Math.cos(a)*120,life:0.3,max:0.3,col:'#9EF0B8',size:2.5,real:true}); } } },
-  gale3:{ dur:0.35, pose:'swipe', update(P,dt,F){ if (F.t>=0.08 && !F.shot){ F.shot=true;
+  gale2:{ dur:1.15, pose:'spin', start(P,F){ F.tick = 0; F.cuts = []; F.caught = new Map(); F.sfxT = 0; },
+    update(P,dt,F){
+      P.vx = lerp(P.vx, ((held.right?1:0)-(held.left?1:0))*240, Math.min(1, dt*6));   // you can walk the cyclone around
+      const cx = P.x, R = 300, end = F.t > F.dur - 0.09;
+      // the whirlwind sucks everyone near toward the middle; the light ones get caught up in it
+      for (const e of G.E){ if (e.dead || e.remote || e.webHeld || e.webHung || F.caught.has(e)) continue;
+        const d = e.x - cx, ad = Math.abs(d); if (ad > R || Math.abs(e.y - P.y) > 260) continue;
+        const heavy = isBoss(e) || (e.size || 1) > 1.6;
+        if (ad > 60) e.x -= sign(d)*Math.min(ad - 55, (heavy ? 160 : 560)*(1 - 0.5*ad/R))*dt;
+        if (!heavy && ad < 125 && !end) F.caught.set(e, { a:d > 0 ? 0 : Math.PI, r:rnd(62, 100), h:rnd(30, 70), sp:rnd(13, 17) });
+      }
+      // caught bodies ride round the cyclone, rising as they go
+      for (const [e, c] of F.caught){ if (e.dead){ F.caught.delete(e); continue; }
+        c.a += c.sp*dt; c.h = Math.min(170, c.h + 90*dt);
+        const tx = cx + Math.cos(c.a)*c.r, ty = P.y - c.h;
+        e.vx = (tx - e.x)*16; e.vy = (ty - e.y)*16; e.onG = false; e.lowG = 0.3; e.state = 'hurt'; e.timer = 0.5;
+        e.atk = null; e.comboLeft = 0; e.juggle = Math.max(e.juggle || 0, 1); e.face = sign(cx - e.x) || e.face;
+      }
+      // the blades: many quick cuts on everyone inside
+      F.tick -= dt;
+      if (F.tick <= 0){ F.tick = 0.065; let any = false;
+        for (const e of G.E){ if (e.dead || e.remote || !sameLayer(e)) continue;
+          if (Math.abs(e.x - cx) > 135 || Math.abs((e.y - 32*(e.size || 1)) - (P.y - 80)) > 150) continue;
+          damageEnemy(e, 7*FM(), { src:'form', kb:0, dir:sign(e.x - cx) || 1, launch:0, noStop:true, quiet:true });
+          const ey = e.y - 32*(e.size || 1);
+          for (let k = 0; k < 2; k++) F.cuts.push({ x:e.x + rnd(-16, 16), y:ey + rnd(-26, 26), a:rnd(0, Math.PI), L:rnd(28, 46)*(e.size || 1), t:0, life:0.17 });
+          any = true;
+        }
+        F.sfxT -= 0.065; if (any && F.sfxT <= 0){ F.sfxT = 0.13; sfx('swish'); }
+      }
+      for (const c of F.cuts) c.t += dt; F.cuts = F.cuts.filter(c => c.t < c.life);
+      // at the end the cyclone breaks and throws them out
+      if (end && !F.flung){ F.flung = true;
+        for (const [e] of F.caught){ const dir = sign(e.x - cx) || 1; e.vx = dir*rnd(550, 750); e.vy = -rnd(420, 600); e.state = 'hurt'; e.timer = 0.9; e.lowG = 0; }
+        F.caught.clear(); ringFx(cx, P.y - 60, 170, '#9EF0B8', false, 2); G.shake = Math.max(G.shake, 8); sfx('whoosh'); }
+      if (FXL() > 0) for (let k=0;k<3;k++){ const a=rnd(0,Math.PI*2), r=rnd(40,150), hy=rnd(0,190); G.parts.push({x:cx+Math.cos(a)*r*(0.5+hy/380),y:P.y-hy,vx:-Math.sin(a)*420,vy:-rnd(60,160),life:0.3,max:0.3,col:Math.random()<0.5?'#9EF0B8':'#FFFFFF',size:2.2,real:true}); } } },
+  gale3:{ dur:0.42, pose:'swipe', update(P,dt,F){ if (F.t>=0.23 && !F.shot){ F.shot=true; sfx('whoosh');
       // three blades that converge a little ahead of you, and they cut arrows out of the air
       for (const vy of [-150, 0, 110]) G.proj.push({kind:'wind', x:P.x+P.face*30, y:P.y-46-vy*0.12, vx:P.face*760, vy:-vy*0.55, dmg:40*FM(), pierce:3, hit:new Set(), life:0.9, col:'#9EF0B8', cutArrows:true}); } } },
-  gale4:{ dur:0.45, pose:'up', start(P,F){ P.vy = -700; P.onG = false;
-      for (const e of G.E){ if (e.dead || isBoss(e)) continue; if (Math.abs(e.x-P.x) < 150){
-        damageEnemy(e, 35*FM(), {kb:40, src:'form', launch:520, dir:sign(e.x-P.x)||1}); } }
-      ringFx(P.x, GROUND-20, 160, '#9EF0B8', true); emit(P.x, GROUND-10, {n:22, col:STYLE_FX.gale.cols, spd:360, size:3, life:0.6, kind:'streak', g:-0.4});
-      sfx('gale'); vib(35); }, update(P,dt,F){ P.vx *= 0.9; } },
+  gale4:{ dur:0.62, pose:'swipe', start(P,F){ F.x0 = P.x; F.marks = []; F.seen = new Set(); F.cuts = []; P.inv = Math.max(P.inv, 0.45); },
+    update(P,dt,F){
+      const dashing = F.t >= 0.06 && F.t < 0.26;
+      if (F.t < 0.06) P.vx = 0;                                   // gather, blade held low behind
+      else if (dashing){                                          // ride the gust straight through the line
+        if (!F.go){ F.go = true; sfx('whoosh'); vib(25); }
+        P.vx = P.face*1900; if (!P.onG) P.vy = Math.min(P.vy, 0);
+        for (const e of G.E){ if (e.dead || e.remote || F.seen.has(e) || !sameLayer(e)) continue;
+          if (Math.abs(e.x - P.x) > 50*(e.size || 1) || Math.abs(e.y - P.y) > 95) continue;
+          F.seen.add(e); F.marks.push(e);
+          damageEnemy(e, 15*FM(), { src:'form', kb:0, dir:P.face, launch:0, noStop:true, quiet:true });
+          if (!isBoss(e)){ e.state = 'stun'; e.timer = 0.55; e.atk = null; e.vx = 0; }
+          F.cuts.push({ x:e.x, y:e.y - 32*(e.size || 1), a:rnd(-0.3, 0.3), L:60*(e.size || 1), t:0, life:0.2 }); }
+        if (FXL() > 0 && Math.random() < 0.8) G.echoes.push({ snap:heroSnap(P, { atk:null, form:null, blockT:-1 }), life:0.16, max:0.3, col:'#9EF0B8' });
+        for (let k = 0; k < 2; k++) G.parts.push({ x:P.x - P.face*rnd(10, 90), y:P.y - rnd(8, 80), vx:-P.face*rnd(200, 500), vy:rnd(-30, 30), life:0.25, max:0.25, col:Math.random() < 0.5 ? '#9EF0B8' : '#FFFFFF', size:2, real:true });
+      } else {
+        P.vx *= Math.pow(0.0005, dt);                             // stop dead, blade down: zanshin
+        if (!F.line){ F.line = true; G.dsLine = { x0:F.x0, x1:P.x, y:P.y - 40, life:0.5, col:'#9EF0B8' }; }
+      }
+      if (F.t >= 0.38 && !F.burst){ F.burst = true;               // a heartbeat later: everyone you passed is cut to pieces at once
+        let n = 0;
+        for (const e of F.marks){ if (e.dead) continue; n++;
+          damageEnemy(e, 45*FM(), { src:'form', heavy:true, kb:120, dir:P.face, launch:isBoss(e) ? 0 : 480 });
+          const ey = e.y - 32*(e.size || 1);
+          for (let k = 0; k < 6; k++) F.cuts.push({ x:e.x + rnd(-14, 14), y:ey + rnd(-28, 28), a:rnd(0, Math.PI), L:rnd(34, 56)*(e.size || 1), t:-k*0.02, life:0.22 }); }
+        if (n){ G.shake = Math.max(G.shake, 10); G.hitstop = Math.max(G.hitstop, 0.08); flash('#9EF0B8', 0.18); sfx('heavy'); vib(50); }
+      }
+      for (const c of F.cuts) c.t += dt; F.cuts = F.cuts.filter(c => c.t < c.life);
+    } },
   gale5:{ dur:1.0, pose:'swipe', start(P,F){ F.tick = 0; F.n = 0; },
     update(P,dt,F){ P.vx *= 0.9; F.tick -= dt;
       if (F.tick <= 0 && F.n < 8){ F.tick = 0.1; F.n++;
@@ -6204,9 +6258,23 @@ const FORM_MAP = {
     { t:0.13, h:[-6, -6], th:0.55, phi:0.45, lean:0.18, cr:8 },                                                    // hands slide back along the bottom
     { t:0.2, h:[24, -33], th:-0.7, phi:0.45, lean:0.12, cr:4, pr:4, imp:true },                                    // second line: low-back to high-front, crossing the first
     { t:0.27, h:[18, -33], th:-0.95, phi:0.45, lean:0.02, cr:3 } ] } },
-  gale2:{ c:'whirl',    v:{ turns:3, y:-18, r:14, ry:-3, phi:1.38, cr:3, lean:0.25, t1:0.7, legs:FC_LEG.ready }, walk:true },
-  gale3:{ c:'wave',     v:{ imp:0.08, cut:'gyaku', phi:0.75, legs:FC_LEG.step } },
-  gale4:{ c:'rising',   v:{ imp:0, phi:0.15, th0:2.0, top:[12,-30], thTop:-1.55, offTop:[0,-28] } },
+  gale2:{ c:'whirl',    v:{ turns:9, y:-18, r:14, ry:-3, phi:1.38, cr:3, lean:0.25, t1:0.85, legs:FC_LEG.ready }, walk:true },
+  gale3:{ c:'invoke', v:{ keys:[   // Sky Rend: raise the blade up over the shoulder until it hangs down the back, then bring it over the head and down in front
+    { pre:0.55, h:[-8,-30], th:-3.73, phi:0.2, lean:-0.12, cr:3, pr:-3, legs:FC_LEG.step, off:[-8,-18], two:true },
+    { t:0.05, h:[-9,-31], th:-3.63, phi:0.2, lean:-0.18, cr:2 },                    // the blade hangs down the back
+    { t:0.12, h:[-3,-39], th:-2.33, phi:0.2, lean:-0.2, cr:1 },                     // drawn up behind the head
+    { t:0.17, h:[7,-41], th:-1.43, phi:0.2, lean:-0.06, cr:2 },                     // straight up, over the top
+    { t:0.21, h:[18,-28], th:-0.23, phi:0.2, lean:0.25, cr:6, pr:4, legs:FC_LEG.lunge, off:[-10,-8] },
+    { t:0.24, h:[22,-10], th:0.82, phi:0.2, lean:0.42, cr:10, pr:5, imp:true },      // down through the front
+    { t:0.33, h:[18,-4], th:1.27, phi:0.2, lean:0.38, cr:11, pr:3 } ] } },
+  gale4:{ c:'invoke', v:{ keys:[   // Gale Rush: crouch with the blade low behind, shoot through with it trailing, snap it forward and down at the end
+    { pre:0.5, h:[-6,-12], th:2.6, phi:0.2, lean:0.35, cr:10, pr:-2, legs:FC_LEG.deep, off:[-4,-14], two:true },
+    { t:0.06, h:[-8,-12], th:2.8, phi:0.2, lean:0.5, cr:12 },
+    { t:0.09, h:[-10,-15], th:3.0, phi:0.2, lean:0.62, cr:9, pr:4, legs:FC_LEG.lunge, off:[-12,-8], imp:true },
+    { t:0.25, h:[-10,-15], th:3.0, phi:0.2, lean:0.62, cr:9 },
+    { t:0.29, h:[22,-15], th:0.15, phi:0.2, lean:0.32, cr:8, imp:true },
+    { t:0.36, h:[16,-5], th:1.35, phi:0.2, lean:0.22, cr:11 },
+    { t:0.55, h:[16,-5], th:1.38, phi:0.2, lean:0.2, cr:10 } ] } },
   gale5:{ c:'flurry',   v:{ n:8, dt:0.1, seq:['yoko','yokoR'], phi:1.0, sc:0.82, lean:0.12, cr:4, legs:FC_LEG.ready, off:[-4,-14] } },
   /* Crescent: clean vertical moon-shaped arcs, presented and held */
   crescent1:{ c:'wave',   v:{ imp:0.1, cut:'down', phi:0.1 } },
@@ -8546,6 +8614,44 @@ function drawDebris(){
   }
   ctx.globalAlpha=1;
 }
+/* sharp white-and-green slash marks (Gale Rush) */
+function drawWindCuts(list){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (const c of list){ if (c.t < 0) continue; const k = c.t/c.life, L = c.L*(0.4 + 0.6*Math.min(1, k*3)), dx = Math.cos(c.a)*L/2, dy = Math.sin(c.a)*L/2;
+    ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#9EF0B8'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(c.x - dx, c.y - dy); ctx.lineTo(c.x + dx, c.y + dy); ctx.stroke();
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(c.x - dx, c.y - dy); ctx.lineTo(c.x + dx, c.y + dy); ctx.stroke(); }
+  ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+/* Cyclone: a funnel of wind round the hero, narrow at the feet and wide at the top, spinning fast */
+function drawCyclone(P, front){
+  const F = P.form, H = 210, q = clamp(F.t/0.15, 0, 1)*(1 - clamp((F.t - F.dur + 0.12)/0.12, 0, 1)), t = G.time;
+  if (q <= 0) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (let i = 0; i < 12; i++){
+    const u = i/11, y = P.y - 6 - u*H, r = (34 + Math.pow(u, 1.3)*120)*(0.9 + 0.1*Math.sin(t*9 + i)), sx = Math.sin(t*3 + u*4)*10*u;   // the funnel sways
+    const spin = t*16 + u*5;
+    for (let k = 0; k < 4; k++){
+      const s0 = spin + k*1.57, near = Math.sin(s0 + 0.6) > 0;   // the lower half of each ring is the near side
+      if (near !== front) continue;
+      ctx.strokeStyle = k % 2 ? '#9EF0B8' : '#FFFFFF'; ctx.globalAlpha = q*(front ? 0.55 : 0.3)*(0.55 + 0.45*u);
+      ctx.lineWidth = (front ? 2.6 : 2)*(0.6 + u);
+      ctx.beginPath(); ctx.ellipse(P.x + sx, y, r, r*0.28, 0, s0, s0 + 1.2); ctx.stroke();
+    }
+  }
+  if (!front){   // a soft column of wind
+    const g = ctx.createLinearGradient(0, P.y, 0, P.y - H);
+    g.addColorStop(0, 'rgba(158,240,184,0.18)'); g.addColorStop(1, 'rgba(158,240,184,0.04)');
+    ctx.globalAlpha = q; ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(P.x - 34, P.y); ctx.lineTo(P.x - 150, P.y - H); ctx.lineTo(P.x + 150, P.y - H); ctx.lineTo(P.x + 34, P.y); ctx.closePath(); ctx.fill();
+  } else {   // the cuts: sharp white slashes on everyone inside
+    for (const c of F.cuts || []){ const k = c.t/c.life, L = c.L*(0.4 + 0.6*Math.min(1, k*3)), dx = Math.cos(c.a)*L/2, dy = Math.sin(c.a)*L/2;
+      ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#9EF0B8'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(c.x - dx, c.y - dy); ctx.lineTo(c.x + dx, c.y + dy); ctx.stroke();
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(c.x - dx, c.y - dy); ctx.lineTo(c.x + dx, c.y + dy); ctx.stroke(); }
+    // dust kicked up at the feet
+    ctx.globalAlpha = q*0.35; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+    for (let k = 0; k < 4; k++){ const a = t*14 + k*1.57; ctx.beginPath(); ctx.ellipse(P.x, P.y - 2, 44 + k*10, 7, 0, a % Math.PI, (a % Math.PI) + 0.8); ctx.stroke(); }
+  }
+  ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
 /* Wind Blade: two curved slashes of wind crossed into an X */
 function drawXBlade(x, y, r, f, col){
   ctx.save(); ctx.translate(x, y); ctx.scale(f, 1); ctx.globalCompositeOperation = 'lighter';
@@ -9033,12 +9139,8 @@ function renderScene(){
       ctx.globalAlpha = 0.45; ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0,0,80,0,6.283); ctx.fill();
       ctx.restore(); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
     }
-    // gale cyclone rings
-    if (P.form && P.form.id==='gale2' && !P.form.wait){
-      ctx.save(); ctx.translate(P.x, P.y-40); ctx.globalCompositeOperation='lighter'; ctx.strokeStyle='#9EF0B8'; ctx.lineCap='round';
-      for (let k=0;k<4;k++){ const r = 60 + k*45, rot = G.time*(9-k) + k; ctx.globalAlpha = 0.5 - k*0.1; ctx.lineWidth = 3 - k*0.5; ctx.beginPath(); ctx.ellipse(0,0,r,r*0.35,0,rot,rot+2.2); ctx.stroke(); }
-      ctx.restore(); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
-    }
+    // the wind cyclone: back half behind the body
+    if (P.form && P.form.id==='gale2' && !P.form.wait) drawCyclone(P, false);
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
     drawParts(true);
@@ -9072,6 +9174,8 @@ function renderScene(){
       const blink = P.inv > 0 && P.dashT<=0 && !P.form && Math.floor(G.time*20)%2===0;
       if (FXL() > 0 && !P.ride && Math.random() < (P.form ? 0.3 : P.atk ? 0.6 : 0.4)){ const ac = auraCol(); G.parts.push({ x:P.x + rnd(-13,13), y:P.y - rnd(4,62), vx:rnd(-12,12) - P.vx*0.15, vy:rnd(-90,-40), life:rnd(0.35,0.7), max:0.7, col:Math.random() < 0.5 ? ac : shadeHex(ac, 0.45), size:rnd(1.5,3.2), real:true, g:-0.05 }); }
       drawStick(P, blink?0.45:1);
+      if (P.form && P.form.id==='gale2' && !P.form.wait) drawCyclone(P, true);   // the front half of the cyclone and its cuts
+      if (P.form && P.form.id==='gale4' && P.form.cuts) drawWindCuts(P.form.cuts);
       if ((P.flyPose || 0) > 0.05) drawBoosterHousings(P);   // the boosters sit on the boots, in front
       if (P.ride) ctx.restore();
       if (!P.ride){ drawAstraHeld(P); if (P.gsum) drawGadaSummon(P); }
