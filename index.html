@@ -4397,7 +4397,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dodgeT = (P.dodgeT || 0) - dt; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dodgeT = (P.dodgeT || 0) - dt; P.matrixT = (P.matrixT || 0) - dt; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -5998,9 +5998,26 @@ function bossIntro(e){
   showBanner(twin ? 'Chapter boss' : e.T.title, twin || e.T.name, 'Boss', '#FF3B2F');
   sfx('boom'); flash('#FF3B2F', 0.2); vib(60);
 }
+/* Auto-dodge for arrows and bullets: as one comes in while you attack, you bend back under it in slow motion and it flies past */
+function arrowDodgeCheck(P, q){
+  if (SV.set.dodge === false || P.dead || P.ride || G.mode === 'duel' || G.mode === 'arena' || G.mode === 'coop') return false;
+  if (!(P.atk || (P.form && !P.form.wait) || G.time - (P.lastAtkT ?? -9) < 0.35)) return false;
+  const dx = P.x - q.x; if (Math.abs(dx) > 150 || sign(q.vx) !== sign(dx)) return false;   // close, and coming at you
+  return q.y > P.y - 80 && q.y < P.y + 10;
+}
+function arrowDodge(P, q){
+  q.dodged = true;
+  P.matrixT = 0.6; P.inv = Math.max(P.inv, 0.35); P.evadeT = G.time;
+  G.mo = { kind:'dodge', t:0, end:0.65, depth:0.12 };   // very slow, so you can watch it pass
+  for (let k = 0; k < 3; k++) G.echoes.push({ snap:heroSnap(P), life:0.25 + k*0.1, max:0.5, col:'#DCF3FF' });
+  speedLines(q.x, q.y, 10, '#FFFFFF', 0.25);
+  pop(P.x, P.y - 110, 'Dodged!', '#DCF3FF'); sfx('whoosh'); ringFx(P.x, P.y - 40, 60, '#FFFFFF');
+}
 /* enemy projectile touches the player */
 function projHitPlayer(q){
   const P = G.P;
+  if (q.dodged) return;
+  if (q.kind !== 'meteor' && arrowDodgeCheck(P, { x:q.x - sign(q.vx)*20, y:q.y, vx:q.vx })){ arrowDodge(P, q); return; }
   if (P.inv > 0 || P.dead) return;
   if (G.world && (q.inH || null) !== (P.inH || null)) return;
   const coming = sign(q.vx) === -P.face || Math.abs(q.vx) < 1;
@@ -7170,7 +7187,10 @@ function getPose(e){
     if (O.p.offT && !gunAim(e) && !e.vthrow && !e.gsum && !(e.sword && e.sword.dual)){ P_.offT = O.p.offT; P_.offW = (O.p.offW || 0)*(1 - k); P_.offHand = O.p.offHand; P_.offCurl = O.p.offCurl; }
     if (O.p.legs && e.onG !== false){ P_.legs = O.p.legs; P_.legW = (O.p.legW || 0)*(1 - k); }
   }
-  if (e.isPlayer && e.dodgeT > 0){ const w = Math.sin(clamp((0.35 - e.dodgeT)/0.35, 0, 1)*Math.PI);   // the dodge: the body sways back from the blade
+  if (e.isPlayer && e.matrixT > 0){ const w = Math.sin(clamp((0.6 - e.matrixT)/0.6, 0, 1)*Math.PI);   // the bend: back nearly flat, knees deep, arms out for balance, the blade still out
+    P_.lean = lerp(P_.lean || 0, -1.25, w); P_.crouch = Math.max(P_.crouch || 0, 18*w); P_.roll = lerp(P_.roll || 0, -0.55, w);
+    P_.a2 = lerp(P_.a2, -2.6, w); P_.ext2 = 1; }
+  else if (e.isPlayer && e.dodgeT > 0){ const w = Math.sin(clamp((0.35 - e.dodgeT)/0.35, 0, 1)*Math.PI);   // the dodge: the body sways back from the blade
     P_.lean = lerp(P_.lean || 0, -0.75, w); P_.crouch = Math.max(P_.crouch || 0, 13*w); P_.roll = lerp(P_.roll || 0, -0.3, w); }
   if (e.isPlayer && e.wg && e.wg.st === 'sling'){ const W = e.wg;   // Web Sling Kick
     if (W.phase === 'pull'){ const c = W.charge || 0; P_.lean = -0.4 - 0.25*c; P_.crouch = 10 + 8*c; }
@@ -13847,7 +13867,8 @@ function step(dt){
       if (q.kind==='meteor') meteorBoom(q);
       else if (q.kind!=='blood'){ q.life = 0; burst(q.x, GROUND, 4, '#2a1418', 120, 2); }
     }
-    if (q.life > 0 && Math.abs(q.x - P.x) < 12 + q.r && q.y > P.y - (P.crouching ? 34 : 64) && q.y < P.y + 6) projHitPlayer(q);
+    if (q.life > 0 && !q.dodged && q.kind !== 'meteor' && arrowDodgeCheck(P, q)) arrowDodge(P, q);   // Auto-dodge: arrows and shots too
+    if (q.life > 0 && !q.dodged && Math.abs(q.x - P.x) < 12 + q.r && q.y > P.y - (P.crouching ? 34 : 64) && q.y < P.y + 6) projHitPlayer(q);
     else if (G.mode === 'coop') coopProjCheck(q);
     // the player's own projectiles knock enemy ones out of the air
     if (q.life > 0 && q.kind !== 'meteor') for (const pp of G.proj){ if (Math.abs(pp.x - q.x) < 18 + q.r && Math.abs(pp.y - q.y) < 22 + q.r){ q.life = 0; sparks(q.x, q.y); track('arrows'); break; } }
