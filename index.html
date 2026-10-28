@@ -1475,10 +1475,10 @@ const FORM_CHOREO = {
   frost5:{ t:'keys', two:true, legs:'kneel', k:[[0,-1.5,1.57,6,0,8],[0.45,1.1,1.57,18,0.3],[1,1.1,1.57,18,0.3]] },                  // Permafrost: down on one knee, the blade plunged in
   /* Shadow: ninjutsu. Low, reversed blade, there and gone */
   shadow1:{ t:'windDraw' },
-  shadow2:{ t:'keys', k:[[0,-1.2,1.57,12,0.3,6],[0.45,0.9,1.57,18,0.45],[1,0.9,1.57,18,0.45]] },                                    // Shadow Bind: stab the shadow, pin it
+  shadow2:{ t:'windDraw' },
   shadow3:{ t:'windDraw' },
-  shadow4:{ t:'keys', k:[[0,0.6,3.6,12,0.3],[1,0.6,3.6,12,0.3,0,0,6.28]] },                                                       // Umbral Chains: a low turn with the blade reversed
-  shadow5:{ t:'twirlThrust', n:3, d:1 },                                 // Night Execution
+  shadow4:{ t:'lateSpin', d:1 },                                        // Shadow Chains: still while the chains work, then one full turn for the cut
+  shadow5:{ t:'windDraw' },
   /* Blood: feral, shaking, wild arcs */
   blood1:{ t:'keys', k:[[0,-2.2,-2.6,6,-0.2],[0.4,1.2,1.6,12,0.55],[1,1.0,1.4,10,0.45]], jitter:true },                            // Crimson Cut
   blood2:{ t:'flurryTwirl', d:-1 },                                      // Blood Mist
@@ -1650,6 +1650,8 @@ function choreo0(C, F){
       o.w = 0; break;
     case 'cyclone':        // Cyclone: spinning on the spot like a top, the blade held flat straight out, round and round
       o.spin = d*TAU*n*q; o.a = 0.05; o.b = 0; o.lean = 0.05; o.crouch = 3; o.w = 0.75*ramp(q, 0, 0.08)*(1 - ramp(q, 0.9, 1)); o.windRing = true; break;
+    case 'lateSpin':       // a full turn only at the end of the form
+      o.spin = d*TAU*FC_EASE(clamp((q - 0.5)/0.3, 0, 1)); o.w = 0; break;
     case 'spinCut':        // Sky Rend: one fast full turn, the three blades leave at the end of it
       o.spin = d*TAU*FC_EASE(Math.min(1, q*1.25)); o.w = 0; o.windRing = q < 0.8; break;
     case 'drillUp':        // Updraft: a corkscrew going up, the blade pointing at the sky like a drill
@@ -5286,51 +5288,62 @@ const FORMS = {
           G.hitstop = Math.max(G.hitstop, 0.06); sfx('swish'); sfx('shadow', 0.02); vib(30); } }
       else P.vx *= Math.pow(0.001, dt);
     } },
-  shadow2:{ dur:0.5, pose:'cast', start(P,F){
-      let n = 0;
-      for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x-P.x) > 260 || Math.abs(e.y - P.y) > 160) continue;
-        damageEnemy(e, 25*FM(), {kb:0, src:'form', root:2.5, stun:isBoss(e) ? 0.4 : 2.5, quiet:n>3}); n++;
-        G.snares.push({ e, t0:G.time, life:2.5, seed:Math.random()*9 }); }
-      ringFx(P.x, GROUND-6, 260, '#9B8CFF', true); sfx('shadow'); vib(35); }, update(P){ P.vx *= 0.85; } },
-  shadow3:{ dur:0.75, pose:'cast', start(P,F){
-      const near = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 420).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 5);
-      F.clones = near.map((e, k) => { const side = k % 2 ? -1 : 1;   // alternate sides, so every cut lands from behind
-        return { e, side, t0:0.08 + k*0.09, x0:e.x - side*130, x1:e.x + side*130, snap:{ isPlayer:true, isClone:true, x:e.x - side*130, y:e.y, vx:side*900, face:side, size:1, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 } }; });
-      if (!F.clones.length) for (const side of [-1, 1]) F.clones.push({ e:null, side, t0:0.1, x0:P.x - side*20, x1:P.x + side*240, snap:{ isPlayer:true, isClone:true, x:P.x, y:P.y, vx:side*900, face:side, size:1, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 } });
-      P.inv = 0.75; emit(P.x, P.y - 34, {n:18, col:STYLE_FX.shadow.cols, spd:260, size:6, life:0.6, kind:'mist', g:-0.2}); sfx('shadow'); },
-    update(P,dt,F){ P.vx *= 0.8;
-      for (const c of F.clones){ const u = clamp((F.t - c.t0)/0.14, 0, 1);
-        c.snap.x = lerp(c.x0, c.x1, u); c.on = F.t >= c.t0 - 0.04 && F.t < c.t0 + 0.24;
-        if (u >= 0.5 && !c.hit){ c.hit = true;   // the clone passes through and cuts from behind
-          if (c.e && !c.e.dead){ damageEnemy(c.e, 50*FM(), {kb:120, src:'form', heavy:true, dir:c.side}); G.cuts.push({ x:c.e.x, y:c.e.y-32*c.e.size, s:c.e.size, life:0.3, col:'#9B8CFF' }); styleImpact('shadow', c.e.x, c.e.y-36*c.e.size, true); }
-          sfx('swish'); } } } },
-  shadow4:{ dur:0.75, pose:'cast', start(P,F){
+  shadow2:{ dur:0.8, pose:'cast', update(P,dt,F){ P.vx *= 0.8;
+      if (F.t >= 0.2 && !F.go){ F.go = true; F.pool = { x:P.x, t0:F.t };   // the blade goes into your shadow and the dark spreads out
+        let n = 0;
+        for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x-P.x) > 300 || Math.abs(e.y - P.y) > 160) continue;
+          damageEnemy(e, 35*FM(), {kb:0, src:'form', root:2.6, stun:isBoss(e) ? 0.5 : 2.6, quiet:n>3}); n++;
+          G.snares.push({ e, t0:G.time, life:2.6, seed:Math.random()*9, tick:0.6 }); }
+        G.shake = Math.max(G.shake, 8); flash('#2A1A55', 0.25); sfx('shadow'); sfx('boom', 0.03); vib(40); } } },
+  shadow3:{ dur:0.85, pose:'swipe', start(P,F){
+      const near = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 400);
+      F.cx = near.length ? near.reduce((s, e) => s + e.x, 0)/near.length : P.x + P.face*160; F.ghosts = []; F.k = 0; P.inv = 0.9; sfx('shadow'); },
+    update(P,dt,F){
+      const k = Math.floor(F.t/0.15);
+      if (k < 4 && k >= F.k){ F.k = k + 1;   // a blink-dash right across them, cutting everyone on the way
+        const s = k % 2 ? -1 : 1, x0 = clamp(F.cx - s*190, 30, G.worldW - 30), x1 = clamp(F.cx + s*190, 30, G.worldW - 30);
+        echoTrail(x0, x1, P); P.x = x1; P.face = s; P.y = GROUND; P.vx = 0;
+        for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - F.cx) > 200 || Math.abs(e.y - P.y) > 140) continue;
+          damageEnemy(e, 35*FM(), {kb:40, src:'form', dir:s, noStop:true}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.25, col:'#9B8CFF' }); }
+        F.ghosts.push({ x:x1, face:-s, t0:F.t, hit:false });   // a shadow clone stays behind and repeats the cut
+        sfx('swish'); }
+      for (const g of F.ghosts){ if (!g.hit && F.t - g.t0 >= 0.13){ g.hit = true;
+        for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - F.cx) > 200 || Math.abs(e.y - P.y) > 140) continue;
+          damageEnemy(e, 22*FM(), {kb:60, src:'form', dir:g.face, noStop:true, quiet:true}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.25, col:'#5B4BA8' }); }
+        sfx('swish', 0.02); } }
+      if (F.t >= 0.62 && !F.fin){ F.fin = true; G.shake = Math.max(G.shake, 8); G.hitstop = Math.max(G.hitstop, 0.06); flash('#9B8CFF', 0.15); }
+    } },
+  shadow4:{ dur:0.8, pose:'cast', start(P,F){
       F.links = [];
-      for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x-P.x) > 340 || Math.abs(e.y - P.y) > 200) continue;
-        F.links.push({ e, x0:e.x }); damageEnemy(e, 15*FM(), {kb:0, src:'form', stun:0.9, quiet:F.links.length > 3}); }
-      sfx('shadow'); flash('#9B8CFF', 0.15); vib(30); },
+      for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x-P.x) > 360 || Math.abs(e.y - P.y) > 200) continue;
+        F.links.push({ e, x0:e.x }); damageEnemy(e, 20*FM(), {kb:0, src:'form', stun:1.0, quiet:F.links.length > 3}); }
+      sfx('shadow'); vib(30); },
     update(P,dt,F){ P.vx *= 0.85;
-      for (const L of F.links){ const e = L.e; if (e.dead) continue;   // the chains drag them in
-        if (F.t < 0.32 && !isBoss(e)){ const tx = P.x + sign(L.x0 - P.x)*55, u = FC_EASE(clamp((F.t - 0.08)/0.24, 0, 1)); e.x = lerp(L.x0, tx, u); e.vx = 0; } }
-      if (F.t >= 0.38 && !F.cut){ F.cut = true;   // and one turning cut takes them all
-        for (const L of F.links){ const e = L.e; if (e.dead) continue; damageEnemy(e, 45*FM(), {kb:200, src:'form', heavy:true, dir:sign(e.x - P.x) || 1, root:1.0}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.3, col:'#9B8CFF' }); }
-        ringFx(P.x, P.y-34, 150, '#9B8CFF', true); G.shake = 10; G.hitstop = Math.max(G.hitstop, 0.07); sfx('swish'); sfx('shadow', 0.02); vib(45); } } },
-  shadow5:{ dur:1.25, pose:'thrust', start(P,F){ F.tick = 0.05; F.n = 0; F.marks = [];
-      F.list = G.E.filter(e=>!e.dead && !e.remote).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x)).slice(0,6); F.home = P.x; P.inv = 1.4; },
-    update(P,dt,F){ P.vx = 0; P.vy = 0; F.tick -= dt;
-      if (F.tick <= 0 && F.n < F.list.length && F.t < 0.85){ F.tick = 0.13;   // flicker behind each in turn and mark them
-        const e = F.list[F.n++]; if (e && !e.dead){
-          const ox = P.x, behind = -(e.face || 1);
-          P.x = clamp(e.x + behind*34, 30, G.worldW-30); P.y = GROUND; P.face = -behind;
-          echoTrail(ox, P.x, P);
-          damageEnemy(e, 10*FM(), {kb:0, src:'form', stun:1.2, noStop:true, quiet:true}); F.marks.push(e);
-          G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.2, col:'#9B8CFF' }); sfx('swish'); } }
-      if (F.t >= 0.9 && !F.back){ F.back = true; const ox = P.x; P.x = clamp(F.home, 30, G.worldW - 30); echoTrail(ox, P.x, P); sfx('shadow'); }   // back where you started
-      if (F.t >= 1.08 && !F.end){ F.end = true;   // the blade is sheathed and every mark opens at once
-        for (const e of F.marks){ if (e.dead) continue; damageEnemy(e, 85*FM(), {kb:220, src:'form', heavy:true, dir:sign(e.x - P.x) || 1});
-          for (let k = 0; k < 2; k++) G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.4, col:k ? '#FFFFFF' : '#9B8CFF' });
+      for (const L of F.links){ const e = L.e; if (e.dead) continue;   // the chains yank them in
+        if (F.t > 0.1 && F.t < 0.32 && !isBoss(e)){ const tx = P.x + sign(L.x0 - P.x)*50, u = FC_EASE(clamp((F.t - 0.1)/0.2, 0, 1)); e.x = lerp(L.x0, tx, u); e.vx = 0; } }
+      if (F.t >= 0.32 && !F.yank){ F.yank = true; G.shake = Math.max(G.shake, 6); sfx('clang'); }
+      if (F.t >= 0.52 && !F.cut){ F.cut = true;   // the turning cut, and the dark bursts out of it
+        for (const L of F.links){ const e = L.e; if (e.dead) continue; damageEnemy(e, 80*FM(), {kb:340, src:'form', heavy:true, dir:sign(e.x - P.x) || 1});
+          for (let k = 0; k < 2; k++) G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.35, col:k ? '#FFFFFF' : '#9B8CFF' }); }
+        ringFx(P.x, P.y-34, 200, '#9B8CFF', true); ringFx(P.x, P.y-34, 120, '#1A1236');
+        emit(P.x, P.y - 34, {n:30, col:STYLE_FX.shadow.cols, spd:420, size:7, life:0.7, kind:'mist', g:-0.1});
+        G.shake = 14; G.hitstop = Math.max(G.hitstop, 0.1); flash('#9B8CFF', 0.25); sfx('swish'); sfx('boom', 0.03); vib(60); } } },
+  shadow5:{ dur:1.4, pose:'thrust', start(P,F){ F.marks = []; F.n = 0; F.tick = 0;
+      F.list = G.E.filter(e=>!e.dead && !e.remote && e.x > G.camX - 40 && e.x < G.camX + VW + 40).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x)).slice(0, 8); F.home = P.x; P.inv = 1.5; sfx('shadow'); },
+    update(P,dt,F){ P.vx = 0; if (!P.onG) P.vy = Math.min(P.vy, 0);
+      if (F.t >= 0.34 && F.t < 0.85){ F.tick -= dt;   // flicker among them, a real cut on each, and a mark
+        if (F.tick <= 0 && F.n < F.list.length){ F.tick = 0.06; const e = F.list[F.n++];
+          if (e && !e.dead){ const ox = P.x, behind = -(e.face || 1); P.x = clamp(e.x + behind*34, 30, G.worldW-30); P.y = GROUND; P.face = -behind; echoTrail(ox, P.x, P);
+            damageEnemy(e, 35*FM(), {kb:0, src:'form', stun:1.4, noStop:true}); F.marks.push(e); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.25, col:'#9B8CFF' }); sfx('swish'); } } }
+      if (F.t >= 0.85 && !F.back){ F.back = true; const ox = P.x; P.x = clamp(F.home, 30, G.worldW - 30); echoTrail(ox, P.x, P); P.face = F.marks.length ? sign(F.marks[0].x - P.x) || P.face : P.face; }
+      if (F.t >= 1.0 && !F.giant){ F.giant = true;   // the giant shadow behind you makes one great cut across the screen
+        for (const e of G.E){ if (e.dead || e.remote || e.x < G.camX - 40 || e.x > G.camX + VW + 40) continue; damageEnemy(e, 60*FM(), {kb:120, src:'form', heavy:true, dir:P.face}); if (!F.marks.includes(e)) F.marks.push(e); }
+        G.dsLine = { x0:G.camX - 20, x1:G.camX + VW + 20, y:P.y - 70, life:0.5, col:'#9B8CFF' }; G.shake = 12; flash('#9B8CFF', 0.25); sfx('whoosh'); sfx('shadow', 0.02); }
+      if (F.t >= 1.2 && !F.end){ F.end = true;   // the blade is put away and every mark opens at once
+        for (const e of F.marks){ if (e.dead) continue; damageEnemy(e, 110*FM(), {kb:240, src:'form', heavy:true, dir:sign(e.x - P.x) || 1});
+          for (let k = 0; k < 3; k++) G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.45, col:k ? '#FFFFFF' : '#9B8CFF' });
           styleImpact('shadow', e.x, e.y-36*e.size, true); }
-        flash('#9B8CFF', 0.35); G.shake = 14; G.hitstop = Math.max(G.hitstop, 0.12); sfx('clang'); sfx('boom', 0.04); vib(70); } } },
+        flash('#FFFFFF', 0.35); G.shake = 18; G.hitstop = Math.max(G.hitstop, 0.14); sfx('clang'); sfx('boom', 0.04); vib(90); } } },
   /* ---- Blood ---- */
   blood1:{ dur:0.45, pose:'strike', wind:0.16, update(P,dt,F){ P.vx *= 0.85;
       if (F.t >= 0.18 && !F.hitOnce){ F.hitOnce = true;
@@ -6456,19 +6469,27 @@ const FORM_MAP = {
     { t:0.4, h:[-3,-6], th:2.9, phi:0.25, lean:0.55, cr:18 },
     { t:0.46, h:[18,-30], th:-1.2, phi:0.6, lean:-0.05, cr:4, pr:4, legs:FC_LEG.step, off:[-8,-14], imp:true },
     { t:0.6, h:[14,-30], th:-1.45, phi:0.6, lean:-0.1, cr:3 } ] } },
-  shadow2:{ c:'bind',   v:{ keys:[ { pre:0.5, h:[13,-24], th:-1.1, phi:0.6, lean:0, cr:5, pr:-1, legs:FC_LEG.ready, off:[-6,-10] },
-                                   { t:0, h:[19,-3], th:0.9, phi:1.25, lean:0.4, cr:14, pr:4, legs:FC_LEG.low, off:[-10,-8], imp:true },
-                                   { t:0.16, h:[-6,-3], th:2.6, phi:1.25, lean:0.35, cr:14, pr:-3 },
-                                   { t:0.28, h:[-5,-5], th:2.7, lean:0.3, cr:12 } ] } },
-  shadow3:{ c:'invoke', v:{ keys:[   // Phantom Dance: the hero holds a still guard, blade reversed across the body, while the clones do the cutting
-    { pre:0.45, h:[10,-20], th:2.6, phi:0.3, lean:0.1, cr:8, pr:0, legs:FC_LEG.ready, off:[6,-22] },
-    { t:0.05, h:[6,-26], th:2.85, phi:0.3, lean:0.15, cr:11, legs:FC_LEG.low, imp:true },
-    { t:0.7, h:[6,-26], th:2.85, phi:0.3, lean:0.15, cr:11 } ] } },
-  shadow4:{ c:'bind',   v:{ keys:[ { pre:0.6, h:[6,-12], th:0.1, phi:0.1, lean:-0.05, cr:6, pr:-4, legs:FC_LEG.back, off:[-8,-8] },
-                                   { t:0, h:[22,-15], th:0, phi:0.1, lean:0.45, cr:8, pr:6, legs:FC_LEG.lunge, off:[16,-16], imp:true },
-                                   { t:0.14, h:[6,-14], th:-0.15, lean:-0.2, cr:6, pr:-4, legs:FC_LEG.back, off:[-12,-12] },
-                                   { t:0.45, h:[7,-14], th:-0.2, lean:-0.15 } ] } },
-  shadow5:{ c:'blink',  v:{ dt:0.13, n:() => 6, seq:['kesa','gyaku'], two:true, cr:9, slow:true } },
+  shadow2:{ c:'invoke', v:{ keys:[   // Shadow Snare: raise the reversed blade in both hands, then drive it into your shadow on one knee
+    { pre:0.5, h:[10,-34], th:-1.57, phi:0.2, lean:-0.05, cr:3, pr:-2, legs:FC_LEG.ready, off:[-6,-16], two:true },
+    { t:0.12, h:[12,-38], th:-1.7, phi:0.2, lean:-0.12, cr:2 },
+    { t:0.2, h:[16,-3], th:1.5, phi:0.2, lean:0.35, cr:16, pr:4, legs:FC_LEG.kneel, imp:true },
+    { t:0.7, h:[16,-3], th:1.5, phi:0.2, lean:0.32, cr:16 } ] } },
+  shadow3:{ c:'blink',  v:{ dt:0.15, n:() => 4, seq:['yoko','yokoR'], cr:8, slow:true } },   // Phantom Dance: four flat cuts, a blink-dash across them on each
+  shadow4:{ c:'invoke', v:{ keys:[   // Shadow Chains: fling the chains out, yank them back, then the turning cut
+    { pre:0.45, h:[8,-20], th:0.2, phi:0.2, lean:0, cr:5, pr:0, legs:FC_LEG.ready, off:[-6,-10] },
+    { t:0.05, h:[24,-22], th:-0.05, phi:0.2, lean:0.4, cr:7, pr:6, legs:FC_LEG.lunge, off:[18,-20], imp:true },
+    { t:0.3, h:[0,-18], th:2.6, phi:0.6, lean:-0.25, cr:9, pr:-4, legs:FC_LEG.back, off:[-12,-12] },
+    { t:0.45, h:[22,-16], th:0.0, phi:1.2, lean:0.35, cr:10, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.62, h:[18,-20], th:-0.5, phi:1.0, lean:0.2, cr:7 } ] } },
+  shadow5:{ c:'invoke', v:{ keys:[   // Midnight Requiem: iai crouch, blade out among them, raised to the sky, the great cut, the blade put away
+    { pre:0.5, h:[2,-12], th:2.7, phi:0.3, lean:0.4, cr:14, pr:-2, legs:FC_LEG.deep, off:[6,-14] },
+    { t:0.28, h:[2,-12], th:2.7, phi:0.3, lean:0.42, cr:15 },
+    { t:0.34, h:[22,-18], th:0.1, phi:1.2, lean:0.45, cr:9, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.85, h:[22,-18], th:0.1, phi:1.2, lean:0.45, cr:9 },
+    { t:0.95, h:[12,-37], th:-1.57, phi:0.3, lean:-0.1, cr:3, legs:FC_LEG.step },
+    { t:1.05, h:[23,-14], th:0.35, phi:0.3, lean:0.45, cr:11, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:1.18, h:[2,-14], th:2.9, phi:0.3, lean:0.2, cr:8 },
+    { t:1.3, h:[2,-14], th:2.9, phi:0.3, lean:0.15, cr:6 } ] } },
   /* Blood: sacrificial, wide, the off hand bare */
   blood1:{ c:'overhead', v:{ imp:0.18, phi:0.7, hi:[11,-30], thHi:-1.7, cr:9 } },
   blood2:{ c:'invoke',  v:{ keys:[ { pre:0.6, h:[8,-16], th:-0.2, phi:1.3, lean:0, cr:3, pr:-3, legs:FC_LEG.ready, off:[12,-17] },
@@ -8839,6 +8860,14 @@ function drawFrostForm(P){
     ctx.globalAlpha = 0.5*q; ctx.fillStyle = '#DCF3FF'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 12, 0, 6.283); ctx.fill(); }
   ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
+function snareTick(dt){
+  if (!G.snares || !G.snares.length || !(dt > 0)) return;
+  for (const S of G.snares){ const e = S.e; if (e.dead) continue; const age = G.time - S.t0;
+    e.rootT = Math.max(e.rootT || 0, 0.2);
+    S.tick -= dt; if (S.tick <= 0 && age < S.life - 0.3){ S.tick = 0.6; damageEnemy(e, 22*FM(), {kb:0, src:'form', stun:0.7, quiet:true, noStop:true}); }
+    if (age >= S.life - 0.15 && !S.crush){ S.crush = true;   // the tendrils squeeze shut
+      damageEnemy(e, 50*FM(), {kb:60, src:'form', heavy:true, dir:1}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.3, col:'#9B8CFF' }); sfx('shadow', 0.02); } }
+}
 /* Shadow Breathing: the pool you glide in, the snares, the clones, the chains, midnight */
 function drawShadowForms(P){
   const F = P.form && !P.form.wait ? P.form : null, t = G.time;
@@ -8849,16 +8878,23 @@ function drawShadowForms(P){
     const w = 60 + Math.sin(t*20)*5; ctx.fillStyle = 'rgba(12,8,30,0.9)'; ctx.beginPath(); ctx.ellipse(P.x, GROUND - 1, w, 9, 0, 0, 6.283); ctx.fill();
     ctx.strokeStyle = 'rgba(155,140,255,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
   G.snares = (G.snares || []).filter(S => !S.e.dead && G.time - S.t0 < S.life);
+  if (F && F.id === 'shadow2' && F.pool){ const age = F.t - F.pool.t0, r = Math.min(300, age*1500), q = 1 - clamp((F.t - 0.7)/0.1, 0, 1);   // the dark spreading from the blade
+    ctx.globalAlpha = q; ctx.fillStyle = 'rgba(12,8,30,0.85)'; ctx.beginPath(); ctx.ellipse(F.pool.x, GROUND, r, 10, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
   for (const S of G.snares){ const e = S.e, s = e.size || 1, age = G.time - S.t0, grow = Math.min(1, age/0.25), fade = Math.min(1, (S.life - age)/0.3);   // tendrils from their own shadow
-    ctx.globalAlpha = fade; ctx.fillStyle = 'rgba(12,8,30,0.8)'; ctx.beginPath(); ctx.ellipse(e.x, GROUND - 1, 30*s, 6, 0, 0, 6.283); ctx.fill();
-    for (let k = 0; k < 4; k++){ const ox = (k - 1.5)*9*s, H = (40 + k*10)*s*grow, ph = t*4 + k*1.7 + S.seed;
+    ctx.globalAlpha = fade; ctx.fillStyle = 'rgba(12,8,30,0.85)'; ctx.beginPath(); ctx.ellipse(e.x, GROUND - 1, 40*s, 8, 0, 0, 6.283); ctx.fill();
+    for (let k = 0; k < 6; k++){ const ox = (k - 2.5)*9*s, H = (60 + (k % 3)*22)*s*grow, ph = t*4 + k*1.7 + S.seed;
       ctx.beginPath(); ctx.moveTo(e.x + ox, GROUND);
       for (let j = 1; j <= 8; j++){ const u = j/8, wrap = Math.sin(ph + u*7)*14*s*u; ctx.lineTo(e.x + ox*(1 - u) + wrap, GROUND - H*u); }
       ctx.strokeStyle = '#140C2A'; ctx.lineWidth = 5*s*(1 - 0.0); ctx.stroke(); ctx.strokeStyle = 'rgba(155,140,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke(); } }
   ctx.globalAlpha = 1;
-  if (F && F.id === 'shadow3' && F.clones) for (const c of F.clones) if (c.on){
-    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#9B8CFF'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(c.x0, c.snap.y - 40); ctx.lineTo(c.snap.x, c.snap.y - 40); ctx.stroke();   // its dash trail
-    ctx.globalAlpha = 1; drawStick(c.snap, 0.9, '#7A6AE0'); }
+  if (F && F.id === 'shadow3' && F.ghosts) for (const g of F.ghosts){ const age = F.t - g.t0; if (age > 0.3) continue;   // the clones left behind, repeating the cut
+    const snap = { isPlayer:true, isClone:true, x:g.x, y:GROUND, vx:0, face:g.face, size:1, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 };
+    drawStick(snap, 0.9*(1 - age/0.3), '#7A6AE0'); }
+  if (F && F.id === 'shadow5' && F.t > 0.88 && F.t < 1.25){   // a giant shadow of you rises behind and cuts
+    const q = clamp((F.t - 0.88)/0.1, 0, 1)*(1 - clamp((F.t - 1.12)/0.13, 0, 1));
+    const snap = { isPlayer:true, isClone:true, x:P.x - P.face*90, y:GROUND, vx:0, face:P.face, size:3.2, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 };
+    drawStick(snap, 0.55*q, '#3A2A7A');
+    if (F.t > 1.0){ const u = clamp((F.t - 1.0)/0.12, 0, 1); drawCrescent(G.camX + VW*u, P.y - 80, 90, P.face > 0 ? 0 : Math.PI, '#9B8CFF', 0.8*q); } }
   if (F && F.id === 'shadow4' && F.links && F.t < 0.42){   // chains of shadow from you to each of them
     ctx.strokeStyle = '#1A1236'; ctx.lineWidth = 4;
     for (const L of F.links){ const e = L.e; if (e.dead) continue; const x1 = e.x, y1 = e.y - 34*(e.size || 1), x0 = P.x, y0 = P.y - 40, n = Math.max(3, Math.floor(Math.abs(x1 - x0)/12));
@@ -13314,6 +13350,7 @@ function step(dt){
   if (G.mode === 'zomb') zombTick(dt);
   if (G.mode === 'world') worldTick(dt, pdt, wdt);
   tickDragons(pdt); tickSerpents(pdt);
+  snareTick(wdt);
   // lingering hazards tick in world time
   for (const h of G.haz){
     { const hdt = h.follow ? pdt : wdt; h.life -= hdt; h.tick -= hdt; }   // crescents that follow you keep cutting even when time is stopped
