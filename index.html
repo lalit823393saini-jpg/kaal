@@ -1488,9 +1488,9 @@ const FORM_CHOREO = {
   /* Sun: kagura. A sacred dance: rhythm, big circles, upright and proud */
   sun1:{ t:'danceCircles', n:1.5 },                                      // Dance
   sun2:{ t:'windDraw' },                                                // Setting Sun: the clip and the jump do it
-  sun3:{ t:'sunWheel', n:1 },                                            // Beneficent Radiance
+  sun3:{ t:'windDraw' },                                                // Beneficent Radiance: feet planted, the blade draws the wheel
   sun4:{ t:'windDraw' },                                                // Solar Flare: the clip does it
-  sun5:{ t:'dawnFinale' },                                               // Dawn of the Twelfth: dance, wheel, then the last strike
+  sun5:{ t:'windDraw' },                                                // Dawn of the Twelfth: the clip does the dance, no flips
   /* Serpent: snake kung fu. Low, swaying, then the fang darts */
   serpent1:{ t:'keys', k:[[0,0.4,0.3,14,0.5],[0.35,0.0,0.0,10,0.85],[1,0.0,0.0,10,0.7]], sway:true },                               // Fang Strike: coiled low, then one dart
   serpent2:{ t:'serpentWave', w:3 },                                     // Coil
@@ -1614,7 +1614,7 @@ function choreo0(C, F){
       if (F.phase === 'up'){ o.a = -2.4; o.b = -2.9; o.lean = -0.25; o.w = ramp(t, 0, 0.06); o.two = true; } else o.w = 0;
       break;
     case 'danceCircles':   // kagura: big circles of the blade on a beat, quarter turns, rising on the beat
-      o.a = -0.5 + 0.9*Math.sin(TAU*n*q); o.b = o.a - 0.4 - TAU*n*q; o.spin = Math.PI*0.5*Math.floor(q*4)*0.5; o.lift = Math.abs(Math.sin(TAU*2*q))*7; o.lean = 0.05;
+      o.a = -0.5 + 0.9*Math.sin(TAU*n*q); o.b = o.a - 0.4 - TAU*n*q; o.spin = 0; o.lift = 0; o.lean = 0.12; o.crouch = 4 + 3*Math.abs(Math.sin(TAU*2*q));   // feet on the ground: the power comes from the knees
       o.w = ramp(q, 0, 0.06)*(1 - ramp(q, 0.94, 1)); o.windRing = true; break;
     case 'dawnFinale':     // the dance, a burning wheel, then the strike that ends it
       if (q < 0.45){ const p = q/0.45; o.a = -0.5 + 0.9*Math.sin(TAU*2*p); o.b = o.a - 0.4 - TAU*2*p; o.lift = Math.abs(Math.sin(TAU*2*p))*8; o.w = 1; }
@@ -5442,13 +5442,13 @@ const FORMS = {
         for (let k = 0; k < 5; k++) emit(P.x + P.face*(40 + k*40), GROUND - 6, {n:8, col:['#FF7A1A','#FFD23F','#FFF3C4'], spd:280, size:5, life:0.7, kind:'ember', g:-0.6, vy:-260});
         ringFx(F.ax, GROUND, 170, '#FFD23F', true); cracks(F.ax, 140, '#FF7A1A'); G.suns.push({x:F.ax, y:GROUND - 20, life:0.5, max:0.5, r:140});
         G.shake = 15; G.hitstop = Math.max(G.hitstop, 0.1); flash('#FFF3C4', 0.25); zoomPunch(1.07); sfx('boom'); sfx('fire', 0.03); vib(70); } } },
-  sun3:{ dur:0.75, pose:'spin', start(P,F){ F.tick = 0; F.healed = 0; },
+  sun3:{ dur:0.75, pose:'cast', start(P,F){ F.tick = 0; F.healed = 0; },
     update(P,dt,F){ P.vx = lerp(P.vx, 0, Math.min(1, dt*4)); F.tick -= dt;
       if (F.t < 0.45 && F.tick <= 0){ F.tick = 0.15;
         const n = areaHit(P.x, P.y-35, 115, 75, 40*FM(), {kb:120, kbAway:true, src:'form', burn:8}, new Set());
         if (n && F.healed < 20){ const h = Math.min(4*n, 20 - F.healed); F.healed += h; P.hp = Math.min(P.maxHp, P.hp + h); pop(P.x, P.y-105, '+'+h, '#FFF3C4'); }
-        bloodSlash(P.x, P.y - 45, 0, 80, 'ring', false, 'sun'); sfx('fire'); }
-      if (F.t >= 0.48 && !F.rolled){ F.rolled = true;   // the wheel of fire is sent rolling
+        sfx('fire'); }
+      if (F.t >= 0.53 && !F.rolled){ F.rolled = true;   // the wheel of fire is sent rolling
         G.proj.push({kind:'sunwheel', x:P.x + P.face*50, y:GROUND - 48, vx:P.face*560, vy:0, r:48, rot:0, dmg:45*FM(), pierce:40, hit:new Set(), life:1.5, kb:200, burn:10, big:true, noLaunch:true, heal:0});
         sfx('whoosh'); sfx('fire', 0.02); } } },
   sun4:{ dur:0.75, pose:'cast', update(P,dt,F){ P.vx *= 0.85;
@@ -6652,22 +6652,58 @@ const FORM_MAP = {
     { t:1.78, h:[16,-8], th:1.3, phi:0.4, lean:0.35, cr:9, imp:true },
     { t:1.95, h:[16,-8], th:1.3, phi:0.4, lean:0.3, cr:8 } ] } },
   /* Sun: sweeping, two-handed, radiant */
-  sun1:{ c:'flurry',  v:{ n:4, dt:0.12, seq:['down','rise'], phi:0.3, lean:0.2, cr:5, two:true, legs:FC_LEG.step } },
-  sun2:{ c:'invoke', v:{ keys:[   // Setting Sun: crouch, spring with the blade drawn back over the head, bring it round and down in front as you land
-    { pre:0.5, h:[6,-6], th:1.8, phi:0.3, lean:0.3, cr:12, pr:-2, legs:FC_LEG.deep, off:[-6,-10], two:true },
-    { t:0.08, h:[0,-37], th:-2.6, phi:0.3, lean:-0.2, cr:2, legs:FC_LEG.tall },
-    { t:0.3, h:[-2,-37], th:-2.75, phi:0.3, lean:-0.25, cr:2 },
-    { t:0.42, h:[14,-34], th:-1.0, phi:0.3, lean:0.1, cr:4 },
-    { t:0.5, h:[22,-6], th:1.35, phi:0.3, lean:0.5, cr:15, pr:5, legs:FC_LEG.kneel, imp:true },
-    { t:0.75, h:[20,-6], th:1.4, phi:0.3, lean:0.45, cr:14 } ] } },
-  sun3:{ c:'whirl',   v:{ turns:2, y:-14, r:15, cr:5, lean:0.25, two:true, t1:0.55, legs:FC_LEG.horse } },
-  sun4:{ c:'invoke',  v:{ keys:[   // Solar Flare: blade to the sky while the sun gathers on it, then brought down hard
-    { pre:0.55, h:[8,-6], th:1.9, phi:0.3, lean:0.05, cr:9, pr:-3, legs:FC_LEG.deep, off:[-6,-10], two:true },
-    { t:0.06, h:[13,-38], th:-1.57, phi:0.3, lean:-0.15, cr:1, pr:0, legs:FC_LEG.tall, two:true },
-    { t:0.38, h:[12,-38], th:-1.6, phi:0.3, lean:-0.18, cr:1 },
-    { t:0.44, h:[22,-14], th:0.4, phi:0.3, lean:0.5, cr:12, pr:6, legs:FC_LEG.lunge, imp:true },
-    { t:0.7, h:[20,-14], th:0.45, phi:0.3, lean:0.4, cr:10 } ] } },
-  sun5:{ c:'flurry',  v:{ n:12, dt:0.09, seq:['gyaku','kesa'], phi:0.4, lean:0.2, cr:6, two:true, legs:FC_LEG.step } },   // Dawn: twelve cuts, one per hour
+  sun1:{ c:'flurry',  v:{ n:4, dt:0.12, seq:['down','rise'], phi:0.3, lean:0.2, cr:5, two:true } },   // no leg keys: real steps while advancing
+  sun2:{ c:'plunge',  v:{ two:true, dh:[21,-6], dth:1.35 } },   // Setting Sun: up with the blade raised, down with it as you land
+  sun3:{ c:'invoke', v:{ keys:[   // Beneficent Radiance: the blade traces a full circle of fire in front of you, then you push the wheel away
+    { pre:0.45, h:[12,-20], th:-0.4, phi:0.3, lean:0.1, cr:7, pr:0, legs:FC_LEG.horse, off:[-6,-14], two:true },
+    { t:0.04, h:[14.0,-34.0], th:-1.57, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.09, h:[20.4,-30.5], th:-0.79, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.14, h:[23.0,-22.0], th:0.00, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.19, h:[20.4,-13.5], th:0.79, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.24, h:[14.0,-10.0], th:1.57, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.29, h:[7.6,-13.5], th:2.36, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.34, h:[5.0,-22.0], th:3.14, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.39, h:[7.6,-30.5], th:3.93, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.44, h:[14.0,-34.0], th:4.71, phi:0.3, lean:0.12, cr:8, lin:true },
+    { t:0.48, h:[4,-20], th:0.0, phi:0.3, lean:-0.05, cr:9, pr:-3 },
+    { t:0.53, h:[24,-20], th:0.0, phi:0.3, lean:0.5, cr:9, pr:6, legs:FC_LEG.lunge, imp:true },
+    { t:0.72, h:[20,-20], th:0.05, phi:0.3, lean:0.4, cr:8 } ] } },
+  sun4:{ c:'invoke',  v:{ keys:[   // Solar Flare: a steady raise of the blade to the sky, feet planted wide; then brought down hard
+    { pre:0.55, h:[12,-14], th:-0.5, phi:0.3, lean:0.08, cr:7, pr:0, legs:FC_LEG.horse, off:[-6,-12], two:true },
+    { t:0.16, h:[12,-37], th:-1.57, phi:0.3, lean:-0.08, cr:6, pr:0, legs:FC_LEG.horse, two:true },
+    { t:0.38, h:[12,-38], th:-1.6, phi:0.3, lean:-0.1, cr:6 },
+    { t:0.44, h:[22,-14], th:0.4, phi:0.3, lean:0.45, cr:11, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.7, h:[20,-14], th:0.45, phi:0.3, lean:0.38, cr:10 } ] } },
+  sun5:{ c:'invoke', v:{ keys:[   // Dawn of the Twelfth: twelve cuts up and down, one per hour, then the blade to the rising sun and the last strike
+    { pre:0.45, h:[12,-18], th:-0.5, phi:0.4, lean:0.15, cr:6, pr:0, legs:FC_LEG.step, off:[-6,-12], two:true },
+    { t:0.05, h:[20,-31], th:-1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.10, h:[22,-7], th:1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.14, h:[20,-7], th:1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.19, h:[22,-31], th:-1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.23, h:[20,-31], th:-1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.28, h:[22,-7], th:1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.32, h:[20,-7], th:1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.37, h:[22,-31], th:-1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.41, h:[20,-31], th:-1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.46, h:[22,-7], th:1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.50, h:[20,-7], th:1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.55, h:[22,-31], th:-1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.59, h:[20,-31], th:-1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.64, h:[22,-7], th:1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.68, h:[20,-7], th:1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.73, h:[22,-31], th:-1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.77, h:[20,-31], th:-1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.82, h:[22,-7], th:1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.86, h:[20,-7], th:1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:0.91, h:[22,-31], th:-1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:0.95, h:[20,-31], th:-1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:1.00, h:[22,-7], th:1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:1.04, h:[20,-7], th:1.05, phi:0.4, lean:0.25, cr:6 },
+    { t:1.09, h:[22,-31], th:-1.05, phi:0.4, lean:0.3, cr:7, pr:4, imp:true },
+    { t:1.3, h:[12,-38], th:-1.57, phi:0.3, lean:-0.1, cr:5, legs:FC_LEG.horse },
+    { t:1.56, h:[12,-38], th:-1.6, phi:0.3, lean:-0.12, cr:5 },
+    { t:1.62, h:[22,-8], th:1.2, phi:0.3, lean:0.5, cr:13, pr:6, legs:FC_LEG.lunge, imp:true },
+    { t:1.85, h:[20,-8], th:1.2, phi:0.3, lean:0.45, cr:12 } ] } },
   /* Serpent: low, whipping, the wrist does the work */
   serpent1:{ c:'thrust', v:{ imp:0.03, low:5, th:0.12 } },
   serpent2:{ c:'bind',   v:{ keys:[ { pre:0.6, h:[6,-12], th:0.2, phi:0.4, lean:0, cr:7, pr:-3, legs:FC_LEG.step, off:[-8,-8] },
