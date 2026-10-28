@@ -1208,7 +1208,7 @@ const STYLES = {
              forms:[['Dance',35],['Setting Sun',50],['Beneficent Radiance',65],['Solar Flare',70],['Dawn of the Twelfth',100]],
              desc:'The first breathing style. No tricks, only overwhelming force, and light that heals you as it burns them.' },
   serpent: { name:'Serpent Breathing',  col:'#2EE59D', price:1600, unlock:16, pass:'Every 4th hit poisons the enemy',
-             forms:[['Fang Strike',30],['Coil',45],['Shed Skin',40],['Venom Rain',60],['King of Serpent',60]],
+             forms:[['Fang Strike',30],['Constrictor',45],['Shed Skin',40],['Venom Rain',60],['King of Serpent',60]],
              desc:'Venom style. Fast lunges that poison, a coil that drags enemies to you, a decoy skin that explodes, and a giant serpent that sweeps the field. Poison stacks and ticks for 5 s.' },
   kaal:    { name:'Kaal Breathing',     col:'#FFFFFF', price:500000, needCoins:500000, flat:[1, 0.1, 0.15, 0.2, 0.3], pass:'Every passive of every style, +10% damage, forms cost 20% less, breath regen +40%',
              forms:[['Eclipse Step',30],['Four Seasons',50],['Still Eternity',60],['Judgement of Ages',75],['End of Time',120]],
@@ -1498,7 +1498,7 @@ const FORM_CHOREO = {
   serpent4:{ t:'keys', k:[[0,0.5,0.2,8,0.3],[0.4,-1.57,-1.57,2,0,8],[1,-1.5,-1.4,3,0]], sway:true },                               // Venom Rain: up to the sky, swaying
   serpent5:{ t:'kingSerpent' },                                          // King of Serpent: rises tall like a cobra, the blade its hood, then strikes
   /* Kaal: calm, then everything at once */
-  kaal1:{ t:'zanshin' }, kaal2:{ t:'fourSeasons' },
+  kaal1:{ t:'zanshin' }, kaal2:{ t:'windDraw' },
   kaal3:{ t:'keys', k:[[0,-0.9,-1.57,3,0],[1,-0.9,-1.57,3,0]], still:true },
   kaal4:{ t:'keys', two:true, k:[[0,0.5,0.2,4,0],[0.45,-1.57,-1.57,0,-0.2,14],[0.62,-2.5,-2.9,2,-0.3,10],[0.8,1.3,1.6,13,0.5],[1,1.2,1.5,12,0.45]] },
   kaal5:{ t:'kaalStorm' }
@@ -4144,6 +4144,10 @@ function damageEnemy(e, dmg, o){
   }
   if (G.ST.sword.voidB && G.slowK > 0.5) dmg *= 1.4;
   if ((G.stopT||0) > 0) dmg *= 1.5;                    // hits land harder on a world that cannot move
+  if (G.kaalStop && (G.stopT || 0) > 0 && o.src !== 'stopRelease' && !e.remote && !e.dead){   // Still Eternity: the hit is stored, not felt, until time moves again
+    e.stopDmg = (e.stopDmg || 0) + dmg; e.stopHits = (e.stopHits || 0) + 1; e.flash = 0.06;
+    if (G.cuts) G.cuts.push({ x:e.x + rnd(-10, 10), y:e.y - 32*e.size + rnd(-14, 14), s:e.size, life:3, col:'#FFFFFF', frozen:true });
+    return true; }
   // style passives
   const pv = G.ST.passive, pk = pv === 'kaal';
   if ((pv === 'shadow' || pk) && o.src === 'slash' && o.dir !== undefined && sign(o.dir) === e.face && !isBoss(e)) dmg *= 1.25;
@@ -4341,7 +4345,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; if (P.atk) P.lastAtkT = G.time; P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -4873,8 +4877,8 @@ const FORM_DESC = {
   shadow1:'Shadow Step: sink into your own shadow and glide under the enemies, unseen and untouchable, then rise behind the last one with a cut from behind. Your next slash is an Ambush.', shadow2:'Shadow Snare: stab your own shadow. Black tendrils rise from the shadows of everyone near, wrap round them and hold them for 2.5 s.', shadow3:'Phantom Dance: three shadow clones burst out of you and dash through the nearest enemies from both sides, cutting each from behind.', shadow4:'Shadow Chains: chains of shadow shoot out to everyone in range and drag them to you, then one turning cut takes them all.', shadow5:'Midnight Requiem: night falls. You flicker behind each enemy in turn and mark them; when you sheathe the blade every mark opens at once.',
   blood1:'Scarlet Piercer: costs health, not breath. Ten stabs in a blur while you press forward, then one twisting thrust that blows them away. The lower your health, the harder every Blood form hits.', blood2:'Blood Grip: lunge in and seize the enemy by the throat, stab them three times, then hurl them into the others.', blood3:'Crimson Brawler: a front kick, a spinning heel kick, then a leaping two-handed chop straight down.', blood4:'Blood Rampage: for 1.4 s you charge like a beast, cutting wildly at everything in reach. A and D steer.', blood5:'Blood Massacre: you run down up to six enemies one after another, a different brutal strike for each, then flick the blood off the blade and every one of them bursts.',
   sun1:'Dance: four great circles of the blade while you advance, each one leaving an arc of fire.', sun2:'Setting Sun: leap high with the blade behind you and come down with it like the sun setting: a great arc of fire crushes everything in front and the ground bursts into flame.', sun3:'Beneficent Radiance: you turn with the blade in a full burning wheel, then send the wheel of fire rolling forward. It burns through the line and heals you for every enemy it touches.', sun4:'Solar Flare: raise the blade and a small sun gathers on its point; bring it down and the sun bursts, stunning and burning everyone around.', sun5:'Dawn of the Twelfth: twelve slashes of fire round you like the hours of a clock, then the sun rises behind you and bursts over the whole screen.',
-  serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
-  kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: an untouchable burning spin that leaves fire and water behind and launches enemies.', kaal3:'Still Eternity: time stops for everyone but you for 2.6 s. Every enemy and projectile freezes, and your hits on a frozen world deal +50%. Static field and iron body stay on you for 3 s.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
+  serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Constrictor: a spectral serpent lashes out of your blade, coils round up to five enemies and squeezes them together, poisoning them; then its head strikes down on the knot.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
+  kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: four steps, four cuts, four seasons. Spring scatters blossoms and poison, summer burns, autumn sends a crescent of falling leaves, winter freezes; untouchable while you dance.', kaal3:'Still Eternity: a great clock appears and time stops for everyone but you for 3 s. Every hit you land on the frozen world is stored instead of felt; when time starts again it all lands at once, half again as hard.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
 };
 const FM = () => G.ST.formMult;
 const nearestEnemies = (x, maxD) => G.E.filter(e=>!e.dead && sameLayer(e) && !(e.remote && G.mode === 'coop') && Math.abs(e.x-x) < maxD).sort((a,b)=>Math.abs(a.x-x)-Math.abs(b.x-x));
@@ -5480,14 +5484,20 @@ const FORMS = {
     update(P,dt,F){ P.vx = P.face*900; if (P.onG) P.vy = Math.min(P.vy, 0);
       areaHit(P.x+P.face*40, P.y-36, 60, 52, 42*FM(), {kb:140, src:'form', poison:6, dir:P.face}, F.set, 3);
       if (Math.random()<0.8) emit(P.x - P.face*10, P.y-36, {n:1, col:STYLE_FX.serpent.cols, spd:60, size:3, life:0.3, kind:'streak', g:0, vx:-P.face*500, jy:24}); } },
-  serpent2:{ dur:0.7, pose:'cast', start(P,F){ F.pulled = false; ringFx(P.x, P.y-40, 270, '#2EE59D', true); sfx('serpent'); },
-    update(P,dt,F){ P.vx *= 0.85;
-      if (F.t < 0.42){ for (const e of G.E){ if (e.dead || isBoss(e) || Math.abs(e.x-P.x) > 270 || Math.abs(e.x-P.x) < 40) continue;
-          e.x -= sign(e.x-P.x)*520*dt; e.vx = 0; e.rootT = Math.max(e.rootT, 0.1);
-          if (Math.random()<0.3) G.bolts.push({x1:P.x, y1:P.y-40, x2:e.x, y2:e.y-30*e.size, col:'#2EE59D', life:0.08, thin:true}); } }
-      else if (!F.pulled){ F.pulled = true;
-        areaHit(P.x, P.y-35, 95, 70, 55*FM(), {kb:220, kbAway:true, src:'form', poison:8, knockdown:0.8, heavy:true}, F.set);
-        styleImpact('serpent', P.x, P.y-40, true); G.shake = 10; G.hitstop = 0.08; vib(40); sfx('kick'); } } },
+  serpent2:{ dur:1.05, pose:'cast', start(P,F){ F.tick = 0; sfx('serpent');
+      const near = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 320 && Math.abs(e.y - P.y) < 180).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 5);
+      F.coiled = near.map(e => ({ e, x0:e.x }));
+      F.cx = near.length ? clamp(near.reduce((s, e) => s + e.x, 0)/near.length, P.x - 300, P.x + 300) : P.x + P.face*160; },
+    update(P,dt,F){ P.vx *= 0.8;
+      F.reach = clamp((F.t - 0.08)/0.22, 0, 1);   // the serpent shooting out to them
+      if (F.t > 0.3 && F.t < 0.8){ const u = FC_EASE(clamp((F.t - 0.3)/0.2, 0, 1));   // coiled round them, squeezing them together
+        F.coiled.forEach((c, i) => { const e = c.e; if (e.dead || isBoss(e)) return; const tx = F.cx + (i - (F.coiled.length - 1)/2)*14; e.x = lerp(c.x0, tx, u); e.vx = 0; e.state = 'stun'; e.timer = 0.3; e.atk = null; e.rootT = Math.max(e.rootT || 0, 0.2); });
+        F.tick -= dt; if (F.tick <= 0){ F.tick = 0.15; for (const c of F.coiled){ if (!c.e.dead) damageEnemy(c.e, 9*FM(), {kb:0, src:'form', poison:4, quiet:true, noStop:true}); } if (F.coiled.length) sfx('swish', 0.02); } }
+      if (F.t >= 0.82 && !F.bite){ F.bite = true;   // the head strikes down on the knot
+        for (const c of F.coiled){ if (c.e.dead) continue; damageEnemy(c.e, 70*FM(), {kb:200, src:'form', poison:10, heavy:true, knockdown:1.0, dir:sign(c.e.x - P.x) || 1}); }
+        styleImpact('serpent', F.cx, P.y - 40, true); ringFx(F.cx, GROUND, 120, '#2EE59D', true);
+        emit(F.cx, P.y - 40, {n:26, col:STYLE_FX.serpent.cols, spd:380, size:5, life:0.7, kind:'mist', g:-0.1});
+        G.shake = 12; G.hitstop = Math.max(G.hitstop, 0.09); sfx('kick'); sfx('serpent', 0.02); vib(50); } } },
   serpent3:{ dur:0.45, pose:'spin', start(P,F){ P.inv = 1.0;
       G.haz.push({kind:'decoy', x:P.x, y:P.y, face:P.face, life:1.25, tick:0, every:9, dmg:0, hp:1});
       emit(P.x, P.y-40, {n:16, col:STYLE_FX.serpent.cols, spd:200, size:4, life:0.6, kind:'mist', g:-0.2}); sfx('whoosh'); },
@@ -5513,13 +5523,25 @@ const FORMS = {
       bolt(x0, P.y-40, x1, P.y-40, '#FFFFFF'); bolt(x0, P.y-30, x1, P.y-45, '#4FB3FF'); echoTrail(x0, x1, P); P.x = x1; P.vx = P.face*120; G.shake = 8; sfx('zap'); sfx('frost', 0.05); flash('#FFFFFF',0.3); },
     update(P,dt,F){ P.vx = P.face*360; F.tick -= dt;
       if (F.tick <= 0 && F.n < 4){ F.tick = 0.1; F.n++; areaHit(P.x+P.face*45, P.y-35, 75, 55, 32*FM(), {kb:120, src:'form', poison:4, burn:6}, new Set()); styleImpact('kaal', P.x+P.face*50, P.y-40, false); sfx('swish'); } } },
-  kaal2:{ dur:0.7, pose:'spin', start(P,F){ P.vy = -520; P.onG = false; P.inv = 0.85; F.pool = 0; },
-    update(P,dt,F){ P.vx = P.face*560; P.inv = Math.max(P.inv, 0.1);
-      areaHit(P.x, P.y-35, 95, 70, 90*FM(), {kb:320, src:'form', kbAway:true, burn:14, freeze:0.6, poison:6, launch:460, breakArmor:2}, F.set);
-      F.pool -= dt; if (F.pool <= 0){ F.pool = 0.08; G.haz.push({kind:F.k ? 'fire' : 'water', x:P.x, y:GROUND, r:30, life:3.2, tick:0, dmg:(F.k ? 10 : 5)*FM(), every:0.5}); F.k = !F.k; }
-      if (Math.random()<0.8) emit(P.x, P.y-40, {n:2, col:STYLE_FX.kaal.cols, spd:200, size:4, life:0.5, kind:'star', g:0.4, jx:30, jy:30}); } },
+  kaal2:{ dur:1.0, pose:'swipe', start(P,F){ F.k = 0; P.inv = 1.0; },
+    update(P,dt,F){
+      const k = Math.floor((F.t - 0.06)/0.22);
+      if (k >= 0 && k < 4 && k >= F.k){ F.k = k + 1;   // a step and a cut for each season
+        P.vx = P.face*360;
+        const S = [ { pal:'spring', o:{poison:8}, ang:-0.9, fx:['#FFB7D5','#FFE3EE','#FFFFFF'] },
+                    { pal:'sun', o:{burn:14}, ang:0.0, fx:['#FF7A1A','#FFD23F','#FFF3C4'] },
+                    { pal:'autumn', o:{bleed:10}, ang:0.9, fx:['#D2691E','#FFB347','#8B4513'] },
+                    { pal:'winter', o:{freeze:1.2}, ang:-0.3, fx:['#9FD3F0','#DCF3FF','#FFFFFF'] } ][k];
+        areaHit(P.x + P.face*60, P.y - 40, 100, 75, 55*FM(), Object.assign({kb:160, src:'form', dir:P.face}, S.o), new Set());
+        bloodSlash(P.x + P.face*45, P.y - 42, (P.face > 0 ? 0 : Math.PI) + S.ang*P.face, 70, 'arc', true, S.pal);
+        emit(P.x + P.face*70, P.y - 50, {n:18, col:S.fx, spd:260, size:5, life:1.0, kind:k === 1 ? 'ember' : 'star', g:k === 2 ? 0.5 : k === 0 ? 0.2 : -0.1, jx:30, jy:30});   // blossoms, embers, leaves, snow
+        if (k === 2) G.proj.push({kind:'moonlet', x:P.x + P.face*60, y:P.y - 44, vx:P.face*720, vy:0, dmg:30*FM(), pierce:4, hit:new Set(), life:0.6, col:'#FFB347', r:24, bleed:8});   // autumn's crescent
+        if (k === 3) for (let j = 0; j < 4; j++) G.haz.push({kind:'shard', x:P.x + P.face*(60 + j*36), y:P.y - 42 + rnd(-10, 10), a:(P.face > 0 ? 0 : Math.PI) + rnd(-0.3, 0.3), L:rnd(34, 46), delay:j*0.03, life:0.6, max:0.6, tick:99, every:99, dmg:0});
+        sfx(['swish', 'fire', 'swish', 'frost'][k]); G.shake = Math.max(G.shake, 5); }
+      else P.vx *= Math.pow(0.02, dt);
+      if (F.t >= 0.92 && !F.fin){ F.fin = true; ringFx(P.x, P.y - 40, 180, '#FFFFFF'); flash('#FFFFFF', 0.15); } } },
   kaal3:{ dur:0.4, pose:'cast', start(P,F){
-      G.stopT = 2.6; G.bwT = 2.6; P.staticT = Math.max(P.staticT, 3); P.ironT = Math.max(P.ironT, 3); P.inv = Math.max(P.inv, 0.5);
+      G.stopT = 3.0; G.bwT = 3.0; G.kaalStop = { t0:G.time }; P.staticT = Math.max(P.staticT, 3); P.inv = Math.max(P.inv, 0.5);
       for (const e of G.E){ if (e.dead) continue; e.comboLeft = 0; if (e.state === 'windup' || e.state === 'swing') e.state = 'chase'; emit(e.x, e.y-36*e.size, {n:6, col:['#FFFFFF','#9FD3F0'], spd:60, size:3, life:0.8, kind:'star', g:0}); }
       ringFx(P.x, P.y-40, 260, '#FFFFFF', true); ringFx(P.x, P.y-40, 520, '#FFFFFF'); cracks(P.x, 300, '#FFFFFF');
       pop(P.x, P.y-115, 'Time stops', '#FFFFFF'); flash('#FFFFFF', 0.5); G.shake = 10; G.hitstop = 0.08; sfx('slowIn'); sfx('kaal', 0.05); zoomPunch(1.08); vib(60); },
@@ -6034,12 +6056,14 @@ function tryHitPlayer(e){
 function hurtPlayer(dmg, kb, e, full){
   const P = G.P;
   // mid-attack (a swing or a form) the hero slips the blow and keeps cutting; it needs a moment before it works again
-  if (e && !P.dead && !P.ride && (P.atk || (P.form && !P.form.wait)) && G.mode !== 'duel' && G.mode !== 'arena' && G.mode !== 'coop' && G.time - (P.evadeT ?? -9) > 0.45){
+  if (P.atk) P.lastAtkT = G.time;
+  if (e && !P.dead && !P.ride && (P.atk || (P.form && !P.form.wait) || G.time - (P.lastAtkT ?? -9) < 0.25) && G.mode !== 'duel' && G.mode !== 'arena' && G.mode !== 'coop' && G.time - (P.evadeT ?? -9) > 0.3){
     P.evadeT = G.time; P.inv = Math.max(P.inv, 0.22);
     const away = -(sign((e.x ?? P.x) - P.x) || P.face);
     if (!P.form) P.x = clamp(P.x + away*18, 30, G.worldW - 30);   // a small slip out of the way (forms keep their own footwork)
     if (FXL() > 0) G.echoes.push({ snap:heroSnap(P), life:0.2, max:0.3, col:'#FFFFFF' });
-    pop(P.x, P.y - 100, 'Evade', '#DCF3FF'); sfx('swish');
+    pop(P.x, P.y - 100, 'Evade', '#DCF3FF'); sfx('swish'); ringFx(P.x, P.y - 40, 50, '#FFFFFF');
+    if (e.T){ sparks(P.x + away*-14, P.y - 44); }   // their blade cuts only air
     return;
   }
   const iron = P.ironT > 0;
@@ -6706,12 +6730,16 @@ const FORM_MAP = {
     { t:1.85, h:[20,-8], th:1.2, phi:0.3, lean:0.45, cr:12 } ] } },
   /* Serpent: low, whipping, the wrist does the work */
   serpent1:{ c:'thrust', v:{ imp:0.03, low:5, th:0.12 } },
-  serpent2:{ c:'bind',   v:{ keys:[ { pre:0.6, h:[6,-12], th:0.2, phi:0.4, lean:0, cr:7, pr:-3, legs:FC_LEG.step, off:[-8,-8] },
-                                    { t:0, h:[20,-14], th:0.05, lean:0.3, cr:8, pr:5, legs:FC_LEG.lunge, off:[-10,-10], imp:true } ]
-                                  .concat(fcSpiral(0.03, 0.27, 10, [20,-14], [8,-12]))
-                                  .concat([ { t:0.35, h:[-6,-11], th:2.6, phi:1.15, lean:-0.05, cr:8, pr:-5, legs:FC_LEG.deep, lin:false },
-                                            { t:0.42, h:[19,-13], th:0, phi:1.15, lean:0.3, cr:8, pr:5, imp:true },
-                                            { t:0.52, h:[13,-15], th:-1.3, lean:0.2, pr:2 } ]) } },
+  serpent2:{ c:'invoke', v:{ keys:[   // Constrictor: whip the blade out (the serpent leaves it), lean back and twist to tighten the coil, then thrust as the head strikes
+    { pre:0.45, h:[8,-16], th:0.2, phi:0.4, lean:0.05, cr:7, pr:0, legs:FC_LEG.step, off:[-8,-10] },
+    { t:0.1, h:[24,-18], th:0.0, phi:1.1, lean:0.4, cr:8, pr:6, legs:FC_LEG.lunge, imp:true },
+    { t:0.3, h:[4,-18], th:0.3, phi:1.1, lean:-0.2, cr:9, pr:-4, legs:FC_LEG.back },
+    { t:0.42, h:[2,-16], th:0.6, phi:1.1, lean:-0.25, cr:10 },
+    { t:0.54, h:[4,-20], th:0.0, phi:1.1, lean:-0.22, cr:9 },
+    { t:0.66, h:[2,-16], th:0.6, phi:1.1, lean:-0.25, cr:10 },
+    { t:0.76, h:[0,-22], th:-0.3, phi:1.1, lean:-0.2, cr:8 },
+    { t:0.84, h:[25,-16], th:0.1, phi:1.1, lean:0.55, cr:9, pr:7, legs:FC_LEG.lunge, imp:true },
+    { t:1.0, h:[21,-16], th:0.1, phi:1.1, lean:0.4, cr:8 } ] } },
   serpent3:{ c:'vanish', v:{ keys:[ { pre:0.6, h:[13,-14], th:-0.3, phi:0.2, lean:0.1, cr:4, pr:0, legs:FC_LEG.ready, off:[-6,-8] },
                                     { t:0, h:[16,-10], th:0.35, lean:-0.25, cr:9, pr:-3, legs:FC_LEG.back, off:[-12,-14], imp:true },
                                     { t:0.22, h:[15,-11], th:0.3, lean:-0.2, cr:8 },
@@ -6720,7 +6748,17 @@ const FORM_MAP = {
   serpent5:{ c:'thrust',  v:{ imp:0.15, two:true, th:-0.25, hold:1.0 } },
   /* Kaal: every style at once */
   kaal1:{ c:'thrust',  v:{ imp:0, tail:[0.1, 0.2, 0.3, 0.4] } },
-  kaal2:{ c:'whirl',   v:{ turns:3, y:-12, r:15, ry:2, phi:1.3, cr:7, lean:0.3, t1:0.5 } },
+  kaal2:{ c:'invoke', v:{ keys:[   // Four Seasons: spring falls from high, summer cuts flat, autumn rises, winter comes down
+    { pre:0.45, h:[10,-18], th:-0.4, phi:0.4, lean:0.1, cr:6, pr:0, legs:FC_LEG.step, off:[-6,-12] },
+    { t:0.12, h:[2,-36], th:-2.2, phi:0.6, lean:0.0, cr:6, legs:FC_LEG.step },
+    { t:0.18, h:[22,-8], th:1.0, phi:0.6, lean:0.4, cr:9, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.34, h:[-4,-18], th:2.9, phi:1.2, lean:0.0, cr:6, legs:FC_LEG.step },
+    { t:0.40, h:[23,-18], th:0.0, phi:1.2, lean:0.4, cr:9, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.56, h:[4,-4], th:2.3, phi:0.6, lean:0.0, cr:6, legs:FC_LEG.step },
+    { t:0.62, h:[20,-32], th:-1.0, phi:0.6, lean:0.4, cr:9, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.78, h:[10,-36], th:-1.7, phi:0.3, lean:0.0, cr:6, legs:FC_LEG.step },
+    { t:0.84, h:[22,-12], th:0.5, phi:0.3, lean:0.4, cr:9, pr:5, legs:FC_LEG.lunge, imp:true },
+    { t:0.95, h:[18,-14], th:0.3, phi:0.4, lean:0.3, cr:8 } ] } },
   kaal3:{ c:'invoke',  v:{ keys:[ { pre:0.5, h:[-5,-13], th:2.8, phi:1.3, lean:-0.05, cr:5, pr:-4, legs:FC_LEG.step, off:[-6,-10] },
                                   { t:0, h:[14,-17], th:1.5, phi:1.38, lean:0.05, cr:4, pr:2, legs:FC_LEG.horse, off:[20,-22], imp:true },
                                   { t:0.3, h:[14,-17], th:1.45, off:[20,-21] } ] } },
@@ -9056,6 +9094,18 @@ function drawFrostForm(P){
     ctx.globalAlpha = 0.5*q; ctx.fillStyle = '#DCF3FF'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 12, 0, 6.283); ctx.fill(); }
   ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
+function kaalStopTick(){
+  if (!G.kaalStop || (G.stopT || 0) > 0) return;
+  G.kaalStop = null;   // time moves again: everything stored lands at once
+  let any = false;
+  for (const e of G.E){ if (e.dead || !(e.stopDmg > 0)) continue; any = true;
+    const d = e.stopDmg, n = e.stopHits || 1; e.stopDmg = 0; e.stopHits = 0;
+    damageEnemy(e, d, {src:'stopRelease', heavy:true, kb:120 + 30*Math.min(8, n), dir:G.P ? (sign(e.x - G.P.x) || 1) : 1});
+    for (let k = 0; k < Math.min(6, n); k++) G.cuts.push({ x:e.x + rnd(-12, 12), y:e.y - 32*e.size + rnd(-16, 16), s:e.size, life:0.35, col:'#FFFFFF' });
+    impactFx(e.x, e.y - 40*e.size, '#FFFFFF', 1.4); pop(e.x, e.y - 110*e.size, Math.round(d) + '', '#FFFFFF'); }
+  if (G.cuts) G.cuts = G.cuts.filter(c => !c.frozen);
+  if (any){ G.shake = Math.max(G.shake, 14); G.hitstop = Math.max(G.hitstop, 0.1); sfx('boom'); vib(60); }
+}
 function woundTick(dt){
   if (!G.wounds || !G.wounds.length || !(dt > 0)) return;
   for (const W of G.wounds){ const e = W.e; if (e.dead){ W.gone = true; continue; }
@@ -9077,6 +9127,44 @@ function snareTick(dt){
 }
 /* Blood forms hit harder the more health you have lost (up to 2.5x) */
 function bloodMult(P){ return 1 + 1.5*clamp(1 - P.hp/P.maxHp, 0, 1); }
+/* Constrictor: the spectral serpent, out of the blade, round the knot of enemies, then its head striking */
+function drawConstrictor(P){
+  const F = P.form, tip = formBladeTip(P), cx = F.cx, cy = P.y - 42, fade = 1 - clamp((F.t - 0.92)/0.12, 0, 1);
+  if (!(F.reach > 0) || fade <= 0) return;
+  const body = (pts, w) => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.strokeStyle = 'rgba(10,60,40,0.85)'; ctx.lineWidth = w + 4; ctx.stroke(); ctx.strokeStyle = 'rgba(46,229,157,0.9)'; ctx.lineWidth = w; ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,255,230,0.55)'; ctx.lineWidth = 2; ctx.setLineDash([5, 7]); ctx.stroke(); ctx.setLineDash([]); };   // scales
+  ctx.save(); ctx.globalAlpha = fade; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const coil = F.t > 0.3 ? FC_EASE(clamp((F.t - 0.3)/0.2, 0, 1)) : 0, pts = [];
+  const n = 26, sx = tip[0], sy = tip[1];
+  for (let i = 0; i <= n; i++){ const u = i/n*F.reach;   // from the blade out to them
+    pts.push([lerp(sx, cx, u) + Math.sin(u*10 + G.time*8)*10*(1 - coil), lerp(sy, cy - 50, u) + Math.sin(u*7)*14*(1 - coil)]); }
+  if (coil > 0) for (let i = 1; i <= 40; i++){ const a = -Math.PI/2 + i/40*Math.PI*2*2.2*coil, r = lerp(90, 52, i/40);   // then round and round them
+    pts.push([cx + Math.cos(a)*r, cy + Math.sin(a)*r*0.55]); }
+  body(pts, 11);
+  const head = pts[pts.length - 1]; let hx = head[0], hy = head[1];
+  if (F.t > 0.76 && F.t < 0.9){ const u = Math.sin((F.t - 0.76)/0.14*Math.PI); hx = lerp(hx, cx, u); hy = lerp(hy, cy - 70, u*0.3) + u*40; }   // the strike
+  ctx.fillStyle = '#1C8A5E'; ctx.beginPath(); ctx.ellipse(hx, hy, 15, 10, 0, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#FFE14D'; ctx.beginPath(); ctx.arc(hx + 5, hy - 3, 2.6, 0, 6.283); ctx.fill(); ctx.beginPath(); ctx.arc(hx - 5, hy - 3, 2.6, 0, 6.283); ctx.fill();   // its eyes
+  ctx.strokeStyle = '#FF5A7A'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(hx, hy + 8); ctx.lineTo(hx, hy + 16); ctx.lineTo(hx - 3, hy + 19); ctx.moveTo(hx, hy + 16); ctx.lineTo(hx + 3, hy + 19); ctx.stroke();   // tongue
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+/* Still Eternity: a great clock behind you, its hands stopped, while time is frozen */
+function drawKaalClock(P){
+  const age = G.time - G.kaalStop.t0, q = Math.min(1, age/0.3)*Math.min(1, (G.stopT || 0)/0.3), cx = G.camX + VW/2, cy = (G.camY || 0) + 200, R = 170;
+  ctx.save(); ctx.globalAlpha = 0.55*q; ctx.strokeStyle = '#FFFFFF'; ctx.fillStyle = '#FFFFFF';
+  ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.283); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx, cy, R - 14, 0, 6.283); ctx.stroke();
+  ctx.font = '600 22px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const RN = ['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+  for (let k = 0; k < 12; k++){ const a = -Math.PI/2 + k*Math.PI/6; ctx.fillText(RN[k], cx + Math.cos(a)*(R - 34), cy + Math.sin(a)*(R - 34));
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a)*(R - 14), cy + Math.sin(a)*(R - 14)); ctx.lineTo(cx + Math.cos(a)*R, cy + Math.sin(a)*R); ctx.stroke(); }
+  ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(-1.2)*R*0.5, cy + Math.sin(-1.2)*R*0.5); ctx.stroke();   // the hands, stopped
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(0.5)*R*0.75, cy + Math.sin(0.5)*R*0.75); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 6, 0, 6.283); ctx.fill();
+  if (age < 0.5){ ctx.globalAlpha = 0.6*(1 - age/0.5); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(P.x, P.y - 40, 40 + age*1200, 0, 6.283); ctx.stroke(); }   // the moment it stops: a ripple
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 /* Sun Breathing: the wheel of fire, the setting-sun arc, the sun gathering on the blade, the dawn rising */
 function drawSunWheel(x, y, r, rot){
   ctx.save(); ctx.translate(x, y); ctx.globalCompositeOperation = 'lighter';
@@ -9134,14 +9222,14 @@ function bloodExplosion(e){
 }
 /* big anime-style blood slashes, and blood spraying out of a wound */
 function bloodSlash(x, y, ang, r, kind, big, pal){ (G.bslash = G.bslash || []).push({ x, y, ang, r:r || 40, kind:kind || 'arc', big:!!big, pal:pal || 'blood', t0:G.time, life:big ? 0.32 : 0.22 }); }
-const SLASH_PAL = { blood:['#5A0A16', '#E0283E', '#FFE0E4'], sun:['#8A2A00', '#FF8A1A', '#FFF3C4'] };
+const SLASH_PAL = { blood:['#5A0A16', '#E0283E', '#FFE0E4'], sun:['#8A2A00', '#FF8A1A', '#FFF3C4'], spring:['#8A3A5A', '#FFB7D5', '#FFFFFF'], autumn:['#5A2A08', '#E07A2A', '#FFE0B0'], winter:['#1E4A6B', '#9FD3F0', '#FFFFFF'] };
 function bloodSpray(e, dir, n){ if (FXL() <= 0 && n > 8) n = 8; emit(e.x, e.y - 36*(e.size || 1), {n, col:STYLE_FX.blood.cols, spd:180 + n*12, size:3 + Math.min(4, n/8), life:0.7, kind:'drop', g:1.5, vx:dir*160, vy:-160}); }
 function drawBloodSlashes(){
   if (!G.bslash || !G.bslash.length) return;
   G.bslash = G.bslash.filter(b => G.time - b.t0 < b.life);
   ctx.save(); ctx.lineCap = 'round';
   for (const b of G.bslash){ const u = (G.time - b.t0)/b.life, a = 1 - u, g = Math.min(1, u*5), W = b.big ? 1.6 : 1, C = SLASH_PAL[b.pal] || SLASH_PAL.blood;
-    ctx.globalAlpha = a; if (b.pal === 'sun') ctx.globalCompositeOperation = 'lighter'; else ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = a; if (b.pal !== 'blood') ctx.globalCompositeOperation = 'lighter'; else ctx.globalCompositeOperation = 'source-over';
     if (b.kind === 'thrust'){ const L = (b.big ? 150 : 70 + b.r)*g, dx = Math.cos(b.ang), dy = Math.sin(b.ang);   // a straight streak
       for (const [c, w] of [[C[0], 9*W], [C[1], 5*W], [C[2], 1.6*W]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(b.x - dx*L*0.5, b.y - dy*L*0.5); ctx.lineTo(b.x + dx*L*0.5, b.y + dy*L*0.5); ctx.stroke(); } }
     else if (b.kind === 'ring'){ for (const [c, w] of [[C[0], 10], [C[1], 5], [C[2], 1.6]]){ ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(b.x, b.y, b.r*g, b.r*0.35*g, 0, 0, 6.283); ctx.stroke(); } }
@@ -9827,6 +9915,8 @@ function renderScene(){
     if (P.form && !P.form.wait && (P.form.id==='frost2' || P.form.id==='frost3' || P.form.id==='frost4')) drawFrostForm(P);
     drawShadowForms(P);
     drawSunForms(P);
+    if (G.kaalStop && (G.stopT || 0) > 0) drawKaalClock(P);
+    if (P.form && P.form.id === 'serpent2' && !P.form.wait) drawConstrictor(P);
     drawBloodSlashes();
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
@@ -13699,7 +13789,7 @@ function step(dt){
   if (G.mode === 'zomb') zombTick(dt);
   if (G.mode === 'world') worldTick(dt, pdt, wdt);
   tickDragons(pdt); tickSerpents(pdt);
-  snareTick(wdt); woundTick(wdt);
+  snareTick(wdt); woundTick(wdt); kaalStopTick();
   // lingering hazards tick in world time
   for (const h of G.haz){
     { const hdt = h.follow ? pdt : wdt; h.life -= hdt; h.tick -= hdt; }   // crescents that follow you keep cutting even when time is stopped
