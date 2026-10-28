@@ -2003,6 +2003,9 @@ function webHoldTick(P, W, dt){
   const spinKey = held.web && (W.tapping ? W.tapT > 0.16 : W.t > 0.12) && W.slamT === undefined;
   const maxAv = WEBS.maxAv/sq;
   W.spinning = false;
+  if (pressed.dash && !W.hurl && W.slamT === undefined && W.t > 0.1){   // L: the hammer throw starts
+    W.hurl = { dir:P.face || 1, a:Math.atan2(clamp((W.by - (P.y - 52))/24, -1, 1), clamp((W.bx - P.x)/88, -1, 1)), av:0, turns:0, t:0 }; P.noDashT = 0.3; sfx('whoosh'); }
+  if (W.hurl){ webHurlSpin(P, W, e, dt); return; }
   if (pressed.attack && W.slamT === undefined && W.t > 0.15){   // slam: up over your head and down in front
     W.slamT = 0; W.s0 = [W.bx, W.by]; W.s1 = [clamp(P.x + P.face*80, 30, G.worldW - 30), floor]; W.was = false; sfx('whoosh');
   }
@@ -2247,12 +2250,49 @@ function webThrow(P, e, vx, vy){
   pop(e.x, e.y - 110*e.size, 'THROW!', '#FFFFFF'); sfx('whoosh'); G.shake = Math.max(G.shake, 4);
 }
 /* a thrown body: it bowls over anyone in its way (handing over momentum), bounces once if it lands hard, then stops */
+/* L while you hold someone on the web: they are hurled the way you face, very fast and low, and bowl over everyone in the way */
+/* L while you hold someone on the web: a hammer throw. You plant your feet, lean back against the pull and swing them round
+   you on the line, faster and faster (a heavy body speeds up slower and tops out lower); when they come round to the front
+   with the line pulling the way you face, you let go and they fly off on the tangent at the speed of the swing (v = r*w). */
+function webHurlSpin(P, W, e, dt){
+  const H = W.hurl, m = W.m || webMass(e), sq = Math.sqrt(m), rx = 88, ry = 24, cy = P.y - 52;
+  H.t += dt; P.noDashT = 0.3;
+  H.av += H.dir*(34/sq)*dt; H.av = clamp(H.av, -19/sq, 19/sq);   // angular acceleration from your pull, capped by your strength against their weight
+  H.a += H.av*dt; H.turns += Math.abs(H.av*dt)/(Math.PI*2);
+  const tx = P.x + Math.cos(H.a)*rx, ty = cy + Math.sin(H.a)*ry, k = Math.min(1, dt*26/sq);
+  W.bx += (tx - W.bx)*k; W.by += (ty - W.by)*k;
+  W.vx = -Math.sin(H.a)*rx*H.av + P.vx; W.vy = Math.cos(H.a)*ry*H.av; W.len = 70; W.spinning = false; W.a = H.a;
+  e.webRoll = (Math.cos(H.a) >= 0 ? 1 : -1)*1.45; e.webBack = Math.sin(H.a) < 0;   // stretched out flat by the swing; behind you on the far side
+  webPlace(e, W); webClub(P, W, e, dt);   // anyone it swings through gets hit
+  // the reaction: their pull drags at you, so you lean back and your feet slide a little; dust under them
+  P.vx = lerp(P.vx, -Math.cos(H.a)*rx*H.av*H.av*0.0016*(m/(m + 1)), Math.min(1, dt*6));
+  if (P.onG && FXL() > 0 && Math.random() < 0.4) emit(P.x, GROUND - 3, {n:1, col:['#2a1418','#5a4a40'], spd:80, size:3, life:0.4, kind:'rock', g:1.2, vy:-60});
+  // let go at the top of the circle, where the line runs exactly the way you face
+  const lined = Math.sin(H.a) < -0.93 && -Math.sin(H.a)*H.av*H.dir > 0;
+  if ((H.turns >= 1.25 && lined) || H.t > 1.6) webHurlRelease(P, W, e, rx*Math.abs(H.av), H.dir);
+}
+function webHurlRelease(P, W, e, v, dir){
+  const m = W.m || webMass(e);
+  P.wg = null; P.noDashT = 0.3; P.face = dir; e.webHeld = false; e.webBack = false;
+  e.vx = dir*v; e.vy = -v*0.12; e.onG = false;   // off on the tangent, a little upward, then gravity takes it
+  e.state = 'hurt'; e.timer = 1.6; e.juggle = Math.max(e.juggle || 0, 1);
+  e.webThrown = { t:0, hit:new Set(), m, pvy:e.vy, hurl:true };
+  P.vx -= dir*v*0.12*(m/(m + 1));   // and it pushes you back a step
+  speedLines(e.x, e.y - 40*(e.size || 1), 14, '#FFFFFF', 0.3); pop(P.x, P.y - 110, 'HURL!', '#FFFFFF');
+  G.shake = Math.max(G.shake, 8); sfx('whoosh'); sfx('kick', 0.02); vib(40);
+}
 function webFlight(e, dt){
   const F = e.webThrown; F.t += dt; const m = F.m || webMass(e);
   const sp = Math.hypot(e.vx, e.vy);
   if (sp > 220) for (const o of G.E){ if (o === e || o.dead || o.vanish || o.remote || o.webHeld || !sameLayer(o) || F.hit.has(o)) continue;
     if (Math.hypot(o.x - e.x, (o.y - 32*o.size) - (e.y - 32*e.size)) > 38*(o.size + e.size)) continue;
     const mo = webMass(o), share = m/(m + mo);
+    if (F.hurl){   // a hurled body: they are knocked flat on their backs, and it barely slows
+      F.hit.add(o); const d = sign(e.vx) || 1;
+      damageEnemy(o, 30 + sp*m*0.02, { src:'web', heavy:true, unblockable:true, kb:620*clamp(share*2, 0.5, 1.6), dir:d, launch:0, knockdown:1.4 });
+      if (!o.dead && !isBoss(o)){ o.state = 'down'; o.timer = Math.max(o.timer || 0, 1.4); o.vx = d*600*clamp(share*2, 0.5, 1.6); o.vy = Math.min(o.vy || 0, -140); o.onG = false; o.react = { k:'head', t:0, d:0.5, big:true }; }
+      e.vx *= 0.93; impactFx(o.x, o.y - 40*o.size, '#FFFFFF', 1.3); sfx('kick'); G.shake = Math.max(G.shake, 6); G.hitstop = Math.max(G.hitstop, 0.03);
+      continue; }
     F.hit.add(o); damageEnemy(o, 12 + sp*m*0.02, { src:'web', heavy:true, unblockable:true, kb:380*clamp(share*2, 0.4, 1.7), dir:sign(e.vx) || 1, launch:300*clamp(share*2, 0.4, 1.5) });
     e.vx *= 1 - 0.6*(mo/(m + mo));   // it slows down by what it handed over
     impactFx(o.x, o.y - 40*o.size, '#FFFFFF', 1); sfx('kick'); }
@@ -2692,7 +2732,7 @@ function startSpider(){
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
     isTouch ? 'Swing: web to buildings · Web: catch enemies · Climb: crawl a wall · Net: wrap / hang'
-            : 'Hold Q + D: swing · Shift + A/D + Q, hold then let go: sling kick · X: web enemies · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
+            : 'Hold Q + D: swing · Shift + A/D + Q, hold then let go: sling kick · X: web enemies (then L: hurl) · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
   setScreen(null); G.running = true; webTouchBtn();
 }
 /* endless street fight: more enemies and tougher types the more you take down */
@@ -2713,9 +2753,9 @@ function spiderTick(dt, alive){
   G.E.push(makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true));
 }
 /* the suit: red and blue, white lenses, a spider on the chest — drawn over the same body the game animates */
-function drawSpiderSuit(e, segs){
-  const s = e.size || 1, f = e.face || 1, fl = e.flash > 0;
-  const RED = fl ? '#FFFFFF' : '#D3202A', RED2 = fl ? '#FFFFFF' : '#A3141C', BLUE = fl ? '#FFFFFF' : '#2448B8', DK = '#120307';
+function drawSpiderSuit(e, segs, tint){
+  const s = e.size || 1, f = e.face || 1, fl = e.flash > 0 || !!tint, T = tint || '#FFFFFF';
+  const RED = fl ? T : '#D3202A', RED2 = fl ? T : '#A3141C', BLUE = fl ? T : '#2448B8', DK = tint ? T : '#120307';
   const legs = segs.slice(0, 4), torso = segs[4], head = segs.find(g => g[5] === 'head');
   const arms = segs.slice(5).filter(g => !g[5]), fists = segs.filter(g => g[5] === 'fist');
   const line = (g, col, w) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(g[0], g[1]); ctx.lineTo(g[2], g[3]); ctx.stroke(); };
@@ -4397,7 +4437,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dgT = (P.dgT || 0) - dt; if (P.dgT > 0 && P.dgVX && (P.dgKind === 'roll' || P.dgKind === 'sidestep' || P.dgKind === 'backflip' || P.dgKind === 'frontflip')) P.vx = P.dgVX; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dgT = (P.dgT || 0) - dt; P.noDashT = (P.noDashT || 0) - dt; if (P.dgT > 0 && P.dgVX && (P.dgKind === 'roll' || P.dgKind === 'sidestep' || P.dgKind === 'backflip' || P.dgKind === 'frontflip')) P.vx = P.dgVX; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -4520,7 +4560,7 @@ function updatePlayer(dt){
       if ((P.boostCd||0) <= 0 && P.breath > 4){ P.boostT = 0.6; P.boostCd = 1.0; P.breath -= 4; P.vx += P.face*260; sfx('dash'); sfx('fire', 0.02); cameraKick(-P.face*5, 0); zoomPunch(1.03);
         if (FXL() > 0){ const ft = stickSegments(P); for (const si of [1, 3]) ringFx(ft[si][2], ft[si][3], 26, '#FFB020'); } }
     }
-    else if (pressed.dash && P.dashCd <= 0 && (P.onG || (hasAbil('airDash') && !P.airDashUsed))){
+    else if (pressed.dash && !(P.noDashT > 0) && P.dashCd <= 0 && (P.onG || (hasAbil('airDash') && !P.airDashUsed))){
       if (!P.onG) P.airDashUsed = true;
       P.dashT = 0.17; P.dashCd = 0.5; P.inv = 0.24; if (mv) P.face = mv; P.atk = null; P.blockT=-1; sfx('dash'); P.dashHits = new Set();
     }
@@ -6026,9 +6066,8 @@ function arrowDodge(P, q){
   else if (kind === 'hop'){ startDodge(P, 'hop', 0.36); if (P.onG){ P.vy = -620; P.onG = false; } }
   else if (kind === 'backflip'){ startDodge(P, 'backflip', 0.42, -P.face*300); if (P.onG){ P.vy = -540; P.onG = false; } }
   else if (kind === 'matrix') startDodge(P, 'matrix', 0.38);
-  else if (kind === 'deflect'){ startDodge(P, 'deflect', 0.3); q.dodged = false; reflectProj(q, true); }   // a flick of the blade sends it back
-  else { startDodge(P, 'catch', 0.4); q.life = 0;   // plucked out of the air, and thrown back
-    setTimeout(() => { if (G.P === P && !P.dead) G.proj.push({ kind:'kunai', x:P.x + P.face*14, y:P.y - 44, vx:P.face*1000, vy:0, dmg:30*FM(), pierce:2, hit:new Set(), life:0.8, col:'#dddddd' }); }, 350); }
+  else if (kind === 'deflect'){ startDodge(P, 'deflect', 0.3); q.life = 0; sparks(q.x, q.y); }   // a flick of the blade knocks it out of the air (no hitting back)
+  else { startDodge(P, 'catch', 0.4); q.life = 0; }   // plucked out of the air and dropped (no hitting back)
   const labels = { frontflip:'Front flip!', turncut:'Cut it down', hop:'Jumped it!', backflip:'Backflip!', matrix:'Dodged!', deflect:'Deflected!', catch:'Caught it!' };
   G.mo = { kind:'dodge', t:0, end:1.15, depth:0.06 };   // nearly stopped, so you can watch it
   zoomPunch(1.06);
@@ -7228,6 +7267,7 @@ function getPose(e){
       case 'deflect':  P_.lean = lerp(P_.lean || 0, 0.2, w); P_.crouch = Math.max(P_.crouch || 0, 6*w); break;
       case 'catch':    P_.a2 = lerp(P_.a2, -0.2, w); P_.ext2 = 1; P_.lean = lerp(P_.lean || 0, -0.15, w); break;   // the free hand up where it was caught
     } }
+  if (e.isPlayer && e.wg && e.wg.st === 'hold' && e.wg.hurl){ P_.lean = -0.38; P_.crouch = Math.max(P_.crouch || 0, 10); P_.legs = FC_LEG.horse; P_.legW = 1; }   // hammer throw: feet planted wide, leaning back against the pull
   if (e.isPlayer && e.wg && e.wg.st === 'sling'){ const W = e.wg;   // Web Sling Kick
     if (W.phase === 'pull'){ const c = W.charge || 0; P_.lean = -0.4 - 0.25*c; P_.crouch = 10 + 8*c; }
     else if (W.phase === 'rise' || W.phase === 'fly'){ P_.kick = 1; P_.kickAng = 1.55; P_.lean = -0.6; P_.crouch = 0; P_.a = -1.3; P_.ext = 1; } }
@@ -8687,7 +8727,7 @@ function drawStick(e, alpha, tint){
   let head = null;
   const rim = !tint && (hero ? (e.remote ? ENEMY_AURA : auraCol()) : (THEMES[G.theme] || {}).rim);
   const LW = 1.35;   // limbs a little thicker than a stick: reads as a body, not a drawing
-  if (hero && G.mode === 'spider' && !tint && !e.remote){ const hd = drawSpiderSuit(e, segs); ctx.globalAlpha = 1; if (jx) ctx.restore(); return hd; }
+  if (hero && G.mode === 'spider' && !e.remote){ const hd = drawSpiderSuit(e, segs, tint); /* afterimages too wear the suit */ ctx.globalAlpha = 1; if (jx) ctx.restore(); return hd; }
   if (hero){   // the hero gets the full ninja-warrior body; physics and hitboxes still come from segs
     if (rim && ctx === mainCtx){ const sid = G.ST && G.ST.style, hr = e.remote ? rim : ((sid && STYLES[sid]) ? rim : '#F2B33A');   // golden rim by default, the breathing style's colour once one is learned
       const ga = ctx.globalAlpha; ctx.globalAlpha = ga*0.95; drawHero(e, segs, pose, hr, 1.15); ctx.globalAlpha = ga; }
