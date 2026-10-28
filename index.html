@@ -1202,7 +1202,7 @@ const STYLES = {
              forms:[['Shadow Step',30],['Shadow Snare',45],['Phantom Dance',60],['Shadow Chains',60],['Midnight Requiem',85]],
              desc:'Night style. Sink into your shadow, bind enemies with theirs, send shadow clones through them, and end it all at midnight.' },
   blood:   { name:'Blood Breathing',    col:'#E0283E', price:1200, unlock:14, hpCost:true, pass:'Every kill returns 4 health',
-             forms:[['Crimson Cut',12],['Blood Mist',18],['Red Lotus',25],['Scarlet Chains',22],['Final Offering',40]],
+             forms:[['Crimson Crescent',12],['Scarlet Whip',18],['Crimson Lotus',25],['Blood Harvest',22],['Scarlet Sacrifice',40]],
              desc:'Costs health instead of breath. The weaker you are, the harder it hits, and bleeding enemies feed you back.' },
   sun:     { name:'Sun Breathing',      col:'#FFD23F', price:2500, unlock:20, needBeat:20, pass:'All damage +6%',
              forms:[['Dance',35],['Setting Sun',50],['Beneficent Radiance',65],['Solar Flare',70],['Dawn of the Twelfth',100]],
@@ -1480,11 +1480,11 @@ const FORM_CHOREO = {
   shadow4:{ t:'lateSpin', d:1 },                                        // Shadow Chains: still while the chains work, then one full turn for the cut
   shadow5:{ t:'windDraw' },
   /* Blood: feral, shaking, wild arcs */
-  blood1:{ t:'keys', k:[[0,-2.2,-2.6,6,-0.2],[0.4,1.2,1.6,12,0.55],[1,1.0,1.4,10,0.45]], jitter:true },                            // Crimson Cut
-  blood2:{ t:'flurryTwirl', d:-1 },                                      // Blood Mist
+  blood1:{ t:'windDraw' },
+  blood2:{ t:'windDraw' },
   blood3:{ t:'keys', k:[[0,0.0,0.0,6,0.1],[1,0.0,0.0,6,0.1,0,0,12.56]], arcs:true },                                               // Red Lotus: two turns, the blade flat out, petals of red
-  blood4:{ t:'whirlThrow' },                                             // Scarlet Chains
-  blood5:{ t:'keys', two:true, legs:'kneel', k:[[0,0.5,1.5,18,0.4],[0.4,-1.57,-1.57,2,-0.25,10],[0.6,-2.5,-2.9,4,-0.32],[0.75,1.3,1.6,14,0.5],[1,1.2,1.5,12,0.45]] },   // Final Offering: from a kneel, up to the sky, down
+  blood4:{ t:'windDraw' },
+  blood5:{ t:'windDraw' },
   /* Sun: kagura. A sacred dance: rhythm, big circles, upright and proud */
   sun1:{ t:'danceCircles', n:1.5 },                                      // Dance
   sun2:{ t:'keys', two:true, k:[[0,-1.57,-1.57,2,-0.2,20],[0.6,1.4,1.8,10,0.4],[1,1.2,1.6,8,0.35]] },                              // Setting Sun: one huge arc from the top to the ground in front
@@ -4868,7 +4868,7 @@ const FORM_DESC = {
   stone1:'Boulder Crusher: a heavy step and a two-handed blow that breaks armour and knocks them flat. A heartbeat later the ground ahead erupts in a fan of boulders and a shockwave.', stone2:'Earth Splitter: drive the blade into the ground; a crack races ahead and stone spikes burst up along it, pinning everyone in place.', stone3:'Granite Skin: for 6 s your body is covered in stone. Half damage, no flinching, and whoever hits you is hurt and stunned.', stone4:'Boulder Hurl: tear a huge boulder out of the ground, lift it overhead and throw it. It bounces, then rolls a long way through the whole line before it shatters.', stone5:'Falling Mountain: leap and bring a mountain down with you. It bursts over your head and great boulders fall from the sky on every enemy in sight.',
   frost1:'Ice Fang: crouch, lunge and cut. Then fangs of ice come down from above and up from the ground and bite shut on everyone ahead.', frost2:'Frozen Lotus: hop up and plant the blade. A great ice lotus blooms round you and freezes everyone near, then its petals break off and fly as icicles.', frost3:'Absolute Zero: raise the blade, then lower it slowly. Frost spreads along the ground for 7 m and everyone it reaches freezes inside a pillar of ice.', frost4:'Icicle Rain: thrust the blade at the sky, then point it at them. A sweeping line of icicles rains down, pinning and freezing everyone ahead.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
   shadow1:'Shadow Step: sink into your own shadow and glide under the enemies, unseen and untouchable, then rise behind the last one with a cut from behind. Your next slash is an Ambush.', shadow2:'Shadow Snare: stab your own shadow. Black tendrils rise from the shadows of everyone near, wrap round them and hold them for 2.5 s.', shadow3:'Phantom Dance: three shadow clones burst out of you and dash through the nearest enemies from both sides, cutting each from behind.', shadow4:'Shadow Chains: chains of shadow shoot out to everyone in range and drag them to you, then one turning cut takes them all.', shadow5:'Midnight Requiem: night falls. You flicker behind each enemy in turn and mark them; when you sheathe the blade every mark opens at once.',
-  blood1:'Crimson Cut: costs health, not breath. The lower your health, the harder it hits.', blood2:'Blood Mist: for 5 s, bleeding enemies around you feed you health.', blood3:'Red Lotus: a bloom of blades around you that makes everyone bleed.', blood4:'Scarlet Chains: pull enemies in and drain them.', blood5:'Final Offering: spend most of your health for one enormous strike. A kill gives 50 back.',
+  blood1:'Crimson Crescent: costs health, not breath. Lunge in with a rising cut that throws a crescent of blood through the line. The lower your health, the harder every Blood form hits.', blood2:'Scarlet Whip: your blood runs down the blade into a long whip. Three lashes reach far ahead; every enemy it cuts bleeds and gives you health back.', blood3:'Crimson Lotus: two turns with the blade out and a lotus of blood spikes bursts from the ground round you. Everyone near bleeds badly.', blood4:'Blood Harvest: plant the blade. Streams of blood are torn out of everyone near and run into the blade, healing you, then they are crushed.', blood5:'Scarlet Sacrifice: give up a great deal of health. Your blood forms a giant blade on the sword and one swing cuts everything ahead. Each kill gives 20 back.',
   sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
   serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
   kaal1:'Eclipse Step: a lightning teleport that freezes, poisons and burns everyone it passes, then four quick cuts.', kaal2:'Four Seasons: an untouchable burning spin that leaves fire and water behind and launches enemies.', kaal3:'Still Eternity: time stops for everyone but you for 2.6 s. Every enemy and projectile freezes, and your hits on a frozen world deal +50%. Static field and iron body stay on you for 3 s.', kaal4:'Judgement of Ages: everyone on screen is stunned, frozen, burned, poisoned, knocked down, armour broken, and lightning strikes five of them. Crescents orbit you for 3.5 s.', kaal5:'End of Time: sixteen strikes across every enemy, then a 450-damage burst that heals you 90 and returns 40 breath.'
@@ -5345,39 +5345,57 @@ const FORMS = {
           styleImpact('shadow', e.x, e.y-36*e.size, true); }
         flash('#FFFFFF', 0.35); G.shake = 18; G.hitstop = Math.max(G.hitstop, 0.14); sfx('clang'); sfx('boom', 0.04); vib(90); } } },
   /* ---- Blood ---- */
-  blood1:{ dur:0.45, pose:'strike', wind:0.16, update(P,dt,F){ P.vx *= 0.85;
-      if (F.t >= 0.18 && !F.hitOnce){ F.hitOnce = true;
-        areaHit(P.x+P.face*60, P.y-35, 85, 65, 60*FM(), {kb:260, heavy:true, src:'form', bleed:20, dir:P.face}, F.set);
-        emit(P.x+P.face*60, P.y-40, {n:18, col:STYLE_FX.blood.cols, spd:380, size:4, life:0.7, kind:'drop', g:1.4});
-        G.shake = 9; sfx('kill'); flash('#E0283E', 0.2); vib(40); } } },
-  blood2:{ dur:0.4, pose:'cast', start(P){ P.mistT = 4.5; P.mistHealed = 0;
-      for (const e of G.E){ if (!e.dead && Math.abs(e.x-P.x) < 190) damageEnemy(e, 10*FM(), {kb:0, src:'form', bleed:10, quiet:true}); }
-      ringFx(P.x, P.y-34, 190, '#E0283E'); sfx('blood'); vib(30); }, update(P){ P.vx *= 0.9; } },
-  blood3:{ dur:0.7, pose:'strike', wind:0.26, update(P,dt,F){ P.vx *= 0.85;
-      if (F.t >= 0.28 && !F.hitOnce){ F.hitOnce = true;
-        const missing = 1 - P.hp/P.maxHp, dmg = (60 + 140*missing)*FM();
-        areaHit(P.x+P.face*50, P.y-35, 140, 90, dmg, {kb:360, kbAway:true, heavy:true, src:'form', bleed:14, dir:P.face}, F.set);
-        ringFx(P.x+P.face*40, P.y-38, 170, '#E0283E'); burst(P.x+P.face*50, P.y-40, 34, '#E0283E', 520, 5, true);
+  blood1:{ dur:0.5, pose:'strike', update(P,dt,F){
+      if (F.t < 0.07) P.vx = 0; else if (F.t < 0.16) P.vx = P.face*850; else P.vx *= Math.pow(0.002, dt);
+      if (F.t >= 0.16 && !F.hitOnce){ F.hitOnce = true; const m = bloodMult(P);
+        areaHit(P.x+P.face*45, P.y-40, 75, 70, 45*m*FM(), {kb:200, heavy:true, src:'form', bleed:18, dir:P.face}, F.set);
+        G.proj.push({kind:'bloodblade', x:P.x+P.face*50, y:P.y-48, vx:P.face*820, vy:0, dmg:35*m*FM(), pierce:6, hit:new Set(), life:0.75, col:'#E0283E', r:30, bleed:14, kb:120});
+        emit(P.x+P.face*50, P.y-40, {n:18, col:STYLE_FX.blood.cols, spd:380, size:4, life:0.7, kind:'drop', g:1.4});
+        G.shake = 8; sfx('kill'); flash('#E0283E', 0.15); vib(35); } } },
+  blood2:{ dur:0.6, pose:'swipe', start(P,F){ F.k = 0; F.lash = -1; },
+    update(P,dt,F){ P.vx *= 0.85;
+      const k = Math.floor(F.t/0.17);
+      if (k < 3 && k >= F.k){ F.k = k + 1; F.lash = F.t; F.lk = k;   // a lash: the blood whip reaches far ahead
+        const m = bloodMult(P), hit = new Set(), y = P.y - (k === 1 ? 26 : 48);
+        areaHit(P.x + P.face*150, y, 150, 45, 30*m*FM(), {kb:120, src:'form', bleed:12, dir:P.face}, hit);
+        if (hit.size){ const heal = Math.min(P.maxHp - P.hp, 3*hit.size); if (heal > 0){ P.hp += heal; pop(P.x, P.y - 105, '+' + Math.round(heal), '#FF8A9A'); } }
+        sfx('swish'); G.shake = Math.max(G.shake, 4); }
+    } },
+  blood3:{ dur:0.75, pose:'strike', wind:0.26, update(P,dt,F){ P.vx *= 0.85;
+      if (F.t >= 0.4 && !F.hitOnce){ F.hitOnce = true;
+        const m = bloodMult(P), dmg = 70*m*FM();
+        areaHit(P.x, P.y-35, 175, 90, dmg, {kb:300, kbAway:true, heavy:true, src:'form', bleed:22, dir:P.face}, F.set);
+        for (const d of [-170, -128, -86, -44, 44, 86, 128, 170]) G.haz.push({kind:'spike', blood:true, x:P.x + d, w:rnd(18, 26), H:rnd(80, 115) - Math.abs(d)*0.15, life:0.6, max:0.6, tick:99, every:99, dmg:0, lean:sign(d)*(0.3 + Math.abs(d)/450)});
+        ringFx(P.x, P.y-38, 180, '#E0283E'); burst(P.x, P.y-40, 34, '#E0283E', 520, 5, true);
         pop(P.x, P.y-110, Math.round(dmg) + ' lotus', '#FF8A9A');
         G.shake = 15; G.hitstop = 0.1; sfx('boom'); flash('#E0283E', 0.3); zoomPunch(1.08); vib(70); } } },
-  blood4:{ dur:0.5, pose:'cast', start(P,F){
-      let n = 0;
-      for (const e of G.E){ if (e.dead) continue; damageEnemy(e, 18*FM(), {kb:0, src:'form', bleed:16, quiet:n>4}); n++;
-        for (let k=0;k<4;k++) G.parts.push({x:lerp(P.x,e.x,k/4), y:P.y-40, vx:0, vy:rnd(-30,30), life:0.35, max:0.35, col:'#E0283E', size:3, real:true}); }
-      P.mistT = Math.max(P.mistT, 3); P.mistHealed = Math.min(P.mistHealed || 0, 20); ringFx(P.x, P.y-40, 300, '#E0283E', true); sfx('blood'); flash('#E0283E', 0.22); vib(45); },
-    update(P){ P.vx *= 0.88; } },
-  blood5:{ dur:0.85, pose:'strike', wind:0.34, update(P,dt,F){ P.vx *= 0.8;
-      if (F.t >= 0.36 && !F.hitOnce){ F.hitOnce = true;
-        let best = null, bd = 1e9;
-        for (const e of G.E){ if (e.dead) continue; const d = Math.abs(e.x-P.x); if (d < 170 && d < bd){ bd = d; best = e; } }
-        if (best){ const killed = best.hp <= 250*FM();
-          P.face = sign(best.x-P.x) || P.face;
-          damageEnemy(best, 250*FM(), {kb:420, heavy:true, src:'form', dir:P.face, knockdown:1.4});
-          G.cuts.push({ x:best.x, y:best.y-32*best.size, s:best.size*1.4, life:0.5, col:'#E0283E' });
-          emit(best.x, best.y-40*best.size, {n:40, col:STYLE_FX.blood.cols, spd:560, size:5, life:1, kind:'drop', g:1.5, real:true});
-          if (killed || best.dead){ P.hp = Math.min(P.maxHp, P.hp + 50); pop(P.x, P.y-110, '+50', '#FF8A9A'); }
-        } else areaHit(P.x+P.face*60, P.y-35, 90, 70, 250*FM(), {kb:420, heavy:true, src:'form'}, F.set);
-        G.shake = 18; G.hitstop = 0.14; sfx('boom'); flash('#E0283E', 0.4); zoomPunch(1.1); vib(90); } } },
+  blood4:{ dur:1.05, pose:'cast', start(P,F){ F.tick = 0; F.healed = 0; },
+    update(P,dt,F){ P.vx *= 0.8;
+      if (F.t >= 0.2 && !F.list){ F.list = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 330 && Math.abs(e.y - P.y) < 200); sfx('blood'); flash('#E0283E', 0.15); }
+      if (F.list && F.t < 0.85){ F.tick -= dt;   // blood is torn out of them and runs into the blade
+        if (F.tick <= 0){ F.tick = 0.15; const m = bloodMult(P);
+          for (const e of F.list){ if (e.dead) continue; const d = 12*m*FM(); damageEnemy(e, d, {kb:0, src:'form', bleed:8, stun:0.4, quiet:true, noStop:true});
+            const heal = Math.min(P.maxHp - P.hp, d*0.25); P.hp += heal; F.healed += heal; } }
+        if (FXL() > 0) for (const e of F.list){ if (e.dead || Math.random() > 0.6) continue; const ex = e.x, ey = e.y - 36*(e.size || 1), tx = P.x + P.face*16, ty = P.y - 30;
+          G.parts.push({x:ex + rnd(-8, 8), y:ey + rnd(-10, 10), vx:(tx - ex)*2.4, vy:(ty - ey)*2.4 - 60, life:0.42, max:0.42, col:Math.random() < 0.5 ? '#E0283E' : '#8A0A1A', size:3.5, real:true}); } }
+      if (F.t >= 0.88 && !F.crush && F.list){ F.crush = true;   // and then they are crushed
+        const m = bloodMult(P);
+        for (const e of F.list){ if (e.dead) continue; damageEnemy(e, 45*m*FM(), {kb:220, heavy:true, src:'form', dir:sign(e.x - P.x) || 1}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.35, col:'#E0283E' });
+          emit(e.x, e.y-40*e.size, {n:12, col:STYLE_FX.blood.cols, spd:320, size:4, life:0.7, kind:'drop', g:1.4}); }
+        if (F.healed >= 1) pop(P.x, P.y - 110, '+' + Math.round(F.healed), '#FF8A9A');
+        G.shake = 10; sfx('kill'); vib(50); } } },
+  blood5:{ dur:1.05, pose:'strike', update(P,dt,F){ P.vx *= 0.8;
+      F.grow = clamp((F.t - 0.25)/0.35, 0, 1)*(1 - clamp((F.t - 0.85)/0.15, 0, 1));
+      if (F.t > 0.25 && F.t < 0.6 && FXL() > 0) emit(P.x, P.y - 40, {n:1, col:STYLE_FX.blood.cols, spd:120, size:4, life:0.5, kind:'drop', g:-0.4});
+      if (F.t >= 0.7 && !F.hitOnce){ F.hitOnce = true;   // one swing of the giant blood blade
+        const m = bloodMult(P); let kills = 0;
+        for (const e of G.E){ if (e.dead || e.remote) continue; const dx = (e.x - P.x)*P.face; if (dx < -120 || dx > 430 || Math.abs(e.y - P.y) > 220) continue;
+          damageEnemy(e, 170*m*FM(), {kb:420, heavy:true, src:'form', bleed:25, dir:P.face, knockdown:1.2}); if (e.dead || e.hp <= 0) kills++;
+          G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size*1.4, life:0.5, col:'#E0283E' });
+          emit(e.x, e.y-40*e.size, {n:16, col:STYLE_FX.blood.cols, spd:420, size:5, life:0.9, kind:'drop', g:1.5, real:true}); }
+        if (kills){ const heal = Math.min(P.maxHp - P.hp, 20*kills); P.hp += heal; if (heal > 0) pop(P.x, P.y - 110, '+' + Math.round(heal), '#FF8A9A'); }
+        G.dsLine = { x0:P.x - P.face*120, x1:P.x + P.face*430, y:P.y - 40, life:0.5, col:'#E0283E' };
+        G.shake = 20; G.hitstop = 0.14; sfx('boom'); sfx('kill', 0.03); flash('#E0283E', 0.4); zoomPunch(1.1); vib(90); } } },
   /* ---- Sun ---- */
   sun1:{ dur:0.6, pose:'flurry', start(P,F){ F.tick = 0; F.n = 0; },
     update(P,dt,F){ P.vx = P.face*300; F.tick -= dt;
@@ -5974,6 +5992,15 @@ function tryHitPlayer(e){
 }
 function hurtPlayer(dmg, kb, e, full){
   const P = G.P;
+  // mid-attack (a swing or a form) the hero slips the blow and keeps cutting; it needs a moment before it works again
+  if (e && !P.dead && !P.ride && (P.atk || (P.form && !P.form.wait)) && G.mode !== 'duel' && G.mode !== 'arena' && G.mode !== 'coop' && G.time - (P.evadeT ?? -9) > 0.45){
+    P.evadeT = G.time; P.inv = Math.max(P.inv, 0.22);
+    const away = -(sign((e.x ?? P.x) - P.x) || P.face);
+    if (!P.form) P.x = clamp(P.x + away*18, 30, G.worldW - 30);   // a small slip out of the way (forms keep their own footwork)
+    if (FXL() > 0) G.echoes.push({ snap:heroSnap(P), life:0.2, max:0.3, col:'#FFFFFF' });
+    pop(P.x, P.y - 100, 'Evade', '#DCF3FF'); sfx('swish');
+    return;
+  }
   const iron = P.ironT > 0;
   if (iron) dmg *= 0.5;
   if (iron && e && e.T && !e.dead && !e.remote && Math.abs(e.x - P.x) < 150 && G.ST.style === 'stone')   // Granite Skin: striking stone hurts
@@ -6491,16 +6518,25 @@ const FORM_MAP = {
     { t:1.18, h:[2,-14], th:2.9, phi:0.3, lean:0.2, cr:8 },
     { t:1.3, h:[2,-14], th:2.9, phi:0.3, lean:0.15, cr:6 } ] } },
   /* Blood: sacrificial, wide, the off hand bare */
-  blood1:{ c:'overhead', v:{ imp:0.18, phi:0.7, hi:[11,-30], thHi:-1.7, cr:9 } },
-  blood2:{ c:'invoke',  v:{ keys:[ { pre:0.6, h:[8,-16], th:-0.2, phi:1.3, lean:0, cr:3, pr:-3, legs:FC_LEG.ready, off:[12,-17] },
-                                   { t:0, h:[17,-6], th:1.0, phi:0.6, lean:0.2, cr:6, pr:3, legs:FC_LEG.step, off:[10,-20], imp:true },
-                                   { t:0.25, h:[15,-5], th:1.1, off:[8,-20] } ] } },
-  blood3:{ c:'whirl',   v:{ front:0.28, per:0.28, turns:1, y:-12, r:16, cr:10, two:true, lean:0.25 } },
-  blood4:{ c:'bind',    v:{ keys:[ { pre:0.5, h:[-6,-12], th:2.6, phi:1.2, lean:0, cr:6, pr:-5, legs:FC_LEG.deep, off:[8,-12] },
-                                   { t:0, h:[20,-14], th:0, phi:1.2, lean:0.3, cr:7, pr:6, imp:true, off:[-10,-18] },
-                                   { t:0.12, h:[15,-15], th:-1.4, lean:0.15, pr:3 },
-                                   { t:0.3, h:[14,-17], th:-0.6, phi:0.4, lean:0.05, cr:5, pr:0, off:[4,-16] } ] } },
-  blood5:{ c:'overhead', v:{ imp:0.36, two:true, phi:0.45, hi:[11,-31], thHi:-1.57, cr:15 } },
+  blood1:{ c:'invoke', v:{ keys:[   // Crimson Crescent: crouch, lunge, a rising diagonal cut
+    { pre:0.5, h:[4,-6], th:2.4, phi:0.5, lean:0.35, cr:13, pr:-2, legs:FC_LEG.deep, off:[-4,-12] },
+    { t:0.07, h:[-2,-6], th:2.6, phi:0.5, lean:0.5, cr:12, legs:FC_LEG.lunge },
+    { t:0.16, h:[22,-28], th:-1.0, phi:0.6, lean:0.4, cr:7, pr:5, imp:true },
+    { t:0.32, h:[16,-32], th:-1.4, phi:0.6, lean:0.15, cr:5 } ] } },
+  blood2:{ c:'flurry', v:{ n:3, dt:0.17, seq:['kesa','gyaku'], phi:0.4, sc:1, lean:0.25, cr:6, legs:FC_LEG.step, off:[-6,-12] } },   // Scarlet Whip: three lashes
+  blood3:{ c:'whirl',   v:{ front:0.2, per:0.22, turns:2, y:-12, r:16, cr:10, two:true, lean:0.25 } },
+  blood4:{ c:'invoke', v:{ keys:[   // Blood Harvest: raise the blade in both hands and plant it, down on one knee, and hold
+    { pre:0.5, h:[10,-34], th:-1.57, phi:0.2, lean:-0.05, cr:3, pr:-2, legs:FC_LEG.ready, off:[-6,-16], two:true },
+    { t:0.12, h:[12,-38], th:-1.7, phi:0.2, lean:-0.12, cr:2 },
+    { t:0.2, h:[16,-3], th:1.5, phi:0.2, lean:0.35, cr:16, pr:4, legs:FC_LEG.kneel, imp:true },
+    { t:0.9, h:[16,-3], th:1.5, phi:0.2, lean:0.32, cr:16 } ] } },
+  blood5:{ c:'invoke', v:{ keys:[   // Scarlet Sacrifice: from a kneel, the blade to the sky while the blood blade grows, then one great swing down
+    { pre:0.5, h:[16,-4], th:1.5, phi:0.3, lean:0.3, cr:16, pr:2, legs:FC_LEG.kneel, off:[-4,-8], two:true },
+    { t:0.12, h:[16,-4], th:1.5, phi:0.3, lean:0.3, cr:16 },
+    { t:0.35, h:[11,-38], th:-1.57, phi:0.3, lean:-0.15, cr:2, legs:FC_LEG.step },
+    { t:0.6, h:[10,-39], th:-1.62, phi:0.3, lean:-0.18, cr:2 },
+    { t:0.7, h:[22,-8], th:0.9, phi:0.3, lean:0.5, cr:14, pr:6, legs:FC_LEG.lunge, imp:true },
+    { t:0.98, h:[20,-6], th:1.1, phi:0.3, lean:0.45, cr:13 } ] } },
   /* Sun: sweeping, two-handed, radiant */
   sun1:{ c:'flurry',  v:{ n:4, dt:0.12, seq:['down','rise'], phi:0.3, lean:0.2, cr:5, two:true, legs:FC_LEG.step } },
   sun2:{ c:'rising',  v:{ imp:0.1, phi:0.3, th0:2.9, two:true, set:true, top:[11,-31], thTop:-1.8 } },
@@ -8801,7 +8837,7 @@ function drawSpike(h){
   const age = h.max - h.life, up = Math.min(1, age/0.08), down = Math.min(1, h.life/0.18), k = up*down;
   if (k <= 0) return;
   const H = h.H*k, w = h.w, x = h.x, tipX = x + Math.sin(h.lean || 0)*H;
-  const C = h.ice ? ['rgba(95,168,216,0.82)', 'rgba(220,243,255,0.9)', '#1E4A6B'] : ['#5E4532', '#A58463', '#24170F'];
+  const C = h.ice ? ['rgba(95,168,216,0.82)', 'rgba(220,243,255,0.9)', '#1E4A6B'] : h.blood ? ['#7A0A16', '#E0283E', '#2A0006'] : ['#5E4532', '#A58463', '#24170F'];
   ctx.save();
   if (h.pillar){   // a block of ice round a frozen body: wide, flat-topped, see-through
     ctx.globalAlpha = 0.55*k; ctx.fillStyle = '#9FD3F0'; ctx.fillRect(x - w/2, GROUND - H, w, H);
@@ -8867,6 +8903,26 @@ function snareTick(dt){
     S.tick -= dt; if (S.tick <= 0 && age < S.life - 0.3){ S.tick = 0.6; damageEnemy(e, 22*FM(), {kb:0, src:'form', stun:0.7, quiet:true, noStop:true}); }
     if (age >= S.life - 0.15 && !S.crush){ S.crush = true;   // the tendrils squeeze shut
       damageEnemy(e, 50*FM(), {kb:60, src:'form', heavy:true, dir:1}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.3, col:'#9B8CFF' }); sfx('shadow', 0.02); } }
+}
+/* Blood forms hit harder the more health you have lost (up to 2.5x) */
+function bloodMult(P){ return 1 + 1.5*clamp(1 - P.hp/P.maxHp, 0, 1); }
+/* Blood Breathing: the whip, and the giant blood blade */
+function drawBloodForms(P){
+  const F = P.form; if (!F || F.wait) return;
+  const sg = stickSegments(P), bl = sg.find(g => g[5] === 'blade'); if (!bl) return;
+  const hx = bl[0], hy = bl[1], tx = bl[2], ty = bl[3], L0 = Math.hypot(tx - hx, ty - hy) || 1, ux = (tx - hx)/L0, uy = (ty - hy)/L0;
+  ctx.save(); ctx.lineCap = 'round';
+  if (F.id === 'blood2' && F.lash >= 0 && F.t - F.lash < 0.13){   // the whip: a long wavering line of blood off the tip
+    const q = 1 - (F.t - F.lash)/0.13, L = 260*(0.4 + 0.6*Math.min(1, (F.t - F.lash)/0.05));
+    ctx.beginPath(); ctx.moveTo(tx, ty);
+    for (let i = 1; i <= 14; i++){ const u = i/14, w = Math.sin(u*9 + G.time*30)*10*u; ctx.lineTo(tx + ux*L*u - uy*w, ty + uy*L*u + ux*w); }
+    ctx.globalAlpha = q; ctx.strokeStyle = '#5A0A16'; ctx.lineWidth = 7; ctx.stroke(); ctx.strokeStyle = '#E0283E'; ctx.lineWidth = 4; ctx.stroke(); ctx.strokeStyle = 'rgba(255,170,180,0.7)'; ctx.lineWidth = 1.2; ctx.stroke(); }
+  if (F.id === 'blood5' && F.grow > 0){   // the giant blade of blood grows out of the sword
+    const L = 240*F.grow, ex = tx + ux*L, ey = ty + uy*L, nx = -uy, ny = ux, W = 14*F.grow;
+    ctx.globalAlpha = 0.35; ctx.fillStyle = '#E0283E'; ctx.beginPath(); ctx.moveTo(hx + nx*W*1.8, hy + ny*W*1.8); ctx.lineTo(ex, ey); ctx.lineTo(hx - nx*W*1.8, hy - ny*W*1.8); ctx.closePath(); ctx.fill();   // its glow
+    ctx.globalAlpha = 0.95; ctx.fillStyle = '#B0101E'; ctx.beginPath(); ctx.moveTo(tx + nx*W, ty + ny*W); ctx.lineTo(ex, ey); ctx.lineTo(tx - nx*W, ty - ny*W); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FF6A7A'; ctx.beginPath(); ctx.moveTo(tx + nx*W*0.3, ty + ny*W*0.3); ctx.lineTo(ex, ey); ctx.lineTo(tx, ty); ctx.closePath(); ctx.fill(); }
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 /* Shadow Breathing: the pool you glide in, the snares, the clones, the chains, midnight */
 function drawShadowForms(P){
@@ -9521,6 +9577,7 @@ function renderScene(){
       if (FXL() > 0 && !P.ride && Math.random() < (P.form ? 0.3 : P.atk ? 0.6 : 0.4)){ const ac = auraCol(); G.parts.push({ x:P.x + rnd(-13,13), y:P.y - rnd(4,62), vx:rnd(-12,12) - P.vx*0.15, vy:rnd(-90,-40), life:rnd(0.35,0.7), max:0.7, col:Math.random() < 0.5 ? ac : shadeHex(ac, 0.45), size:rnd(1.5,3.2), real:true, g:-0.05 }); }
       drawStick(P, blink?0.45:1);
       if (P.ironT > 0 && !P.dead) drawGranite(P);   // stone plates over the body
+      if (P.form && (P.form.id === 'blood2' || P.form.id === 'blood5')) drawBloodForms(P);
       if (P.form && P.form.id==='gale2' && !P.form.wait) drawCyclone(P, true);   // the front half of the cyclone and its cuts
       if (P.form && P.form.id==='gale4' && P.form.cuts) drawWindCuts(P.form.cuts);
       if (P.form && P.form.id==='stone4' && P.form.rock){ const R = P.form.rock; drawRock(R.x, R.y, R.r, R.rot, R.seed); }
@@ -13283,6 +13340,7 @@ function step(dt){
       if (pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.frost.cols, spd:20, size:2.5, life:0.3, kind:'star', g:0});
       if (p.y > GROUND - 10){ p.life = 0; emit(p.x, GROUND - 4, {n:7, col:STYLE_FX.frost.cols, spd:220, size:3.5, life:0.5, kind:'star', g:1.2, vy:-120});
         if (p.stick) G.haz.push({kind:'spike', ice:true, x:p.x, w:10, H:p.len*0.9, life:0.8, max:0.8, tick:99, every:99, dmg:0, lean:Math.atan2(p.vx, p.vy)*0.5}); } }   // it stays stuck in the ground a moment
+    if (p.kind==='bloodblade' && pdt>0 && Math.random()<0.7) emit(p.x, p.y + rnd(-18, 18), {n:1, col:STYLE_FX.blood.cols, spd:30, size:3, life:0.5, kind:'drop', g:1.2});
     if (p.kind==='moonlet' && pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.crescent.cols, spd:20, size:2.5, life:0.3, kind:'star', g:0});
     if (p.kind==='venom' && pdt>0 && Math.random()<0.5) emit(p.x, p.y, {n:1, col:STYLE_FX.serpent.cols, spd:30, size:3, life:0.35, kind:'drop', g:0.4});
     if (p.kind==='wind' && pdt>0 && Math.random()<0.7) emit(p.x, p.y, {n:1, col:p.serpent?['#FF7A2A','#FFE14D']:['#9EF0B8','#FFFFFF'], spd:30, size:p.serpent?4:2, life:p.serpent?0.4:0.25, kind:p.serpent?'ember':'streak', g:0, vx:-p.vx*0.3});
@@ -13310,7 +13368,7 @@ function step(dt){
           if (p.boom){ p.life = 0; p.pierce = 0; shellBoom(p, e.x, e.y-36*e.size); break; }
           if (p.chain){ let k = 0; for (const o of nearestEnemies(e.x, 260)){ if (o === e || o.vanish) continue; if (k++ >= p.chain) break; bolt(e.x, e.y-36*e.size, o.x, o.y-36*o.size); damageEnemy(o, p.dmg*0.6, {kb:80, src:'proj', quiet:true, stun:0.25, dir:sign(o.x-e.x)||1}); emit(o.x, o.y-36*o.size, {n:6, col:STYLE_FX.storm.cols, spd:360, size:2.5, life:0.3, kind:'spark', g:0}); } if (k) sfx('zap'); } }
         if (p.kind==='water'){ if (FXL() > 0) emit(p.x, p.y, { n:4, col:['#0A2A5C','#2C7BD6','#F4FBFF'], spd:180, size:2.6, life:0.35, kind:'drop', g:1.2 }); }
-        damageEnemy(e, p.dmg, {kb:p.kb || (p.kind==='kunai'?60:160), src:(p.kind==='kunai'||p.kind==='bullet')?'proj':'form', dir:sign(p.vx), burn:p.burn||0, freeze:p.freeze||0, poison:p.poison||0, heavy:!!p.big || !!p.gunHeavy, launch:(p.big && !p.noLaunch)?380:0, guardBreak:!!p.guardBreak, breakArmor:p.breakArmor||0, unblockable:!!p.gunHeavy});
+        damageEnemy(e, p.dmg, {kb:p.kb || (p.kind==='kunai'?60:160), src:(p.kind==='kunai'||p.kind==='bullet')?'proj':'form', dir:sign(p.vx), burn:p.burn||0, bleed:p.bleed||0, freeze:p.freeze||0, poison:p.poison||0, heavy:!!p.big || !!p.gunHeavy, launch:(p.big && !p.noLaunch)?380:0, guardBreak:!!p.guardBreak, breakArmor:p.breakArmor||0, unblockable:!!p.gunHeavy});
       }
     }
     if (p.pierce <= 0 || p.x < 0 || p.x > G.worldW) p.life = 0;
