@@ -1195,12 +1195,12 @@ const STYLES = {
   stone:   { name:'Stone Breathing',    col:'#C9A27A', price:900,  pass:'Blocking takes 15% less damage',
              forms:[['Boulder Crusher',35],['Earth Splitter',45],['Granite Skin',40],['Boulder Hurl',55],['Falling Mountain',85]],
              desc:'Earth style. Crush armour, split the ground open, turn your skin to granite, hurl boulders and bring a mountain down.' },
-  frost:   { name:'Blizzard Breathing', col:'#9FD3F0', price:1100, unlock:8, pass:'Every hit has a small chance to freeze',
+  frost:   { name:'Ice Breathing',       col:'#9FD3F0', price:1100, unlock:8, pass:'Every hit has a small chance to freeze',
              forms:[['Ice Fang',30],['Frozen Lotus',45],['Absolute Zero',60],['Icicle Rain',60],['Eternal Winter',85]],
              desc:'Ice style. Freezes enemies solid: they cannot move, take 50% more, and shatter into ice when they die.' },
   shadow:  { name:'Shadow Breathing',   col:'#9B8CFF', price:1300, unlock:12, pass:'Hits from behind deal +25%',
-             forms:[['Vanishing Step',30],['Shadow Bind',45],['Dance of Shades',60],['Umbral Chains',60],['Night Execution',85]],
-             desc:'Night style. Disappear, root enemies to the ground with their own shadows, and strike from behind.' },
+             forms:[['Shadow Step',30],['Shadow Snare',45],['Phantom Dance',60],['Shadow Chains',60],['Midnight Requiem',85]],
+             desc:'Night style. Sink into your shadow, bind enemies with theirs, send shadow clones through them, and end it all at midnight.' },
   blood:   { name:'Blood Breathing',    col:'#E0283E', price:1200, unlock:14, hpCost:true, pass:'Every kill returns 4 health',
              forms:[['Crimson Cut',12],['Blood Mist',18],['Red Lotus',25],['Scarlet Chains',22],['Final Offering',40]],
              desc:'Costs health instead of breath. The weaker you are, the harder it hits, and bleeding enemies feed you back.' },
@@ -1474,9 +1474,9 @@ const FORM_CHOREO = {
   frost4:{ t:'windDraw' },
   frost5:{ t:'keys', two:true, legs:'kneel', k:[[0,-1.5,1.57,6,0,8],[0.45,1.1,1.57,18,0.3],[1,1.1,1.57,18,0.3]] },                  // Permafrost: down on one knee, the blade plunged in
   /* Shadow: ninjutsu. Low, reversed blade, there and gone */
-  shadow1:{ t:'keys', k:[[0,0.9,2.8,16,0.75],[0.8,0.9,2.8,16,0.75],[1,0.6,2.5,10,0.5]] },                                           // Vanishing Step: almost lying on the ground, blade reversed along the arm
+  shadow1:{ t:'windDraw' },
   shadow2:{ t:'keys', k:[[0,-1.2,1.57,12,0.3,6],[0.45,0.9,1.57,18,0.45],[1,0.9,1.57,18,0.45]] },                                    // Shadow Bind: stab the shadow, pin it
-  shadow3:{ t:'frontFlip', n:2 },                                        // Dance of Shades: a double flip from shade to shade
+  shadow3:{ t:'windDraw' },
   shadow4:{ t:'keys', k:[[0,0.6,3.6,12,0.3],[1,0.6,3.6,12,0.3,0,0,6.28]] },                                                       // Umbral Chains: a low turn with the blade reversed
   shadow5:{ t:'twirlThrust', n:3, d:1 },                                 // Night Execution
   /* Blood: feral, shaking, wild arcs */
@@ -3668,7 +3668,7 @@ function nextSurvWave(){
 }
 function resetCommon(){
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
-  G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.dragons = []; G.serpents = [];
+  G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.dragons = []; G.serpents = [];
   if (G.mode !== 'levels') G.dojo = false;
   G.fistsOut = !!(G.dojo || G.mode === 'spider' || (SV.eq.fistsOut && hasFists()));   // Spider mode fights bare-handed
   document.body.classList.toggle('fistmode', G.fistsOut);
@@ -4865,7 +4865,7 @@ const FORM_DESC = {
   crescent1:'Crescent Slash: one rising crescent cut that breaks into five small moon blades fanning out ahead.', crescent2:'Moonlit Dance: three gliding steps forward, a crescent cut on each, every one leaving a small moon that keeps cutting.', crescent3:'Full Moon Ring: the blade draws a full moon round you; it bursts outward, throwing everyone back and scattering eight moon blades in every direction.', crescent4:'Lunar Descent: leap high and fall like the moon. The landing cuts everyone near and sends two great crescents racing along the ground.', crescent5:'Thousand Moons: night falls, a great full moon rises behind you and rains crescent blades on every enemy on screen, then one cut crosses the whole screen.',
   stone1:'Boulder Crusher: a heavy step and a two-handed blow that breaks armour and knocks them flat. A heartbeat later the ground ahead erupts in a fan of boulders and a shockwave.', stone2:'Earth Splitter: drive the blade into the ground; a crack races ahead and stone spikes burst up along it, pinning everyone in place.', stone3:'Granite Skin: for 6 s your body is covered in stone. Half damage, no flinching, and whoever hits you is hurt and stunned.', stone4:'Boulder Hurl: tear a huge boulder out of the ground, lift it overhead and throw it. It bounces, then rolls a long way through the whole line before it shatters.', stone5:'Falling Mountain: leap and bring a mountain down with you. It bursts over your head and great boulders fall from the sky on every enemy in sight.',
   frost1:'Ice Fang: crouch, lunge and cut. Then fangs of ice come down from above and up from the ground and bite shut on everyone ahead.', frost2:'Frozen Lotus: hop up and plant the blade. A great ice lotus blooms round you and freezes everyone near, then its petals break off and fly as icicles.', frost3:'Absolute Zero: raise the blade, then lower it slowly. Frost spreads along the ground for 7 m and everyone it reaches freezes inside a pillar of ice.', frost4:'Icicle Rain: thrust the blade at the sky, then point it at them. A sweeping line of icicles rains down, pinning and freezing everyone ahead.', frost5:'Eternal Winter: a blizzard covers the whole screen and freezes everyone in it, then every frozen enemy shatters at once.',
-  shadow1:'Vanishing Step: disappear for 2 s. Your next slash is an Ambush for double damage.', shadow2:'Shadow Bind: roots enemies to the ground with their own shadows.', shadow3:'Dance of Shades: a flurry of cuts that always lands from behind.', shadow4:'Umbral Chains: chain every enemy in range to the ground, then cut them.', shadow5:'Night Execution: teleport behind each enemy in turn and strike.',
+  shadow1:'Shadow Step: sink into your own shadow and glide under the enemies, unseen and untouchable, then rise behind the last one with a cut from behind. Your next slash is an Ambush.', shadow2:'Shadow Snare: stab your own shadow. Black tendrils rise from the shadows of everyone near, wrap round them and hold them for 2.5 s.', shadow3:'Phantom Dance: three shadow clones burst out of you and dash through the nearest enemies from both sides, cutting each from behind.', shadow4:'Shadow Chains: chains of shadow shoot out to everyone in range and drag them to you, then one turning cut takes them all.', shadow5:'Midnight Requiem: night falls. You flicker behind each enemy in turn and mark them; when you sheathe the blade every mark opens at once.',
   blood1:'Crimson Cut: costs health, not breath. The lower your health, the harder it hits.', blood2:'Blood Mist: for 5 s, bleeding enemies around you feed you health.', blood3:'Red Lotus: a bloom of blades around you that makes everyone bleed.', blood4:'Scarlet Chains: pull enemies in and drain them.', blood5:'Final Offering: spend most of your health for one enormous strike. A kill gives 50 back.',
   sun1:'Dance: a four-hit burning flurry while advancing.', sun2:'Setting Sun: a rising blow that launches and burns.', sun3:'Beneficent Radiance: a burning spin that heals you for every enemy it touches.', sun4:'Solar Flare: a blinding flash that stuns and burns everyone on screen.', sun5:'Dawn of the Twelfth: twelve strikes across every enemy, then a final sunburst.',
   serpent1:'Fang Strike: a fast poisoned lunge through up to 3 enemies.', serpent2:'Coil: drag everyone nearby to you, then strike them all down with poison.', serpent3:'Shed Skin: slip backward, untouchable, leaving a decoy that bursts into poison when it is hit or after a second.', serpent4:'Venom Rain: seven venom shots arc through the air and leave poison pools where they land.', serpent5:'King of Serpent: a giant serpent of breath drops from your blade and crawls at the enemies, swallowing them whole. Its hunger follows your breath: on a full breath it eats up to 50, from 70 up to 32, below 70 up to 18. Bosses are bitten and poisoned.',
@@ -5268,47 +5268,69 @@ const FORMS = {
         flash('#FFFFFF', 0.4); G.shake = 16; G.hitstop = 0.12; ringFx(P.x, P.y-40, 300, '#DCF3FF', true);
         sfx('boom'); sfx('frost', 0.04); zoomPunch(1.08); vib(70); } } },
   /* ---- Shadow ---- */
-  shadow1:{ dur:0.3, pose:'cast', start(P){
-      P.hiddenT = 1.4; P.ambush = 3.5; P.inv = 1.2;
-      for (const e of G.E){ if (!e.dead && ['chase','approach','windup'].includes(e.state)){ e.state = 'idle'; e.cd = 0.6; e.alert = false; } }
-      emit(P.x, P.y-34, {n:22, col:STYLE_FX.shadow.cols, spd:300, size:6, life:0.7, kind:'mist', g:-0.2});
-      ringFx(P.x, P.y-34, 90, '#9B8CFF'); toast('Hidden', 0.8); sfx('shadow'); vib(25); },
-    update(P,dt,F){ P.vx = P.face*360; } },
-  shadow2:{ dur:0.45, pose:'cast', start(P,F){
+  shadow1:{ dur:0.7, pose:'cast', start(P,F){
+      const ahead = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*P.face > 20 && (e.x - P.x)*P.face < 380);
+      F.tg = ahead.sort((a, b) => (b.x - a.x)*P.face)[0] || null;   // the last one in the line
+      F.stopX = F.tg ? F.tg.x + P.face*44 : P.x + P.face*300; F.dir = P.face;
+      P.inv = 0.75; emit(P.x, GROUND - 4, {n:16, col:STYLE_FX.shadow.cols, spd:160, size:6, life:0.6, kind:'mist', g:-0.1}); sfx('shadow'); },
+    update(P,dt,F){
+      if (F.t < 0.1){ P.vx = 0; }
+      else if (!F.up){   // gliding under them as a shadow
+        P.hiddenT = Math.max(P.hiddenT, 0.12); P.inv = Math.max(P.inv, 0.1); P.vx = F.dir*900;
+        if (Math.random() < 0.7) emit(P.x - F.dir*20, GROUND - 3, {n:1, col:STYLE_FX.shadow.cols, spd:30, size:5, life:0.4, kind:'mist', g:-0.05});
+        if ((P.x - F.stopX)*F.dir >= 0 || F.t > 0.4){ F.up = true; P.vx = 0; P.face = -F.dir;   // rise behind them, facing back
+          const hit = new Set(); areaHit(P.x + P.face*40, P.y - 40, 70, 60, 45*FM(), {kb:180, src:'form', heavy:true, dir:P.face}, hit);
+          if (F.tg && !F.tg.dead && !hit.has(F.tg)) damageEnemy(F.tg, 45*FM(), {kb:180, src:'form', heavy:true, dir:P.face});
+          P.ambush = 3; P.hiddenT = 0;
+          emit(P.x, P.y - 30, {n:20, col:STYLE_FX.shadow.cols, spd:280, size:6, life:0.6, kind:'mist', g:-0.2}); styleImpact('shadow', P.x + P.face*40, P.y - 40, true);
+          G.hitstop = Math.max(G.hitstop, 0.06); sfx('swish'); sfx('shadow', 0.02); vib(30); } }
+      else P.vx *= Math.pow(0.001, dt);
+    } },
+  shadow2:{ dur:0.5, pose:'cast', start(P,F){
       let n = 0;
-      for (const e of G.E){ if (e.dead || Math.abs(e.x-P.x) > 230) continue;
-        damageEnemy(e, 20*FM(), {kb:0, src:'form', root:2.2, quiet:n>3}); n++;
-        for (let k=0;k<6;k++) G.parts.push({x:e.x+rnd(-14,14), y:GROUND-rnd(0,40), vx:0, vy:-rnd(60,180), life:0.5, max:0.5, col:'#5B4BA8', size:4, real:true}); }
-      ringFx(P.x, GROUND-6, 230, '#9B8CFF', true); sfx('shadow'); vib(35); }, update(P){ P.vx *= 0.85; } },
-  shadow3:{ dur:0.8, pose:'swipe', start(P,F){ F.tick = 0; F.n = 0;
-      F.list = G.E.filter(e=>!e.dead).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x)).slice(0,3); P.inv = 0.8; },
-    update(P,dt,F){ P.vx *= 0.9; F.tick -= dt;
-      if (F.tick <= 0 && F.n < Math.max(1, F.list.length)){ F.tick = 0.18;
-        const e = F.list[F.n++]; if (!e || e.dead) return;
-        const side = Math.random() < 0.5 ? 1 : -1;
-        G.echoes.push({ snap:{ isPlayer:true, x:e.x + side*40, y:e.y, vx:0, face:-side, size:1, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 }, life:0.3, max:0.4, col:'#9B8CFF' });
-        damageEnemy(e, 55*FM(), {kb:160, src:'form', heavy:true, dir:-side});
-        G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.3, col:'#9B8CFF' });
-        styleImpact('shadow', e.x, e.y-36*e.size, true); sfx('swish'); } } },
-  shadow4:{ dur:0.6, pose:'cast', start(P,F){
-      let n = 0;
-      for (const e of G.E){ if (e.dead || isBoss(e) || Math.abs(e.x-P.x) > 320) continue;
-        const tx = P.x + sign(e.x-P.x)*55;
-        for (let k=0;k<5;k++) G.parts.push({x:lerp(e.x,tx,k/5), y:GROUND-20, vx:0, vy:-80, life:0.4, max:0.4, col:'#9B8CFF', size:3, real:true});
-        e.x = tx; damageEnemy(e, 40*FM(), {kb:0, src:'form', stun:1.0, root:1.5, dir:sign(e.x-P.x)||1, quiet:n>3}); n++; }
-      ringFx(P.x, P.y-34, 180, '#9B8CFF', true); G.shake = 10; sfx('shadow'); flash('#9B8CFF', 0.2); vib(45); },
-    update(P){ P.vx *= 0.85; } },
-  shadow5:{ dur:1.1, pose:'thrust', start(P,F){ F.tick = 0; F.n = 0;
-      F.list = G.E.filter(e=>!e.dead).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x)).slice(0,5); P.inv = 1.2; P.hiddenT = 1.1; },
+      for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x-P.x) > 260 || Math.abs(e.y - P.y) > 160) continue;
+        damageEnemy(e, 25*FM(), {kb:0, src:'form', root:2.5, stun:isBoss(e) ? 0.4 : 2.5, quiet:n>3}); n++;
+        G.snares.push({ e, t0:G.time, life:2.5, seed:Math.random()*9 }); }
+      ringFx(P.x, GROUND-6, 260, '#9B8CFF', true); sfx('shadow'); vib(35); }, update(P){ P.vx *= 0.85; } },
+  shadow3:{ dur:0.75, pose:'cast', start(P,F){
+      const near = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 420).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 5);
+      F.clones = near.map((e, k) => { const side = k % 2 ? -1 : 1;   // alternate sides, so every cut lands from behind
+        return { e, side, t0:0.08 + k*0.09, x0:e.x - side*130, x1:e.x + side*130, snap:{ isPlayer:true, isClone:true, x:e.x - side*130, y:e.y, vx:side*900, face:side, size:1, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 } }; });
+      if (!F.clones.length) for (const side of [-1, 1]) F.clones.push({ e:null, side, t0:0.1, x0:P.x - side*20, x1:P.x + side*240, snap:{ isPlayer:true, isClone:true, x:P.x, y:P.y, vx:side*900, face:side, size:1, onG:true, walk:0, sword:P.sword, form:null, atk:null, blockT:-1, dashT:0, hurtT:0 } });
+      P.inv = 0.75; emit(P.x, P.y - 34, {n:18, col:STYLE_FX.shadow.cols, spd:260, size:6, life:0.6, kind:'mist', g:-0.2}); sfx('shadow'); },
+    update(P,dt,F){ P.vx *= 0.8;
+      for (const c of F.clones){ const u = clamp((F.t - c.t0)/0.14, 0, 1);
+        c.snap.x = lerp(c.x0, c.x1, u); c.on = F.t >= c.t0 - 0.04 && F.t < c.t0 + 0.24;
+        if (u >= 0.5 && !c.hit){ c.hit = true;   // the clone passes through and cuts from behind
+          if (c.e && !c.e.dead){ damageEnemy(c.e, 50*FM(), {kb:120, src:'form', heavy:true, dir:c.side}); G.cuts.push({ x:c.e.x, y:c.e.y-32*c.e.size, s:c.e.size, life:0.3, col:'#9B8CFF' }); styleImpact('shadow', c.e.x, c.e.y-36*c.e.size, true); }
+          sfx('swish'); } } } },
+  shadow4:{ dur:0.75, pose:'cast', start(P,F){
+      F.links = [];
+      for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x-P.x) > 340 || Math.abs(e.y - P.y) > 200) continue;
+        F.links.push({ e, x0:e.x }); damageEnemy(e, 15*FM(), {kb:0, src:'form', stun:0.9, quiet:F.links.length > 3}); }
+      sfx('shadow'); flash('#9B8CFF', 0.15); vib(30); },
+    update(P,dt,F){ P.vx *= 0.85;
+      for (const L of F.links){ const e = L.e; if (e.dead) continue;   // the chains drag them in
+        if (F.t < 0.32 && !isBoss(e)){ const tx = P.x + sign(L.x0 - P.x)*55, u = FC_EASE(clamp((F.t - 0.08)/0.24, 0, 1)); e.x = lerp(L.x0, tx, u); e.vx = 0; } }
+      if (F.t >= 0.38 && !F.cut){ F.cut = true;   // and one turning cut takes them all
+        for (const L of F.links){ const e = L.e; if (e.dead) continue; damageEnemy(e, 45*FM(), {kb:200, src:'form', heavy:true, dir:sign(e.x - P.x) || 1, root:1.0}); G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.3, col:'#9B8CFF' }); }
+        ringFx(P.x, P.y-34, 150, '#9B8CFF', true); G.shake = 10; G.hitstop = Math.max(G.hitstop, 0.07); sfx('swish'); sfx('shadow', 0.02); vib(45); } } },
+  shadow5:{ dur:1.25, pose:'thrust', start(P,F){ F.tick = 0.05; F.n = 0; F.marks = [];
+      F.list = G.E.filter(e=>!e.dead && !e.remote).sort((a,b)=>Math.abs(a.x-P.x)-Math.abs(b.x-P.x)).slice(0,6); F.home = P.x; P.inv = 1.4; },
     update(P,dt,F){ P.vx = 0; P.vy = 0; F.tick -= dt;
-      if (F.tick <= 0 && F.n < Math.max(1, F.list.length)){ F.tick = 0.16;
-        const e = F.list[F.n++]; if (!e || e.dead) return;
-        const ox = P.x, behind = -(e.face || 1);
-        P.x = clamp(e.x + behind*34, 30, G.worldW-30); P.y = GROUND; P.face = -behind;
-        echoTrail(ox, P.x, P);
-        damageEnemy(e, 70*FM(), {kb:200, src:'form', heavy:true, dir:P.face, stun:0.5});
-        G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.35, col:'#9B8CFF' });
-        styleImpact('shadow', e.x, e.y-36*e.size, true); G.hitstop = Math.max(G.hitstop, 0.05); sfx('swish'); sfx('shadow', 0.02); } } },
+      if (F.tick <= 0 && F.n < F.list.length && F.t < 0.85){ F.tick = 0.13;   // flicker behind each in turn and mark them
+        const e = F.list[F.n++]; if (e && !e.dead){
+          const ox = P.x, behind = -(e.face || 1);
+          P.x = clamp(e.x + behind*34, 30, G.worldW-30); P.y = GROUND; P.face = -behind;
+          echoTrail(ox, P.x, P);
+          damageEnemy(e, 10*FM(), {kb:0, src:'form', stun:1.2, noStop:true, quiet:true}); F.marks.push(e);
+          G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.2, col:'#9B8CFF' }); sfx('swish'); } }
+      if (F.t >= 0.9 && !F.back){ F.back = true; const ox = P.x; P.x = clamp(F.home, 30, G.worldW - 30); echoTrail(ox, P.x, P); sfx('shadow'); }   // back where you started
+      if (F.t >= 1.08 && !F.end){ F.end = true;   // the blade is sheathed and every mark opens at once
+        for (const e of F.marks){ if (e.dead) continue; damageEnemy(e, 85*FM(), {kb:220, src:'form', heavy:true, dir:sign(e.x - P.x) || 1});
+          for (let k = 0; k < 2; k++) G.cuts.push({ x:e.x, y:e.y-32*e.size, s:e.size, life:0.4, col:k ? '#FFFFFF' : '#9B8CFF' });
+          styleImpact('shadow', e.x, e.y-36*e.size, true); }
+        flash('#9B8CFF', 0.35); G.shake = 14; G.hitstop = Math.max(G.hitstop, 0.12); sfx('clang'); sfx('boom', 0.04); vib(70); } } },
   /* ---- Blood ---- */
   blood1:{ dur:0.45, pose:'strike', wind:0.16, update(P,dt,F){ P.vx *= 0.85;
       if (F.t >= 0.18 && !F.hitOnce){ F.hitOnce = true;
@@ -6428,19 +6450,25 @@ const FORM_MAP = {
     { t:0.95, h:[21,-20], th:-0.2, phi:0.2, lean:0.2, cr:4 } ] } },
   frost5:{ c:'drive',  v:{ imp:0.3, two:true, x:16, y:-5, cr:14, legs:FC_LEG.kneel } },   // Eternal Winter: the blade stays in the ground while the blizzard blows
   /* Shadow: low, reversed, behind */
-  shadow1:{ c:'vanish', v:{ keys:[ { pre:0.4, h:[11,-15], th:-0.4, phi:0.2, lean:0.1, cr:5, pr:0, legs:FC_LEG.ready, off:[-6,-8] },
-                                   { t:0, h:[-3,-9], th:2.95, phi:0.25, lean:0.5, cr:13, pr:-2, legs:FC_LEG.low, off:[10,-8], imp:true },
-                                   { t:0.16, h:[-2,-10], th:2.9, lean:0.45, cr:12 } ] } },
+  shadow1:{ c:'invoke', v:{ keys:[   // Shadow Step: drop low into the shadow, stay down while gliding, rise with a reversed upward cut
+    { pre:0.45, h:[6,-6], th:2.6, phi:0.25, lean:0.5, cr:16, pr:-2, legs:FC_LEG.low, off:[10,-8] },
+    { t:0.1, h:[-3,-6], th:2.9, phi:0.25, lean:0.55, cr:18 },
+    { t:0.4, h:[-3,-6], th:2.9, phi:0.25, lean:0.55, cr:18 },
+    { t:0.46, h:[18,-30], th:-1.2, phi:0.6, lean:-0.05, cr:4, pr:4, legs:FC_LEG.step, off:[-8,-14], imp:true },
+    { t:0.6, h:[14,-30], th:-1.45, phi:0.6, lean:-0.1, cr:3 } ] } },
   shadow2:{ c:'bind',   v:{ keys:[ { pre:0.5, h:[13,-24], th:-1.1, phi:0.6, lean:0, cr:5, pr:-1, legs:FC_LEG.ready, off:[-6,-10] },
                                    { t:0, h:[19,-3], th:0.9, phi:1.25, lean:0.4, cr:14, pr:4, legs:FC_LEG.low, off:[-10,-8], imp:true },
                                    { t:0.16, h:[-6,-3], th:2.6, phi:1.25, lean:0.35, cr:14, pr:-3 },
                                    { t:0.28, h:[-5,-5], th:2.7, lean:0.3, cr:12 } ] } },
-  shadow3:{ c:'blink',  v:{ dt:0.18, n:() => 3, seq:['yokoR','yoko','yokoR'], cr:8, slow:true } },
+  shadow3:{ c:'invoke', v:{ keys:[   // Phantom Dance: the hero holds a still guard, blade reversed across the body, while the clones do the cutting
+    { pre:0.45, h:[10,-20], th:2.6, phi:0.3, lean:0.1, cr:8, pr:0, legs:FC_LEG.ready, off:[6,-22] },
+    { t:0.05, h:[6,-26], th:2.85, phi:0.3, lean:0.15, cr:11, legs:FC_LEG.low, imp:true },
+    { t:0.7, h:[6,-26], th:2.85, phi:0.3, lean:0.15, cr:11 } ] } },
   shadow4:{ c:'bind',   v:{ keys:[ { pre:0.6, h:[6,-12], th:0.1, phi:0.1, lean:-0.05, cr:6, pr:-4, legs:FC_LEG.back, off:[-8,-8] },
                                    { t:0, h:[22,-15], th:0, phi:0.1, lean:0.45, cr:8, pr:6, legs:FC_LEG.lunge, off:[16,-16], imp:true },
                                    { t:0.14, h:[6,-14], th:-0.15, lean:-0.2, cr:6, pr:-4, legs:FC_LEG.back, off:[-12,-12] },
                                    { t:0.45, h:[7,-14], th:-0.2, lean:-0.15 } ] } },
-  shadow5:{ c:'blink',  v:{ dt:0.16, n:() => 5, seq:['kesa','gyaku'], two:true, cr:9, slow:true } },
+  shadow5:{ c:'blink',  v:{ dt:0.13, n:() => 6, seq:['kesa','gyaku'], two:true, cr:9, slow:true } },
   /* Blood: sacrificial, wide, the off hand bare */
   blood1:{ c:'overhead', v:{ imp:0.18, phi:0.7, hi:[11,-30], thHi:-1.7, cr:9 } },
   blood2:{ c:'invoke',  v:{ keys:[ { pre:0.6, h:[8,-16], th:-0.2, phi:1.3, lean:0, cr:3, pr:-3, legs:FC_LEG.ready, off:[12,-17] },
@@ -8783,7 +8811,7 @@ function drawIcicle(x, y, L, ang){
   ctx.strokeStyle = 'rgba(220,243,255,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-L*0.5, 0); ctx.lineTo(-L*1.4, 0); ctx.stroke();   // a cold streak behind it
   ctx.restore();
 }
-/* Blizzard Breathing forms 2-4: the ice lotus, the frost spreading on the ground, the beam of cold to the sky */
+/* Ice Breathing forms 2-4: the ice lotus, the frost spreading on the ground, the beam of cold to the sky */
 function drawFrostForm(P){
   const F = P.form; ctx.save();
   if (F.id === 'frost2' && F.lotus){
@@ -8810,6 +8838,35 @@ function drawFrostForm(P){
     ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(tip[0] - 22, top, 44, tip[1] - top);   // a beam of cold straight up into the sky
     ctx.globalAlpha = 0.5*q; ctx.fillStyle = '#DCF3FF'; ctx.beginPath(); ctx.arc(tip[0], tip[1], 12, 0, 6.283); ctx.fill(); }
   ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+/* Shadow Breathing: the pool you glide in, the snares, the clones, the chains, midnight */
+function drawShadowForms(P){
+  const F = P.form && !P.form.wait ? P.form : null, t = G.time;
+  ctx.save();
+  if (F && F.id === 'shadow5'){ const q = clamp(F.t/0.15, 0, 1)*(1 - clamp((F.t - 1.05)/0.2, 0, 1));   // night falls
+    ctx.fillStyle = `rgba(10,6,24,${0.55*q})`; ctx.fillRect(G.camX - 60, (G.camY || 0) - 200, VW + 120, VH + 600); }
+  if (F && F.id === 'shadow1' && F.t >= 0.04 && !F.up){   // the pool of shadow you travel in
+    const w = 60 + Math.sin(t*20)*5; ctx.fillStyle = 'rgba(12,8,30,0.9)'; ctx.beginPath(); ctx.ellipse(P.x, GROUND - 1, w, 9, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(155,140,255,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  G.snares = (G.snares || []).filter(S => !S.e.dead && G.time - S.t0 < S.life);
+  for (const S of G.snares){ const e = S.e, s = e.size || 1, age = G.time - S.t0, grow = Math.min(1, age/0.25), fade = Math.min(1, (S.life - age)/0.3);   // tendrils from their own shadow
+    ctx.globalAlpha = fade; ctx.fillStyle = 'rgba(12,8,30,0.8)'; ctx.beginPath(); ctx.ellipse(e.x, GROUND - 1, 30*s, 6, 0, 0, 6.283); ctx.fill();
+    for (let k = 0; k < 4; k++){ const ox = (k - 1.5)*9*s, H = (40 + k*10)*s*grow, ph = t*4 + k*1.7 + S.seed;
+      ctx.beginPath(); ctx.moveTo(e.x + ox, GROUND);
+      for (let j = 1; j <= 8; j++){ const u = j/8, wrap = Math.sin(ph + u*7)*14*s*u; ctx.lineTo(e.x + ox*(1 - u) + wrap, GROUND - H*u); }
+      ctx.strokeStyle = '#140C2A'; ctx.lineWidth = 5*s*(1 - 0.0); ctx.stroke(); ctx.strokeStyle = 'rgba(155,140,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke(); } }
+  ctx.globalAlpha = 1;
+  if (F && F.id === 'shadow3' && F.clones) for (const c of F.clones) if (c.on){
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = '#9B8CFF'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(c.x0, c.snap.y - 40); ctx.lineTo(c.snap.x, c.snap.y - 40); ctx.stroke();   // its dash trail
+    ctx.globalAlpha = 1; drawStick(c.snap, 0.9, '#7A6AE0'); }
+  if (F && F.id === 'shadow4' && F.links && F.t < 0.42){   // chains of shadow from you to each of them
+    ctx.strokeStyle = '#1A1236'; ctx.lineWidth = 4;
+    for (const L of F.links){ const e = L.e; if (e.dead) continue; const x1 = e.x, y1 = e.y - 34*(e.size || 1), x0 = P.x, y0 = P.y - 40, n = Math.max(3, Math.floor(Math.abs(x1 - x0)/12));
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#9B8CFF'; ctx.lineWidth = 1.5;
+      for (let k = 1; k < n; k++){ const u = k/n; ctx.beginPath(); ctx.ellipse(lerp(x0, x1, u), lerp(y0, y1, u), 4, 2.5, Math.atan2(y1 - y0, x1 - x0) + (k % 2 ? 0 : 1.57), 0, 6.283); ctx.stroke(); }
+      ctx.strokeStyle = '#1A1236'; ctx.lineWidth = 4; } }
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 /* Eternal Winter: snow blowing hard across the whole screen, the world turning blue-white */
 function drawBlizzard(P){
@@ -9393,6 +9450,7 @@ function renderScene(){
     if (P.form && P.form.id==='crescent5' && !P.form.wait) drawEclipse(P);
     if (P.form && P.form.id==='frost5' && !P.form.wait) drawBlizzard(P);
     if (P.form && !P.form.wait && (P.form.id==='frost2' || P.form.id==='frost3' || P.form.id==='frost4')) drawFrostForm(P);
+    drawShadowForms(P);
     for (const q of G.echoes) drawStick(q.snap, 0.45*q.life/q.max, q.col);
     for (let i=0;i<G.ghosts.length;i++) drawStick(G.ghosts[i], 0.12 + 0.05*i, G.ST.trail);
     drawParts(true);
