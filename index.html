@@ -1875,12 +1875,14 @@ function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot')
 function webTouchBtn(){
   const box = $('extraBtns'); if (!box) return;
   let b = document.getElementById('webBtn');
-  if (G.mode !== 'spider'){ if (b) b.remove(); for (const id of ['netBtn', 'climbBtn', 'swingBtn']){ const nb = document.getElementById(id); if (nb) nb.remove(); } return; }
+  if (G.mode !== 'spider'){ if (b) b.remove(); for (const id of ['netBtn', 'climbBtn', 'swingBtn', 'stormBtn']){ const nb = document.getElementById(id); if (nb) nb.remove(); } return; }
   if (b) return;
   b = document.createElement('button'); b.id = 'webBtn'; b.className = 'tb sm'; b.dataset.k = 'web'; b.textContent = 'Web'; b.style.setProperty('--sc', '#FFFFFF');
   b.setAttribute('aria-label', 'Web at enemies: tap to catch or yank, hold to spin, release to throw'); box.appendChild(b); bindTouch(b);
   const n = document.createElement('button'); n.id = 'netBtn'; n.className = 'tb sm'; n.dataset.k = 'webnet'; n.textContent = 'Net'; n.style.setProperty('--sc', '#FFFFFF');
   n.setAttribute('aria-label', 'Web net: wrap everyone in front, or hang the one on your line'); box.appendChild(n); bindTouch(n);
+  const ws = document.createElement('button'); ws.id = 'stormBtn'; ws.className = 'tb sm'; ws.dataset.k = 'webAll'; ws.textContent = 'Storm'; ws.style.setProperty('--sc', '#FFFFFF');
+  ws.setAttribute('aria-label', 'Web Storm: catch every enemy on screen'); box.appendChild(ws); bindTouch(ws);
   const sw = document.createElement('button'); sw.id = 'swingBtn'; sw.className = 'tb sm'; sw.dataset.k = 'kunai'; sw.textContent = 'Swing'; sw.style.setProperty('--sc', '#FFFFFF');
   sw.setAttribute('aria-label', 'Swing: web to a building, pole or wire; hold to keep swinging'); box.appendChild(sw); bindTouch(sw);
   const cl = document.createElement('button'); cl.id = 'climbBtn'; cl.className = 'tb sm'; cl.dataset.k = 'climb'; cl.textContent = 'Climb'; cl.style.setProperty('--sc', '#FFFFFF');
@@ -2470,6 +2472,8 @@ function fcTick(P, dt){
   for (const f of C.fx) f.t += dt; C.fx = C.fx.filter(f => f.t < f.life);
   if (pressed.webnet && webOn() && !P.dead && !P.ride && !P.form) fcNetKey(P);
   if (pressed.climb && webOn()) fcStartClimb(P);
+  if (pressed.webAll && webOn() && !P.dead && !P.ride) webStorm(P);
+  if (G.mode === 'spider') flyChaseTick(P, dt);
   if (G.mode === 'spider') spiderSense(P, dt);
 }
 /* where a flying web touches something it can stick to (a building face, roof, pole or wire) */
@@ -2556,6 +2560,53 @@ function fcNetKey(P){
 }
 function C_strand(a, b){ const C = G.fc; if (C) C.fx.push({ x1:a[0], y1:a[1], x2:b[0], y2:b[1], t:0, life:0.4 }); }
 /* ----- a hung or webbed enemy, run from updateEnemy ----- */
+/* B: Web Storm. You spin and fire webs in every direction at once: every enemy on screen is caught. Those with something to hang
+   from above are hung up, the rest are cocooned on the ground; bosses and champions are only held for a moment. 12 s to recharge. */
+function webStorm(P){
+  const C = G.fc; P.stormCd = P.stormCd || 0;
+  if (G.time < P.stormCd){ pop(P.x, P.y - 110, 'Web Storm: ' + Math.ceil(P.stormCd - G.time) + ' s', 'rgba(255,255,255,0.75)'); return; }
+  const h = webHandPt(P), used = new Map(); let n = 0, hung = 0;
+  for (const e of G.E){
+    if (e.dead || e.remote || e.webHeld || e.x < G.camX - 40 || e.x > G.camX + VW + 40) continue;
+    const c = [e.x, e.y - 32*(e.size || 1)]; C_strand(h, c); n++; e.flyChase = false;
+    if (isBoss(e) || e.champ){ e.state = 'stun'; e.timer = Math.max(e.timer || 0, 1.5); e.vx = 0; continue; }
+    const a = G.fc ? fcAnchorNear(c[0], c[1], 380, used) : null;
+    if (a){ fcHang(e, a, 0, -150); C_strand(c, [a[0], a[1]]); hung++; } else fcBind(e, 7, 0, -120);
+  }
+  if (!n){ pop(P.x, P.y - 110, 'Nobody in sight', 'rgba(255,255,255,0.75)'); return; }
+  P.stormCd = G.time + 12; P.stormT = 0.4;
+  pop(P.x, P.y - 125, 'WEB STORM — ' + n + ' caught' + (hung ? ', ' + hung + ' hung' : ''), '#FFFFFF');
+  ringFx(P.x, P.y - 50, 300, '#FFFFFF'); ringFx(P.x, P.y - 50, 160, '#E8202A'); sfx('whoosh'); sfx('swish', 0.03); vib(50);
+}
+/* when you swing fast, the enemies fire up jetpacks and chase you through the air; when you stay on the ground a while, they come down */
+function flyChaseTick(P, dt){
+  P.stormT = (P.stormT || 0) - dt;
+  const sp = Math.hypot(P.vx, P.vy), swinging = P.wg && P.wg.st === 'swing';
+  P.gT = P.onG ? (P.gT || 0) + dt : 0;
+  if (swinging && sp > 650){
+    const fliers = G.E.filter(e => e.flyChase && !e.dead).length;
+    if (fliers < 4){
+      const c = G.E.filter(e => !e.dead && !e.remote && !e.flyChase && !isBoss(e) && !(e.T && e.T.ranged) && !e.webHeld && !e.webHung && !(e.webBound > 0) && e.onG && Math.abs(e.x - P.x) < 750)
+        .sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x))[0];
+      if (c){ c.flyChase = true; c.flySlot = (fliers % 2 ? 1 : -1)*(1 + Math.floor(fliers/2)); c.atkCd = 1; c.vy = -500; c.onG = false; pop(c.x, c.y - 100*(c.size || 1), 'Jetpack!', '#FF8A3A'); sfx('whoosh'); } }
+  }
+  if (P.gT > 1.5) for (const e of G.E) if (e.flyChase){ e.flyChase = false; }   // you stayed down: they come down too
+}
+function flyChaseUpdate(e, dt){   // one of them in the air, chasing you
+  const P = G.P; if (!P){ e.flyChase = false; return; }
+  e.flash -= dt; e.hurtBar -= dt;
+  if (e.hp <= 0){ killEnemy(e); return; }
+  if (e.state === 'hurt' && e.timer > 0){ e.timer -= dt; e.vy += 900*dt; e.x += e.vx*dt; e.y = Math.min(GROUND, e.y + e.vy*dt); e.vx *= Math.pow(0.3, dt); return; }   // knocked about, then the jets pick up again
+  const lead = sign(P.vx) || P.face, tx = P.x - lead*(60 + 26*Math.abs(e.flySlot || 1)) , ty = P.y - 10 + 18*(e.flySlot || 0);
+  const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1, sp = clamp(Math.hypot(P.vx, P.vy)*(d > 300 ? 1.2 : 0.95) + (d > 300 ? 200 : 0), 420, 1900);   // far behind: they burn harder to catch up
+  e.vx = lerp(e.vx || 0, dx/d*sp, Math.min(1, dt*4)); e.vy = lerp(e.vy || 0, dy/d*sp, Math.min(1, dt*4));
+  e.x = clamp(e.x + e.vx*dt, 30, G.worldW - 30); e.y = Math.min(GROUND, e.y + e.vy*dt); e.onG = e.y >= GROUND - 1;
+  e.face = sign(P.x - e.x) || e.face; e.state = 'chase'; e.atk = null; e.walk += dt*3;
+  e.atkCd = (e.atkCd || 0) - dt;
+  const close = Math.hypot(P.x - e.x, P.y - e.y);
+  if (close < 75 && e.atkCd <= 0){ e.atkCd = 1.2; e.flyWind = 0.28; e.flash = 0.1; }   // a lunge in mid-air
+  if (e.flyWind > 0){ e.flyWind -= dt; if (e.flyWind <= 0 && Math.hypot(P.x - e.x, P.y - e.y) < 85 && !P.dead) hurtPlayer(e.dmg, 220, e, false); }
+}
 function fcBoundTick(e, dt){
   if (e.hp <= 0){ killEnemy(e); return; }
   e.flash -= dt; e.hurtBar -= dt; e.atk = null; e.comboLeft = 0; e.bmove = null; e.state = 'stun'; e.timer = Math.max(e.timer || 0, 0.3);
@@ -2853,6 +2904,11 @@ function drawGear(P){
     ctx.fillStyle = g.col; ctx.globalAlpha = 0.9; ctx.fillText(g.tag, e.x, e.y - 98*s - (e.champ ? 18 : 0));
     if (e.gear === 'baton' && Math.random() < 0.15) bolt(e.x + (e.face || 1)*16, e.y - 50*s, e.x + (e.face || 1)*30, e.y - 66*s, '#7FCBFF'); }
   ctx.globalAlpha = 1; ctx.restore();
+  for (const e of G.E){ if (!e.flyChase || e.dead) continue; const s = e.size || 1;   // jetpack flames
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; const fx = e.x - (e.face || 1)*10*s, fy = e.y - 30*s, L = 26 + 10*Math.sin(G.time*40);
+    const g = ctx.createLinearGradient(fx, fy, fx - (e.face || 1)*L, fy + L*0.6); g.addColorStop(0, 'rgba(255,230,140,0.95)'); g.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = 8*s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx - (e.face || 1)*L, fy + L*0.6); ctx.stroke();
+    ctx.fillStyle = '#3A3A44'; ctx.globalCompositeOperation = 'source-over'; ctx.fillRect(fx - 5*s, fy - 18*s, 10*s, 20*s); ctx.restore(); }
   if (P && P.netT > 0){ ctx.save(); ctx.strokeStyle = '#E8E0C8'; ctx.lineWidth = 1.4; ctx.globalAlpha = Math.min(1, P.netT*2);
     for (let k = -3; k <= 3; k++){ ctx.beginPath(); ctx.moveTo(P.x + k*7 - 12, P.y - 74); ctx.lineTo(P.x + k*7 + 12, P.y + 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(P.x + k*7 + 12, P.y - 74); ctx.lineTo(P.x + k*7 - 12, P.y + 2); ctx.stroke(); }
     ctx.restore(); ctx.globalAlpha = 1; }
@@ -3090,7 +3146,7 @@ function startSpider(){
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
     isTouch ? 'Swing: web to buildings · Web: catch enemies · Climb: crawl a wall · Net: wrap / hang'
-            : 'Hold Q + D: swing · Shift + A/D + Q, hold then let go: sling kick · X: web enemies (then L: hurl) · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
+            : 'Hold Q + D: swing · Shift + A/D + Q: sling kick · X: web enemies (L: hurl) · B: Web Storm · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
   setScreen(null); G.running = true; webTouchBtn();
 }
 /* endless street fight: more enemies and tougher types the more you take down */
@@ -3694,7 +3750,7 @@ function comboFor(sw){
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways',
-  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb' };
+  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll' };
 const held = {}, pressed = {};
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -6075,6 +6131,7 @@ function attackersNow(){ let n=0; for (const e of G.E) if (!e.dead && !e.T.range
 function updateEnemy(e, dt){
   const P = G.P;
   if (e.webHeld){ e.state = 'stun'; e.timer = Math.max(e.timer || 0, 0.5); e.vx = 0; e.vy = 0; e.onG = false; e.flash -= dt; e.hurtBar -= dt; return; }   // on the end of a web line: the player moves it
+  if (e.flyChase && G.mode === 'spider' && !e.webHeld && !e.webHung && !(e.webBound > 0)){ flyChaseUpdate(e, dt); return; }   // jetpack chase
   if (e.hmGrab && G.hm && G.hm.grab === e){ e.flash -= dt; e.hurtBar -= dt; if (e.hp <= 0){ killEnemy(e); return; } e.walk = 0; return; }   // holding on to the hammer
   if (e.hmSeek && G.hm && G.hm.seeker === e && G.hm.state === 'ground' && e.onG && !(e.hurtT > 0) && e.state !== 'hurt' && e.state !== 'down'){   // walking over to pick up the hammer
     const dir = sign(G.hm.x - e.x) || 1; e.face = dir; e.vx = dir*clamp(e.spd || 120, 80, 220)*Math.min(1, Math.abs(G.hm.x - e.x)/20); e.x += e.vx*dt; e.walk += dt*Math.abs(e.vx)*0.045/e.size; e.state = 'chase'; e.atk = null; e.flash -= dt; e.hurtBar -= dt;
@@ -7698,6 +7755,8 @@ function getPose(e){
       if (p < 0.44){ const u = FC_EASE(p/0.44); P_.a = lerp(P_.a, -2.5, u); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.3, u); P_.crouch = Math.max(P_.crouch || 0, 6*u); }
       else { const u = FC_EASE(Math.min(1, (p - 0.44)/0.2)); P_.a = lerp(-2.5, 0.25, u); P_.ext = 1; P_.lean = lerp(-0.3, 0.5, u); P_.crouch = Math.max(P_.crouch || 0, 8*(1 - p)); } }
     else if (G.hm.state === 'return' || e.catchT > 0){ P_.a = lerp(P_.a, -0.35, 0.9); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.1, 0.5); } }   // the open hand, waiting for it
+  if (e.isPlayer && e.stormT > 0){ P_.a = -0.6; P_.a2 = -2.5; P_.ext = P_.ext2 = 1; P_.lean = -0.1; P_.crouch = Math.max(P_.crouch || 0, 8); }   // Web Storm: arms flung wide
+  if (!e.isPlayer && e.flyChase && e.state !== 'hurt'){ P_.lean = 0.55; P_.crouch = 0; P_.legs = [-0.5, 0.6, -0.8, 0.9]; P_.legW = 1; P_.legAir = true; }   // flying, legs trailing
   if (e.isPlayer && e.wg && e.wg.st === 'hold' && e.wg.hurl){ P_.lean = -0.38; P_.crouch = Math.max(P_.crouch || 0, 10); P_.legs = FC_LEG.horse; P_.legW = 1; }   // hammer throw: feet planted wide, leaning back against the pull
   if (e.isPlayer && e.wg && e.wg.st === 'sling'){ const W = e.wg;   // Web Sling Kick
     if (W.phase === 'pull'){ const c = W.charge || 0; P_.lean = -0.4 - 0.25*c; P_.crouch = 10 + 8*c; }
