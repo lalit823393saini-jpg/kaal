@@ -1254,6 +1254,12 @@ const BODY = {
   parry:  { name:'Parry window',     per:'+0.02 s',               base:200 }
 };
 const BODY_MAX = 5;
+/* Mana (Shadow Legion): its own training line, bought with coins, ten tiers, the last one 50,000 */
+const MANA_COST = [500, 1200, 2500, 4000, 6500, 10000, 15000, 22000, 33000, 50000];
+const MANA_MAX_LV = MANA_COST.length;
+const MANA_TIER = [100, 250, 600, 1500, 3500, 7500, 15000, 30000, 55000, 80000, 100000];   // max mana at each tier: the last (50,000 coins) is one lakh
+const manaMaxFor = () => MANA_TIER[Math.min(SV.manaLv || 0, MANA_MAX_LV)] + 10*(SV.body.hp || 0);
+const manaRegenFor = () => Math.max(7, Math.round(manaMaxFor()*0.07));   // it always refills in about 14 s
 const bodyCost = (k, t) => Math.round(BODY[k].base * Math.pow(1.7, t) / 10) * 10;
 
 const COSMETICS = {
@@ -2874,7 +2880,7 @@ function startShadow(){
   G.worldW = 3200; resetCommon();
   G.allies = []; G.corpses = []; G.shadowS = { spawnT:2 }; G.stored = [];   // shadows that sank are kept here, ready to be called back
   { const box = $('extraBtns'); if (box && !document.getElementById('riseBtn')){ const b = document.createElement('button'); b.id = 'riseBtn'; b.className = 'tb sm'; b.dataset.k = 'clone'; b.textContent = 'Rise'; b.style.setProperty('--sc', '#9B6BFF'); b.setAttribute('aria-label', 'Hold over a fading body to raise its shadow; tap away from bodies to send the shadows back'); box.appendChild(b); bindTouch(b); } }
-  G.P.manaMax = 100 + 10*(SV.body.hp || 0); G.P.mana = G.P.manaMax;
+  G.P.manaMax = manaMaxFor(); G.P.mana = G.P.manaMax;
   for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Shadow Legion', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
@@ -2899,7 +2905,7 @@ function shadowTick(dt, alive){
     G.E.push(makeEnemy(pool[(Math.random()*Math.min(pool.length, 3 + Math.floor(k/5)))|0], clamp(x, 60, G.worldW - 60), G.diff, true));
   }
   // mana: drains for every shadow standing, refills when none are
-  if (legion) P.mana -= SHADOW_DRAIN*legion*dt; else P.mana = Math.min(P.manaMax, P.mana + MANA_REGEN*dt);
+  if (legion) P.mana -= SHADOW_DRAIN*legion*dt; else P.mana = Math.min(P.manaMax, P.mana + manaRegenFor()*dt);
   if (P.mana <= 0 && legion){ P.mana = 0; for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Out of mana: the shadows sink', '#9B6BFF'); }
   // bodies fade
   for (const c of G.corpses) c.t += dt;
@@ -6930,7 +6936,7 @@ function playerDie(){
   if (G.mode === 'spider' && G.spider){ const S = G.spider; S.over = true;
     showBanner('Caught!', (S.dist || 0) + ' m', 'Trapped ' + (S.trapped || 0) + ' · best ' + (SV.spiderBest || 0) + ' m', '#E8202A');
     setTimeout(() => { if (G.mode === 'spider' && G.running) startSpider(); }, 2600); return; }
-  if (G.mode === 'free' || G.mode === 'spider' || G.mode === 'hammer' || G.mode === 'shadow'){ const m0 = G.mode; setTimeout(() => { if (G.mode===m0 && G.P && G.P.dead && G.running){ const x=G.P.x; G.P = makePlayer(); G.P.x = x; if (m0 === 'shadow'){ G.P.manaMax = 100 + 10*(SV.body.hp || 0); G.P.mana = G.P.manaMax; } G.secondWindUsed = false; toast('Back on your feet', 1); } }, 1600); }
+  if (G.mode === 'free' || G.mode === 'spider' || G.mode === 'hammer' || G.mode === 'shadow'){ const m0 = G.mode; setTimeout(() => { if (G.mode===m0 && G.P && G.P.dead && G.running){ const x=G.P.x; G.P = makePlayer(); G.P.x = x; if (m0 === 'shadow'){ G.P.manaMax = manaMaxFor(); G.P.mana = G.P.manaMax; } G.secondWindUsed = false; toast('Back on your feet', 1); } }, 1600); }
   else if (G.mode === 'blitz' && G.blitz && !G.blitz.over){ G.blitz.over = true; setTimeout(() => showResult(true), 1400); }
   else setTimeout(() => showResult(false), 1400);
 }
@@ -14973,7 +14979,7 @@ function updateHUD(alive){
     info.innerHTML = G.mode==='levels'
       ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>${(() => { const c = chalState(); return c ? ` &nbsp; <b style="color:${c.fail ? '#FF6A5A' : c.ok ? '#8FE38A' : '#FFB347'}">⚑ ${c.txt}</b>` : ''; })()}`
       : G.mode==='train' ? `Training &nbsp; step <span>${G.train ? Math.min(G.train.i + 1, TRAIN.length) : 0}</span>/${TRAIN.length}`
-      : G.mode==='shadow' ? `Shadow Legion &nbsp; kills <span>${G.kills}</span> &nbsp; mana <span>${Math.round(P.mana || 0)}/${P.manaMax || 100}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; waiting <span>${(G.stored || []).length}</span> &nbsp; enemies <span>${alive}</span>`
+      : G.mode==='shadow' ? `Shadow Legion &nbsp; kills <span>${G.kills}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}/${(P.manaMax || 100).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; waiting <span>${(G.stored || []).length}</span> &nbsp; enemies <span>${alive}</span>`
       : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
       : G.mode==='spider' ? `Spider Chase &nbsp; distance <span>${(G.spider && G.spider.dist) || 0} m</span> &nbsp; best <span>${SV.spiderBest || 0} m</span> &nbsp; trapped <span>${(G.spider && G.spider.trapped) || 0}</span> &nbsp; chasing <span>${G.E.filter(e => e.flyChase && !e.dead).length}</span>`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
@@ -16066,6 +16072,13 @@ function renderItems(){
       const actions = t < BODY_MAX ? `<button class="sb buy" data-a="up">Train ${bodyCost(k,t)}</button>` : `<span class="tag eq">Mastered</span>`;
       const d = add(`<div class="row"><span class="nm">${bd.name}</span>${pips(t,BODY_MAX)}<div class="act">${actions}</div></div><div class="ds">Each tier: ${bd.per}.</div>`, '');
       d.querySelectorAll('button').forEach(b => b.onclick = () => { if (spend(bodyCost(k,t))){ SV.body[k]=t+1; save(); msg(`${bd.name} is now tier ${t+1}.`); } renderItems(); });
+    }
+    {   // Mana: separate from the body training above (it does not count toward the Fourth and Fifth Forms)
+      const t = SV.manaLv || 0;
+      add(`<div class="ds" style="margin:10px 0 0;color:#C9A8FF">Shadow Legion</div>`, '');
+      const actions = t < MANA_MAX_LV ? `<button class="sb buy" data-a="up">Train ${MANA_COST[t].toLocaleString()}</button>` : `<span class="tag eq">Mastered</span>`;
+      const d = add(`<div class="row"><span class="nm">Mana</span>${pips(t, MANA_MAX_LV)}<div class="act">${actions}</div></div><div class="ds">Max mana now: <b>${manaMaxFor().toLocaleString()}</b> (refills ${manaRegenFor().toLocaleString()} per second)${t < MANA_MAX_LV ? ` · next tier: ${(MANA_TIER[t + 1] + 10*(SV.body.hp || 0)).toLocaleString()}` : ''}. The last tier gives 1,00,000.</div>`, '');
+      d.querySelectorAll('button').forEach(b => b.onclick = () => { if (spend(MANA_COST[t])){ SV.manaLv = t + 1; save(); msg(`Mana is now tier ${t + 1}: ${manaMaxFor().toLocaleString()} max mana.`); } renderItems(); });
     }
   }
   if (dojoTab==='look'){
