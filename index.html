@@ -2960,7 +2960,7 @@ function alliesTick(dt){
     if (!tgt || Math.abs(tgt.x - a.x) > 700){ let bd = 650; tgt = null; for (const e of G.E){ if (e.dead || e.remote) continue; const d = Math.abs(e.x - a.x); if (d < bd){ bd = d; tgt = e; } } a.tgt = tgt; }
     const spd = (a.T.spd || 120)*1.25*(G.diff.spd || 1);
     if (a.state === 'windup'){ a.timer -= dt; a.vx = 0; if (a.timer <= 0){ a.state = 'swing'; a.timer = 0.14;
-        if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; damageEnemy(tgt, a.dmg, { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true }); G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false; if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0}); } } }
+        if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; damageEnemy(tgt, a.dmg, { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true, unblockable:true, breakArmor:1 }); /* shadows go round shields and guards */ G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false; if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0}); } } }
     else if (a.state === 'swing'){ a.timer -= dt; if (a.timer <= 0){ a.state = 'recover'; a.timer = 0.3; } }
     else if (a.state === 'recover'){ a.timer -= dt; a.vx = 0; if (a.timer <= 0) a.state = 'idle'; }
     else if (tgt){ const dx = tgt.x - a.x; a.face = sign(dx) || a.face;
