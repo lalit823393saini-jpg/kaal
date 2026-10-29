@@ -816,7 +816,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -2732,7 +2732,7 @@ function startHammer(){
   G.hammerS = { spawnT:2.5 };
   for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Hammer mode', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw it · Z again: call it back · the more you fight, the farther it flies', '#7FE3FF'); }, 1200);
+  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw it · Z again: call it back · M: swing it by the strap, then an uppercut', '#7FE3FF'); }, 1200);
   setScreen(null); G.running = true;
 }
 const HM_SPEED = 1450;
@@ -2764,16 +2764,18 @@ function hammerUpdate(P, dt){
     } else if (H.state !== 'return'){   // Z again: it comes back to your hand, through anyone in the way
       H.state = 'return'; H.hit = new Set(); H.vy = 0; pop(P.x, P.y - 110, 'Return!', '#7FE3FF'); sfx('whoosh'); }
   }
+  if (pressed.map && H.state === 'held' && !H.strap && !(P.throwT > 0) && !P.dead){ H.strap = { t:0, a:Math.PI/2, av:0, hit:new Map() }; sfx('whoosh'); }   // M: let it hang from the strap
+  if (H.strap) hammerStrapTick(P, H, dt);
   if (H.state === 'held' && H.windT > 0){ H.windT -= dt;
     if (H.windT <= 0){   // the arm comes through: it leaves the hand here
       H.state = 'fly'; H.dir = P.face || H.dir || 1; H.x = P.x + H.dir*30; H.y = P.y - 56; H.vx = H.dir*HM_SPEED; H.vy = 0; H.trav = 0; H.max = hammerRange(); H.hit = new Set();
-      sfx('whoosh'); G.shake = Math.max(G.shake, 4); vib(25); } }
+      sfx('whoosh'); G.shake = Math.max(G.shake, 2); vib(20); } }
   if (H.state === 'fly'){
     if (H.trav < H.max && H.x > 20 && H.x < G.worldW - 20){ H.x += H.vx*dt; H.trav += Math.abs(H.vx)*dt; }   // straight and level until its strength runs out
     else { H.vy += 2200*dt; H.x += H.vx*0.3*dt; H.y += H.vy*dt;   // then it drops
       if (H.y >= GROUND - 12){ H.y = GROUND - 12; H.state = 'ground'; H.x = clamp(H.x, 20, G.worldW - 20);
         ringFx(H.x, GROUND, 120, '#7FE3FF', true); cracks(H.x, 70, '#7FE3FF'); burst(H.x, GROUND - 4, 14, '#5a4a40', 300, 4, true);
-        G.shake = Math.max(G.shake, 10); sfx('boom'); sfx('stone', 0.02); vib(40); } }
+        G.shake = Math.max(G.shake, 4); sfx('boom'); sfx('stone', 0.02); vib(30); } }
     H.rot = H.trav < H.max ? (H.dir > 0 ? 0 : Math.PI) : Math.atan2(H.vy, H.vx*0.3);   // head first, no spin; it tips over as it drops
     hammerHits(H, sign(H.vx) || H.dir);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF','#3A3F4A'], spd:60, size:3, life:0.35, kind:'star', g:0});
@@ -2782,7 +2784,7 @@ function hammerUpdate(P, dt){
     H.x += dx/d*sp*dt; H.y += dy/d*sp*dt; H.rot = Math.atan2(dy, dx);   // straight back to your hand, head first
     hammerHits(H, sign(dx) || 1);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF'], spd:60, size:3, life:0.3, kind:'star', g:0});
-    if (d < 30){ H.state = 'held'; P.catchT = 0.25; ringFx(P.x, P.y - 48, 50, '#7FE3FF'); sfx('clang'); G.shake = Math.max(G.shake, 5); vib(30);   // caught
+    if (d < 30){ H.state = 'held'; P.catchT = 0.25; ringFx(P.x, P.y - 48, 50, '#7FE3FF'); sfx('clang'); G.shake = Math.max(G.shake, 2.5); vib(25);   // caught
       // the shock of the catch bursts out of you: everyone near is shoved back, the light ones far, the heavy ones barely
       for (const e of G.E){ if (e.dead || e.remote) continue; const dx2 = e.x - P.x, dd = Math.abs(dx2); if (dd > 240 || Math.abs(e.y - P.y) > 140) continue;
         const fall = 1 - dd/240, m = webMass(e), push = (520*fall/m)*(isBoss(e) ? 0.3 : 1);
@@ -2790,12 +2792,38 @@ function hammerUpdate(P, dt){
         if (push > 60){ e.state = 'hurt'; e.timer = Math.max(e.timer || 0, 0.25 + 0.25*fall); e.atk = null; e.comboLeft = 0; } }
       ringFx(P.x, P.y - 40, 240, '#7FE3FF', true); ringFx(P.x, P.y - 40, 140, '#FFFFFF');
       emit(P.x, GROUND - 4, {n:18, col:['#5a4a40','#7FE3FF','#FFFFFF'], spd:360, size:4, life:0.6, kind:'rock', g:1.2, vy:-80});
-      G.shake = Math.max(G.shake, 9); sfx('boom', 0.02); }
+      G.shake = Math.max(G.shake, 4); sfx('boom', 0.02); }
   } else if (H.state === 'ground'){
     H.rot = 0; H.y = GROUND - 12;
     H.tryT = (H.tryT || 0) - dt;   // only you can lift it: anyone else who tries just strains at it
     if (H.tryT <= 0) for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - H.x) > 26 || !e.onG) continue; H.tryT = 2.5; pop(e.x, e.y - 100*(e.size || 1), "Can't lift it", '#7FE3FF'); break; }
   }
+}
+/* M: the hammer hangs from the leather strap on the end of the haft; you swing it round and round beside you, faster and faster,
+   hitting anyone it passes, then catch the haft low and drive it up under the nearest enemy's chin */
+function hammerHand(P){ const sg = stickSegments(P), f = sg.find(g => g[5] === 'fist' && g[7] === 'main'); return f ? [f[0], f[1]] : [P.x + P.face*16, P.y - 46]; }
+function hammerStrapTick(P, H, dt){
+  const S = H.strap; S.t += dt; P.vx *= Math.pow(0.05, dt);
+  const h = hammerHand(P);
+  if (S.t < 0.6){   // the swing on the strap
+    S.av = Math.min(26, S.av + 60*dt); S.a += (P.face || 1)*S.av*dt;
+    const hx = h[0] + Math.cos(S.a)*58, hy = h[1] + Math.sin(S.a)*58;
+    for (const e of G.E){ if (e.dead || e.remote) continue; if (G.time - (S.hit.get(e) ?? -9) < 0.25) continue;
+      const s = e.size || 1; if (Math.hypot(e.x - hx, (e.y - 32*s) - hy) > 22 + 20*s) continue;
+      S.hit.set(e, G.time); damageEnemy(e, 22*FM(), {kb:200, dir:sign(e.x - P.x) || 1, src:'form', noStop:true, quiet:true}); sparks(hx, hy); }
+    if (FXL() > 0 && Math.random() < 0.6) emit(hx, hy, {n:1, col:['#7FE3FF','#FFFFFF'], spd:40, size:2.5, life:0.25, kind:'star', g:0});
+    if (Math.floor(S.t/0.15) !== Math.floor((S.t - dt)/0.15)) sfx('swish');
+  } else if (S.t < 0.84){   // the uppercut: low to high, under the chin
+    S.up = clamp((S.t - 0.6)/0.22, 0, 1);
+    if (S.up >= 0.5 && !S.hitDone){ S.hitDone = true;
+      const c = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*P.face > -10 && (e.x - P.x)*P.face < 140 && Math.abs(e.y - P.y) < 100).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x))[0];
+      if (c){ const s = c.size || 1;
+        damageEnemy(c, 160*FM(), {kb:150, dir:P.face, src:'form', heavy:true, unblockable:true, launch:isBoss(c) ? 0 : 720, breakArmor:4});
+        c.react = { k:'head', t:0, d:0.5, big:true };   // the head snaps back
+        impactFx(c.x - P.face*4, c.y - 62*s, '#7FE3FF', 1.6); bolt(c.x, c.y - 62*s, c.x, c.y - 200*s, '#7FE3FF');
+        pop(c.x, c.y - 120*s, 'Uppercut!', '#7FE3FF'); G.hitstop = Math.max(G.hitstop, 0.08); }
+      G.shake = Math.max(G.shake, 3); sfx('kick'); sfx('clang', 0.02); vib(35); }
+  } else H.strap = null;
 }
 /* anything the flying hammer touches is smashed out of its way */
 function hammerHits(H, dir){
@@ -2805,7 +2833,7 @@ function hammerHits(H, dir){
     H.hit.add(e);
     damageEnemy(e, 240*FM(), {kb:640, dir, src:'form', heavy:true, unblockable:true, breakArmor:6, knockdown:1.4, noStop:true});
     impactFx(e.x, e.y - 36*s, '#7FE3FF', 1.4); bolt(H.x, H.y - 60, e.x, e.y - 36*s, '#7FE3FF');
-    G.shake = Math.max(G.shake, 7); G.hitstop = Math.max(G.hitstop, 0.03); sfx('kick'); vib(20);
+    G.shake = Math.max(G.shake, 2.5); G.hitstop = Math.max(G.hitstop, 0.02); sfx('kick'); vib(15);
   }
 }
 /* a war hammer: a wrapped haft, a block of dark storm-iron with a glowing seam */
@@ -2814,6 +2842,7 @@ function drawHammerAt(x, y, ang, a, sc){
   ctx.lineCap = 'round';
   ctx.strokeStyle = '#2A1A10'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(26, 0); ctx.stroke();   // haft
   ctx.strokeStyle = '#6B4A2E'; ctx.lineWidth = 2; for (let k = -4; k < 10; k += 4){ ctx.beginPath(); ctx.moveTo(k, -2.5); ctx.lineTo(k + 3, 2.5); ctx.stroke(); }   // grip wrap
+  if (!(G.hm && G.hm.strap)){ ctx.strokeStyle = '#4A2E18'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.quadraticCurveTo(-12, 7, -8, 11); ctx.quadraticCurveTo(-3, 9, -6, 0); ctx.stroke(); }   // the leather strap through the end of the haft
   ctx.fillStyle = '#3A3F4A'; ctx.strokeStyle = '#151820'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(24, -15); ctx.lineTo(38, -13); ctx.lineTo(40, 13); ctx.lineTo(24, 15); ctx.lineTo(21, 0); ctx.closePath(); ctx.fill(); ctx.stroke();   // the head
   ctx.fillStyle = '#8A93A6'; ctx.fillRect(25, -14, 3, 28);   // a bright face
@@ -2823,6 +2852,14 @@ function drawHammerAt(x, y, ang, a, sc){
 }
 function drawHammer(P){
   const H = G.hm; if (!H || G.mode !== 'hammer') return;
+  if (H.state === 'held' && H.strap && !P.dead){ const S = H.strap, h = hammerHand(P);
+    if (S.t < 0.6){ const ux = Math.cos(S.a), uy = Math.sin(S.a);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(127,227,255,0.25)'; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(h[0], h[1], 58, S.a - 1.2*(P.face || 1), S.a, P.face < 0); ctx.stroke(); ctx.restore();   // the blur of the swing
+      ctx.strokeStyle = '#4A2E18'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.lineTo(h[0] + ux*20, h[1] + uy*20); ctx.stroke();   // the strap, taut
+      drawHammerAt(h[0] + ux*24, h[1] + uy*24, S.a, 1, 0.85); }
+    else { const u = FC_EASE(S.up || 0), f = P.face || 1, ang = f > 0 ? lerp(1.57, -1.57, u) : lerp(1.57, 4.71, u);   // gripped by the haft, swung up
+      drawHammerAt(h[0] - Math.cos(ang)*4, h[1] - Math.sin(ang)*4, ang, 1, 0.85); }
+    return; }
   if (H.state === 'held'){ if (P.dead) return;
     const sg = stickSegments(P), fi = sg.findIndex(g => g[5] === 'fist' && g[7] === 'main'); if (fi < 1) return;
     const arm = sg[fi - 1], armAng = Math.atan2(arm[3] - arm[1], arm[2] - arm[0]), f = P.face || 1;
@@ -4300,7 +4337,7 @@ function damageEnemy(e, dmg, o){
   const P = G.P; o = o || {};
   if (G.mode === 'hammer' && o.fist && G.hm && G.hm.state === 'held' && !e.dead){   // a hammer in your fist: every blow lands like a falling wall
     dmg *= 2.4; o = Object.assign({}, o, { kb:(o.kb || 120)*1.8, heavy:true, breakArmor:Math.max(o.breakArmor || 0, 2) });
-    impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 5); }
+    impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 2.5); }
   if (e.dead) return false;
   if (!sameLayer(e)) return false;
   if (e.puppet){ coopSendHit(e, dmg, o); return true; }
@@ -7387,7 +7424,10 @@ function getPose(e){
       case 'deflect':  P_.lean = lerp(P_.lean || 0, 0.2, w); P_.crouch = Math.max(P_.crouch || 0, 6*w); break;
       case 'catch':    P_.a2 = lerp(P_.a2, -0.2, w); P_.ext2 = 1; P_.lean = lerp(P_.lean || 0, -0.15, w); break;   // the free hand up where it was caught
     } }
-  if (e.isPlayer && G.mode === 'hammer' && G.hm){ if (e.throwT > 0){ const p = clamp((0.34 - e.throwT)/0.34, 0, 1);   // the throw: arm drawn back over the shoulder, then whipped through and out
+  if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.strap){ const S = G.hm.strap;
+    if (S.t < 0.6){ P_.a = -0.55 + 0.15*Math.sin(S.t*24); P_.ext = 1; P_.lean = 0.05; P_.crouch = Math.max(P_.crouch || 0, 6); }   // arm out to the side, wrist turning the strap
+    else { const u = FC_EASE(S.up || 0); P_.a = lerp(1.35, -1.6, u); P_.ext = 1; P_.lean = lerp(0.3, -0.2, u); P_.crouch = Math.max(P_.crouch || 0, 14*(1 - u)); } }   // from a crouch, low to high
+  else if (e.isPlayer && G.mode === 'hammer' && G.hm){ if (e.throwT > 0){ const p = clamp((0.34 - e.throwT)/0.34, 0, 1);   // the throw: arm drawn back over the shoulder, then whipped through and out
       if (p < 0.44){ const u = FC_EASE(p/0.44); P_.a = lerp(P_.a, -2.5, u); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.3, u); P_.crouch = Math.max(P_.crouch || 0, 6*u); }
       else { const u = FC_EASE(Math.min(1, (p - 0.44)/0.2)); P_.a = lerp(-2.5, 0.25, u); P_.ext = 1; P_.lean = lerp(-0.3, 0.5, u); P_.crouch = Math.max(P_.crouch || 0, 8*(1 - p)); } }
     else if (G.hm.state === 'return' || e.catchT > 0){ P_.a = lerp(P_.a, -0.35, 0.9); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.1, 0.5); } }   // the open hand, waiting for it
