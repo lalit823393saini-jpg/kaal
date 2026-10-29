@@ -4621,7 +4621,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dgT = (P.dgT || 0) - dt; P.noDashT = (P.noDashT || 0) - dt; hammerUpdate(P, dt); if (P.dgT > 0 && P.dgVX && (P.dgKind === 'roll' || P.dgKind === 'sidestep' || P.dgKind === 'backflip' || P.dgKind === 'frontflip')) P.vx = P.dgVX; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dgT = (P.dgT || 0) - dt; P.noDashT = (P.noDashT || 0) - dt; hammerUpdate(P, dt); if (P.dgT > 0 && P.dgVX && (P.dgKind === 'roll' || P.dgKind === 'sidestep' || P.dgKind === 'backflip' || P.dgKind === 'frontflip' || P.dgKind === 'sway')) P.vx = P.dgVX; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -6230,7 +6230,8 @@ function dodgeOn(P){
   return m === 'always' || !!(P.atk || (P.form && !P.form.wait) || G.time - (P.lastAtkT ?? -9) < 0.35);
 }
 /* start a dodge of a given style; each style has its own pose (getPose) and its own movement */
-function startDodge(P, kind, tot, vx){ P.dgKind = kind; P.dgT = tot; P.dgTot = tot; P.dgVX = vx || 0; P.evadeT = G.time; P.inv = Math.max(P.inv, tot + 0.1); }
+function startDodge(P, kind, tot, vx){ G.shake = 0; G.kickX = 0; G.kickY = 0; G.zoomK = 1;   // a dodge never jolts the camera
+  P.dgKind = kind; P.dgT = tot; P.dgTot = tot; P.dgVX = vx || 0; P.evadeT = G.time; P.inv = Math.max(P.inv, tot + 0.1); }
 /* the next style from a list, never the same one twice running */
 function nextDodge(P, list){ P.dgN = (P.dgN || 0) + 1; let k = list[P.dgN % list.length]; if (k === P.dgLast) { P.dgN++; k = list[P.dgN % list.length]; } P.dgLast = k; return k; }
 /* Auto-dodge for arrows and bullets: as one comes in while you attack, you bend back under it in slow motion and it flies past */
@@ -6255,7 +6256,6 @@ function arrowDodge(P, q){
   else { startDodge(P, 'catch', 0.4); q.life = 0; }   // plucked out of the air and dropped (no hitting back)
   const labels = { frontflip:'Front flip!', turncut:'Cut it down', hop:'Jumped it!', backflip:'Backflip!', matrix:'Dodged!', deflect:'Deflected!', catch:'Caught it!' };
   G.mo = { kind:'dodge', t:0, end:1.15, depth:0.06 };   // nearly stopped, so you can watch it
-  zoomPunch(1.06);
   for (let k = 0; k < 3; k++) G.echoes.push({ snap:heroSnap(P), life:0.3 + k*0.12, max:0.6, col:'#DCF3FF' });
   speedLines(q.x, q.y, 12, '#FFFFFF', 0.4);
   pop(P.x, P.y - 115, labels[kind], '#DCF3FF'); sfx(kind === 'deflect' || kind === 'turncut' ? 'clang' : 'whoosh'); ringFx(P.x, P.y - 40, 60, '#FFFFFF');
@@ -6377,7 +6377,7 @@ function autoDodge(P, e){
   const toward = sign((e.x ?? P.x) - P.x) || P.face, away = -toward;
   const busy = !!(P.atk || (P.form && !P.form.wait));   // mid-swing: only a sway or a duck, so your own blow carries on
   const kind = nextDodge(P, busy ? ['sway', 'duck'] : ['sway', 'duck', 'backflip', 'roll', 'sidestep']);
-  if (kind === 'sway'){ startDodge(P, 'sway', 0.36); if (!P.form && !busy) P.x = clamp(P.x + away*24, 30, G.worldW - 30); }                 // lean back out of the line of the blade
+  if (kind === 'sway') startDodge(P, 'sway', 0.36, (!P.form && !busy) ? away*90 : 0);   // a smooth slip back, not a jump in position                 // lean back out of the line of the blade
   else if (kind === 'duck') startDodge(P, 'duck', 0.36);                                                                              // drop under it
   else if (kind === 'backflip'){ startDodge(P, 'backflip', 0.42, away*320); if (P.onG){ P.vy = -520; P.onG = false; } }               // flip back out of reach
   else if (kind === 'roll') startDodge(P, 'roll', 0.34, toward*680);                                                                  // roll right past them and come up behind
@@ -10167,7 +10167,7 @@ function renderScene(){
   if (G.mode === 'arena' && AR.p1 && G.P){ arRender(); return; }
   const sk = SHAKE();
   const ck = G.calmK || 1;
-  const noShake = G.mode === 'hammer';   // Hammer mode: the screen stays still
+  const noShake = G.mode === 'hammer' || (G.P && ((G.P.dgT || 0) > 0 || G.time - (G.P.evadeT ?? -9) < 0.8));   // Hammer mode, and every dodge in every mode: the screen stays still
   const shx = noShake ? 0 : ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickX)*ck, shy = noShake ? 0 : ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickY)*ck;
   // camera zoom punch, centred on the player
   const z = G.zoomK || 1, P0 = G.P;
@@ -10383,7 +10383,7 @@ function renderScene(){
   if (FXL() > 0) drawBloom();
   // screen-space: cinematic bars, colour flash, damage vignette
   ctx.setTransform(S,0,0,S,0,0);
-  const barK = Math.max(G.introT > 0 ? Math.min(1, (1.7 - G.introT)*4) : G.cine ? cineA : Math.max(0, G.cineOut/0.25), G.mo ? (1 - (G.moK || 1))*0.9 : 0);
+  const barK = Math.max(G.introT > 0 ? Math.min(1, (1.7 - G.introT)*4) : G.cine ? cineA : Math.max(0, G.cineOut/0.25), G.mo && G.mo.kind !== 'dodge' ? (1 - (G.moK || 1))*0.9 : 0);   // no black bars sliding in for a dodge
   if (barK > 0){ const bh = VH*0.1*barK; ctx.fillStyle='#000'; ctx.fillRect(0,0,VW,bh); ctx.fillRect(0,VH-bh,VW,bh); }
   if (G.flashFx){ ctx.globalCompositeOperation='lighter'; ctx.globalAlpha = Math.min(0.7, G.flashFx.a); ctx.fillStyle = G.flashFx.col; ctx.fillRect(0,0,VW,VH); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1; }
   if (G.hurtFx > 0){
@@ -13994,7 +13994,7 @@ function step(dt){
     else {
       const inK = Math.min(1, M.t / 0.12), outK = Math.min(1, (M.end - M.t) / 0.3), k = Math.min(inK, outK);
       G.moK = 1 - (1 - M.depth)*k; pdt *= G.moK; wdt *= G.moK;
-      G.zoomK = Math.max(G.zoomK, 1 + 0.05*k);
+      if (M.kind !== 'dodge') G.zoomK = Math.max(G.zoomK, 1 + 0.05*k);   // a dodge slows time without zooming the camera in and out
     }
   }
   if (G.introT > 0){ G.introT -= dt; pdt = 0; wdt = 0; if (G.introT <= 0) G.cineOut = 0.25; }
