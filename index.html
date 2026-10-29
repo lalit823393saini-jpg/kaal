@@ -1172,7 +1172,7 @@ const GUN_TIER_MAX = 3;
 const gunTierCost = (id, t) => Math.max(120, Math.round((GUNS[id].price * 0.45 * (t+1)) / 10) * 10);
 const noPowersMode = () => !!(G_ref && (G_ref.mode === 'spider' || G_ref.mode === 'hammer'));   // Spider and Hammer modes: no Divya Astras, no breathing styles
 const hasAstra = () => !noPowersMode() && !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
-const hasGun = () => !!(SV.eq.gun && GUNS[SV.eq.gun] && (SV.eq.gun in SV.guns));
+const hasGun = () => !(G_ref && G_ref.mode === 'spider') && !!(SV.eq.gun && GUNS[SV.eq.gun] && (SV.eq.gun in SV.guns));   // Spider mode: no gun, G fires web pellets
 const isFistId = id => !!(SWORDS[id] && SWORDS[id].fist);
 const hasFists = () => 'fists' in SV.swords || !!(G_ref && ((G_ref.dojo && G_ref.mode === 'levels') || G_ref.mode === 'train' || G_ref.mode === 'spider' || G_ref.mode === 'hammer'));   // the dojo lends you fists   // the dojo lends you fists
 const SWORD_TIER_MAX = 3;
@@ -1928,8 +1928,8 @@ function webTick(P, dt){
       if (pressed.kunai && held.down && fcZipLedge(P)) return;   // S + Q: zip up to a roof edge
       webSwingStart(P); return;
     }
-    // X: a web for enemies only
-    if (pressed.web) webEnemyKey(P);
+    // X: a web for enemies only (or, if something they threw is coming, catch that)
+    if (pressed.web){ if (!webCatchProj(P)) webEnemyKey(P); }
     return;
   }
   if (W.st === 'shot'){
@@ -1979,6 +1979,12 @@ function webTick(P, dt){
   }
   if (W.st === 'zipL'){ fcZipTick(P, W, dt); return; }
   if (W.st === 'sling'){ webSlingTick(P, W, dt); return; }
+  if (W.st === 'item'){   // something they threw, hanging off your web: X or L sends it where you aim
+    W.t += dt; const h = webHandPt(P); W.ix = lerp(W.ix, h[0] + P.face*26, Math.min(1, dt*14)); W.iy = lerp(W.iy, h[1] + 14, Math.min(1, dt*14));
+    if (W.item.kind === 'bomb'){ W.item.fuse -= dt; if (W.item.fuse <= -0.6){ P.wg = null; pbombBoom(W.ix, W.iy, P); return; } }   // held too long: it goes off in your hands
+    if ((pressed.web || pressed.dash) && W.t > 0.1){ webThrowItem(P, W); return; }
+    return;
+  }
   if (W.st === 'zip'){
     W.t += dt; const z = W.e;
     if (!z || z.dead || W.t > 0.7 || pressed.block){ P.wg = null; P.webFly = 0.5; return; }
@@ -2116,6 +2122,38 @@ function webFoeNear(P, r, ahead){
   return best;
 }
 /* ----- swinging: the anchor goes ahead of where you are moving, so a chain of swings keeps your momentum ----- */
+/* X: if a bomb, a knife, an arrow, a net or a hook they threw is near, the web snatches it out of the air (or off the ground) */
+function webCatchProj(P){
+  let best = null, bd = 340;
+  for (const q of G.eproj){ if (q.life <= 0 || q.kind === 'meteor' || q.kind === 'blood') continue;
+    const dx = (q.x - P.x)*P.face, d = Math.hypot(q.x - P.x, q.y - (P.y - 40)); if (dx < -60 || d > bd) continue; bd = d; best = q; }
+  if (!best) return false;
+  const q = best; q.life = 0;
+  P.wg = { st:'item', t:0, item:{ kind:q.kind, fuse:q.kind === 'bomb' ? Math.max(q.fuse ?? 0.7, 0.9) : 0, dmg:q.dmg }, ix:q.x, iy:q.y, ax:q.x, ay:q.y };
+  pop(P.x, P.y - 110, q.kind === 'bomb' ? 'Caught the bomb!' : 'Caught it!', '#FFFFFF'); sfx('whoosh'); return true;
+}
+/* throw it: the way you hold (A/D), up with W, a short lob with S, otherwise the way you face */
+function webThrowItem(P, W){
+  const it = W.item, dirX = held.left ? -1 : held.right ? 1 : P.face || 1, up = held.jump, low = held.down;
+  const vx = dirX*(up ? 520 : low ? 420 : 900), vy = up ? -900 : low ? -260 : -180;
+  P.wg = null; P.face = dirX; P.noDashT = 0.3;
+  if (it.kind === 'bomb') G.proj.push({ kind:'pbomb', custom:true, x:W.ix, y:W.iy, vx, vy, g:1400, fuse:it.fuse, hit:new Set(), pierce:1, life:4, r:8 });
+  else if (it.kind === 'net') G.proj.push({ kind:'pnet', custom:true, x:W.ix, y:W.iy, vx:dirX*700, vy:0, g:0, hit:new Set(), pierce:1, life:1.2, r:14 });
+  else G.proj.push({ kind:'kunai', x:W.ix, y:W.iy, vx:dirX*1100, vy:up ? -500 : 0, dmg:40*FM(), pierce:2, hit:new Set(), life:0.9, col:'#dddddd' });
+  pop(P.x, P.y - 110, 'Back at you!', '#FFFFFF'); sfx('whoosh'); P.shotT = 0.2;
+}
+function pbombBoom(x, y, P){
+  ringFx(x, y, 130, '#FF7A2A', true); burst(x, y, 26, '#FF7A2A', 460, 5, true); emit(x, y, {n:18, col:['#FF7A2A','#FFE14D','#444'], spd:320, size:6, life:0.6, kind:'ember', g:-0.2}); sfx('boom'); G.shake = Math.max(G.shake, 8);
+  for (const e of G.E){ if (e.dead || e.remote || Math.hypot(e.x - x, (e.y - 32*(e.size || 1)) - y) > 140) continue; damageEnemy(e, 120*FM(), {kb:380, kbAway:true, src:'form', heavy:true, launch:300, dir:sign(e.x - x) || 1}); }
+  if (P && !P.dead && Math.hypot(P.x - x, (P.y - 40) - y) < 90) hurtPlayer(25, 260, { x, face:sign(P.x - x) || 1 }, true);   // too close to your own blast
+}
+/* a little web pellet sticks to whoever it hits; three on the same one and they are wrapped up */
+function webStick(e){
+  if (isBoss(e) || e.champ){ e.rootT = Math.max(e.rootT || 0, 0.4); return; }
+  e.webStick = (e.webStick || 0) + 1; e.stickT = 2.6; e.rootT = Math.max(e.rootT || 0, 1.2); e.atk = null; e.comboLeft = 0; e.vx = 0;
+  if (e.webStick >= 3){ e.webStick = 0; fcBind(e, 5, 0, 0); pop(e.x, e.y - 100*(e.size || 1), 'Wrapped!', '#FFFFFF'); }
+  else pop(e.x, e.y - 90*(e.size || 1), 'Stuck!', '#FFFFFF');
+}
 /* Web Sling Kick: a line to the building beyond the enemies, a pull back like a slingshot, then feet first through their faces */
 function webSlingStart(P){
   const dir = held.left ? -1 : held.right ? 1 : P.face;
@@ -2321,7 +2359,14 @@ function webRope(h, t, slackLen, taut){
   ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.quadraticCurveTo(cx, cy, t[0], t[1]); ctx.stroke();
 }
 function drawWebLine(P){
-  const W = P.wg; let t = webTarget(P); if (!t) return; const h = webHandPt(P);
+  const W = P.wg;
+  if (W && W.st === 'item'){ const h = webHandPt(P); ctx.save(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(h[0], h[1]); ctx.lineTo(W.ix, W.iy); ctx.stroke();
+    ctx.translate(W.ix, W.iy);
+    if (W.item.kind === 'bomb'){ ctx.fillStyle = '#2A2A2E'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 6.283); ctx.fill(); if (Math.floor(G.time*12) % 2 === 0){ ctx.fillStyle = '#FF3B2F'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, 6.283); ctx.fill(); } }
+    else if (W.item.kind === 'net'){ ctx.strokeStyle = '#E8E0C8'; ctx.lineWidth = 1.2; for (let k = -2; k <= 2; k++){ ctx.beginPath(); ctx.moveTo(k*5, -12); ctx.lineTo(k*5, 12); ctx.stroke(); } }
+    else { ctx.strokeStyle = '#DDDDDD'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(10, 0); ctx.stroke(); }
+    ctx.restore(); return; }
+  let t = webTarget(P); if (!t) return; const h = webHandPt(P);
   let slack = 0, taut = W.taut || 0;
   if (W.st === 'swing' || W.st === 'zipL' || W.st === 'sling'){ t = [lerp(h[0], t[0], W.shoot || 0), lerp(h[1], t[1], W.shoot || 0)]; if (W.st === 'swing' && (W.shoot || 0) >= 1) slack = W.L; }
   else if (W.st === 'hold' && !W.spinning && W.slamT === undefined) slack = W.len + 1;
@@ -2473,6 +2518,11 @@ function fcTick(P, dt){
   if (pressed.webnet && webOn() && !P.dead && !P.ride && !P.form) fcNetKey(P);
   if (pressed.climb && webOn()) fcStartClimb(P);
   if (pressed.webAll && webOn() && !P.dead && !P.ride) webStorm(P);
+  P.pelletCd = (P.pelletCd || 0) - dt;
+  if (webOn() && held.fire && P.pelletCd <= 0 && !P.dead && !P.ride){ P.pelletCd = 0.16;   // G: quick little web shots
+    const h = webHandPt(P), dir = P.face || 1;
+    G.proj.push({ kind:'webball', custom:true, x:h[0], y:h[1], vx:dir*1150 + rnd(-20, 20), vy:rnd(-40, 40), g:0, dmg:4, hit:new Set(), pierce:1, life:0.6, r:6 });
+    P.shotT = 0.1; sfx('swish', 0.005); }
   if (G.mode === 'spider') flyChaseTick(P, dt);
   if (G.mode === 'spider') spiderSense(P, dt);
 }
@@ -2899,6 +2949,9 @@ function championTick(dt){
 }
 /* the gear tags over their heads, the shock baton crackling, and the net over you if you are caught */
 function drawGear(P){
+  for (const e of G.E){ if (!(e.stickT > 0) || e.dead || !e.webStick) continue; e.stickT -= 1/60; const s = e.size || 1;   // web pellets stuck on them
+    ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.85)'; for (let k = 0; k < e.webStick; k++){ ctx.beginPath(); ctx.arc(e.x + (k - 0.5)*9*s, e.y - (24 + k*16)*s, 6*s, 0, 6.283); ctx.fill(); } ctx.restore();
+    if (e.stickT <= 0) e.webStick = 0; }
   ctx.save(); ctx.font = '600 12px Teko, sans-serif'; ctx.textAlign = 'center';
   for (const e of G.E){ if (!e.gear || e.dead) continue; const g = GEAR[e.gear], s = e.size || 1;
     ctx.fillStyle = g.col; ctx.globalAlpha = 0.9; ctx.fillText(g.tag, e.x, e.y - 98*s - (e.champ ? 18 : 0));
@@ -3146,7 +3199,7 @@ function startSpider(){
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
     isTouch ? 'Swing: web to buildings · Web: catch enemies · Climb: crawl a wall · Net: wrap / hang'
-            : 'Hold Q + D: swing · Shift + A/D + Q: sling kick · X: web enemies (L: hurl) · B: Web Storm · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
+            : 'Q: swing · G: web pellets · X: web enemies / catch a bomb (X again: throw it) · B: Web Storm · Shift+A/D+Q: sling kick · Z: crawl a wall · C: Web Net / hang · S+Q: zip to roof', '#E8202A'); }, 1200);
   setScreen(null); G.running = true; webTouchBtn();
 }
 /* endless street fight: more enemies and tougher types the more you take down */
@@ -10225,6 +10278,9 @@ function drawProj(){
       if (p.xBlade){ drawXBlade(p.x, p.y, 26, f || 1, p.col); continue; }
       if (p.kind === 'icicle'){ drawIcicle(p.x, p.y, p.len || 30, Math.atan2(p.vy, p.vx)); continue; }
       if (p.kind === 'sunwheel'){ drawSunWheel(p.x, p.y, p.r, p.rot); continue; }
+      if (p.kind === 'webball'){ ctx.save(); ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 6.283); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x - sign(p.vx)*22, p.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.restore(); continue; }
+      if (p.kind === 'pbomb'){ ctx.save(); ctx.translate(p.x, p.y); ctx.fillStyle = '#2A2A2E'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 6.283); ctx.fill(); if (Math.floor(p.fuse*12) % 2 === 0){ ctx.fillStyle = '#FF3B2F'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, 6.283); ctx.fill(); } ctx.restore(); continue; }
+      if (p.kind === 'pnet'){ ctx.save(); ctx.translate(p.x, p.y); ctx.strokeStyle = '#E8E0C8'; ctx.lineWidth = 1.4; for (let k = -2; k <= 2; k++){ ctx.beginPath(); ctx.moveTo(k*6, -16); ctx.lineTo(k*6, 16); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-16, k*6); ctx.lineTo(16, k*6); ctx.stroke(); } ctx.restore(); continue; }
       if (p.kind === 'bloodspear'){ drawBloodSpear(p.x, p.y, p.ang != null ? p.ang : Math.atan2(p.vy, p.vx), p.len || 90); continue; }
       if (p.kind === 'rock' || p.kind === 'boulder'){
         if (p.streak){ ctx.save(); ctx.strokeStyle = 'rgba(229,211,188,0.45)'; ctx.lineWidth = p.r*0.9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(p.x - p.vx*0.05, p.y - p.vy*0.05); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.restore(); }   // speed streak
@@ -14398,6 +14454,16 @@ function step(dt){
       if (p.y > GROUND - 10){ p.life = 0; emit(p.x, GROUND - 4, {n:7, col:STYLE_FX.frost.cols, spd:220, size:3.5, life:0.5, kind:'star', g:1.2, vy:-120});
         if (p.stick) G.haz.push({kind:'spike', ice:true, x:p.x, w:10, H:p.len*0.9, life:0.8, max:0.8, tick:99, every:99, dmg:0, lean:Math.atan2(p.vx, p.vy)*0.5}); } }   // it stays stuck in the ground a moment
     if (p.kind==='bloodspear' && pdt>0) bloodSpearTick(p, pdt);
+    if (p.kind === 'webball' && pdt > 0){
+      for (const e of G.E){ if (e.dead || e.remote || p.life <= 0) continue; const s = e.size || 1; if (Math.abs(e.x - p.x) < 14 + 12*s && Math.abs((e.y - 34*s) - p.y) < 40*s){ p.life = 0; damageEnemy(e, 4, {kb:0, src:'web', quiet:true, noStop:true}); webStick(e); emit(p.x, p.y, {n:4, col:['#FFFFFF','#DDDDDD'], spd:90, size:3, life:0.3, kind:'star', g:0.5}); } }
+      if (p.y > GROUND - 4) p.life = 0; }
+    if (p.kind === 'pbomb' && pdt > 0){
+      p.fuse -= pdt; let boom = p.fuse <= 0;
+      if (p.y >= GROUND - 8){ p.y = GROUND - 8; p.vy = 0; p.g = 0; p.vx *= Math.pow(0.02, pdt); }
+      for (const e of G.E){ if (e.dead || e.remote) continue; if (Math.hypot(e.x - p.x, (e.y - 34*(e.size || 1)) - p.y) < 30*(e.size || 1)) boom = true; }   // or on whoever it hits
+      if (boom){ p.life = 0; pbombBoom(p.x, p.y, G.P); } }
+    if (p.kind === 'pnet' && pdt > 0){
+      for (const e of G.E){ if (e.dead || e.remote || p.life <= 0) continue; const s = e.size || 1; if (Math.abs(e.x - p.x) < 20 + 12*s && Math.abs((e.y - 34*s) - p.y) < 44*s){ p.life = 0; if (isBoss(e) || e.champ){ e.rootT = Math.max(e.rootT || 0, 1.2); } else fcBind(e, 5, 0, 0); pop(e.x, e.y - 100*s, 'Netted!', '#E8E0C8'); } } }
     if (p.kind==='sunwheel' && pdt>0){ p.y = GROUND - p.r; p.vy = 0; p.rot += p.vx/p.r*pdt;   // it rolls, burning, and heals you for each one it touches
       if (p.hit.size > (p.seen || 0)){ const n = p.hit.size - (p.seen || 0); p.seen = p.hit.size; if (G.P && p.heal < 30){ const h = Math.min(4*n, 30 - p.heal); p.heal += h; G.P.hp = Math.min(G.P.maxHp, G.P.hp + h); pop(G.P.x, G.P.y - 105, '+' + h, '#FFF3C4'); } }
       if (Math.random() < 0.8) emit(p.x - sign(p.vx)*p.r*0.5, GROUND - 6, {n:1, col:['#FF7A1A','#FFD23F'], spd:60, size:4, life:0.5, kind:'ember', g:-0.5}); }
