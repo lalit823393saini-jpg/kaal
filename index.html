@@ -2886,18 +2886,21 @@ function hammerUpdate(P, dt){
         G.shake = Math.max(G.shake, 4); sfx('boom'); sfx('stone', 0.02); vib(30); } }
     H.rot = H.trav < H.max ? (H.dir > 0 ? 0 : Math.PI) : Math.atan2(H.vy, H.vx*0.3);   // head first, no spin; it tips over as it drops
     if (H.trav < H.max) smartJump('h' + H.id, H.x, H.vx, H.y);
+    if (!H.grab) hammerCatchTry(H);
+    if (H.grab && H.grab.dead) H.grab = null;
+    if (H.grab){ const g = H.grab, s = g.size || 1; g.hmGrab = true; g.hmCarry = true; g.x = H.x - (sign(H.vx) || H.dir)*10; g.y = Math.min(GROUND, H.y + 46*s); g.vx = 0; g.vy = 0; g.onG = false; g.state = 'recover'; g.timer = 0.3; g.atk = null; H.hit.add(g); }   // hanging on as it flies
     hammerHits(H, sign(H.vx) || H.dir);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF','#3A3F4A'], spd:60, size:3, life:0.35, kind:'star', g:0});
   } else if (H.state === 'return'){
     const tx = P.x + P.face*14, ty = P.y - 48, dx = tx - H.x, dy = ty - H.y, d = Math.hypot(dx, dy) || 1, sp = 1700;
     smartJump('r' + (H.id || 0), H.x, dx, H.y);   // they duck out of its way on the way back too
-    if (H.grab && !H.grab.dead){ const g = H.grab; g.hmGrab = false; g.x = H.x - (sign(dx) || 1)*12; g.y = H.y + 46*(g.size || 1); g.vx = 0; g.vy = 0; g.onG = false; g.state = 'stun'; g.timer = 0.3; g.atk = null; H.hit.add(g); }   // whoever was holding it is dragged along
+    if (H.grab && !H.grab.dead){ const g = H.grab; g.hmGrab = true; g.hmCarry = true; g.x = H.x - (sign(dx) || 1)*12; g.y = H.y + 46*(g.size || 1); g.vx = 0; g.vy = 0; g.onG = false; g.state = 'stun'; g.timer = 0.3; g.atk = null; H.hit.add(g); }   // whoever was holding it is dragged along
     H.x += dx/d*sp*dt; H.y += dy/d*sp*dt; H.rot = Math.atan2(dy, dx);   // straight back to your hand, head first
     hammerHits(H, sign(dx) || 1);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF'], spd:60, size:3, life:0.3, kind:'star', g:0});
     if (d < 30){ H.state = 'held'; P.catchT = 0.25;
       if (H.seeker){ H.seeker.hmSeek = false; H.seeker = null; }
-      if (H.grab && !H.grab.dead){ const g = H.grab; g.hmGrab = false; damageEnemy(g, 80*FM(), {kb:520, dir:sign(g.x - P.x) || P.face, src:'form', heavy:true, knockdown:1.4, noStop:true}); pop(g.x, g.y - 100*(g.size || 1), 'Should have let go', '#7FE3FF'); } H.grab = null; ringFx(P.x, P.y - 48, 50, '#7FE3FF'); sfx('clang'); G.shake = Math.max(G.shake, 2.5); vib(25);   // caught
+      if (H.grab && !H.grab.dead){ const g = H.grab; g.hmGrab = false; g.hmCarry = false; damageEnemy(g, 80*FM(), {kb:520, dir:sign(g.x - P.x) || P.face, src:'form', heavy:true, knockdown:1.4, noStop:true}); pop(g.x, g.y - 100*(g.size || 1), 'Should have let go', '#7FE3FF'); } H.grab = null; ringFx(P.x, P.y - 48, 50, '#7FE3FF'); sfx('clang'); G.shake = Math.max(G.shake, 2.5); vib(25);   // caught
       // the shock of the catch bursts out of you: everyone near is shoved back, the light ones far, the heavy ones barely
       for (const e of G.E){ if (e.dead || e.remote) continue; const dx2 = e.x - P.x, dd = Math.abs(dx2); if (dd > 240 || Math.abs(e.y - P.y) > 140) continue;
         const fall = 1 - dd/240, m = webMass(e), push = (520*fall/m)*(isBoss(e) ? 0.3 : 1);
@@ -2911,11 +2914,7 @@ function hammerUpdate(P, dt){
     H.tryT = (H.tryT || 0) - dt;   // only you can lift it: anyone else who tries just strains at it
     if (H.grab && (H.grab.dead || H.grab.webHeld || H.grab.webHung)){ H.grab.hmGrab = false; H.grab = null; }
     if (H.seeker && (H.seeker.dead || H.seeker === H.grab)) H.seeker = null;
-    if (!H.grab && !H.seeker){   // the nearest one goes for it
-      let best = null, bd = 520; for (const e of G.E){ if (e.dead || e.remote || isBoss(e) || e.champ || !e.onG) continue; const d = Math.abs(e.x - H.x); if (d < bd){ bd = d; best = e; } }
-      if (best){ H.seeker = best; best.hmSeek = true; pop(best.x, best.y - 100*(best.size || 1), 'The hammer!', '#FF8A5A'); } }
-    if (H.seeker && Math.abs(H.seeker.x - H.x) < 30 && H.seeker.onG){ const e = H.seeker; H.seeker = null; e.hmSeek = false; H.grab = e; e.hmGrab = true; H.strainT = 0; pop(e.x, e.y - 100*(e.size || 1), "Can't lift it", '#7FE3FF'); }
-    if (H.grab){ const e = H.grab, side = sign(e.x - H.x) || 1; e.x = H.x + side*22; e.face = -side; e.vx = 0; e.state = 'recover'; e.timer = 0.3; e.atk = null; e.react = null;   // both hands on the haft, heaving
+    if (H.grab){ const e = H.grab, side = sign(e.x - H.x) || 1; e.hmCarry = false; e.y = GROUND; e.onG = true; e.x = H.x + side*22; e.face = -side; e.vx = 0; e.state = 'recover'; e.timer = 0.3; e.atk = null; e.react = null;   // both hands on the haft, heaving
       H.strainT = (H.strainT || 0) + dt; if (H.strainT > 1.6){ H.strainT = 0; pop(e.x, e.y - 100*(e.size || 1), ['Hnnngh!', "It won't move", 'So heavy...'][(Math.random()*3)|0], '#FF8A5A'); }
       if (Math.random() < 0.25) emit(H.x, GROUND - 4, {n:1, col:['#5a4a40'], spd:40, size:3, life:0.4, kind:'rock', g:1.2, vy:-40}); }
   }
@@ -2961,10 +2960,26 @@ function hammerStormTick(P, H, dt){
       flash('#DFF6FF', 0.08); sfx('storm', 0.01); } }
   if (S.t >= 1.35) H.storm = null;
 }
+/* the big ones (brutes, champions, anyone large) don't just stand in its way: one may step aside from the head and snatch the
+   haft as it goes past. Whoever catches it is carried off with it, and it slows with the extra weight. */
+const bigOne = e => !isBoss(e) && ((e.size || 1) >= 1.25 || e.champ || e.type === 'brute');
+function hammerCatchTry(H){
+  const dir = sign(H.vx) || H.dir;
+  for (const e of G.E){
+    if (e.dead || e.remote || !bigOne(e) || e.webHeld || e.webHung) continue;
+    const dx = (e.x - H.x)*dir;
+    if (e._hmTry !== H.id && dx > 0 && dx < 170 && Math.abs((e.y - 40*(e.size || 1)) - H.y) < 90){   // it sees it coming and decides
+      e._hmTry = H.id; e._hmCatch = Math.random() < (e.champ ? 0.85 : 0.6);
+      if (e._hmCatch){ e.evadeUntil = G.time + 0.6; e.atk = null; e.face = -dir; pop(e.x, e.y - 110*(e.size || 1), 'Mine!', '#FF8A5A'); } }
+    if (e._hmTry === H.id && e._hmCatch && Math.abs(e.x - H.x) < 40){   // steps aside from the head and closes both hands on the haft
+      H.grab = e; e._hmCatch = false; H.vx *= 0.72; H.max = Math.max(H.trav + 120, H.max*0.85);
+      pop(e.x, e.y - 120*(e.size || 1), 'Caught it!', '#FF8A5A'); sfx('clang'); burst(H.x, H.y, 8, '#7FE3FF', 220, 3); break; }
+  }
+}
 /* anything the flying hammer touches is smashed out of its way */
 function hammerHits(H, dir){
   for (const e of G.E){
-    if (e.dead || e.remote || H.hit.has(e) || !sameLayer(e)) continue;
+    if (e.dead || e.remote || H.hit.has(e) || !sameLayer(e) || (e._hmTry === H.id && e._hmCatch)) continue;   // the one reaching for it is not struck
     const s = e.size || 1; if (Math.hypot(e.x - H.x, (e.y - 32*s) - H.y) > 30 + 20*s) continue;
     H.hit.add(e);
     damageEnemy(e, 240*FM(), {kb:640, dir, src:'form', heavy:true, unblockable:true, breakArmor:6, knockdown:1.4, noStop:true});
@@ -7545,7 +7560,8 @@ function getPose(e){
     P_.legs = [0.95 + 0.45*ph, 2.1, 0.1 - 0.45*ph, 1.5]; P_.legW = 1; P_.legAir = true;   // one knee drawn up, the other leg pushing
   }
   if (!e.isPlayer && e.react) hitReactPose(e, P_);
-  if (e.hmGrab){ const sh = Math.sin(G.time*40)*0.05; P_.roll = 0; P_.lean = -0.35 + sh; P_.crouch = 16; P_.a = 1.05 + sh; P_.a2 = 0.95 - sh; P_.ext = P_.ext2 = 1; P_.legs = FC_LEG.horse; P_.legW = 1; }
+  if (e.hmGrab && e.hmCarry){ P_.roll = 0; P_.lean = -0.1; P_.crouch = 0; P_.a = -1.7; P_.a2 = -1.55; P_.ext = P_.ext2 = 1; P_.legs = [0.5 + 0.3*Math.sin(G.time*14), 0.6, -0.3 - 0.3*Math.sin(G.time*14), 0.5]; P_.legW = 1; P_.legAir = true; }   // hanging off the haft
+  else if (e.hmGrab){ const sh = Math.sin(G.time*40)*0.05; P_.roll = 0; P_.lean = -0.35 + sh; P_.crouch = 16; P_.a = 1.05 + sh; P_.a2 = 0.95 - sh; P_.ext = P_.ext2 = 1; P_.legs = FC_LEG.horse; P_.legW = 1; }
   else if (e.webBound > 0 && !e.webHung){ P_.roll = 0; P_.lean = 0; P_.a = 1.35; P_.a2 = 1.45; P_.b = 1.5; P_.b2 = 1.5; P_.ext = P_.ext2 = 0.55; P_.crouch = 0; }   // arms pinned in a cocoon
   else if (e.webHeld || e.webHung){ P_.roll = e.webRoll || 0; P_.lean = 0; P_.a = -2.2; P_.a2 = -1.9; P_.b = -2.6; P_.b2 = -2.1; P_.ext = P_.ext2 = 1; P_.crouch = 0; }
   if (e.isPlayer && e.atk && e.atk.d.kick && e.atk.d.aim && e.onG !== false){ P_.legs = [0, 0, -0.24, 0.42]; P_.legW = 1; }   // supporting knee soft under the kick
