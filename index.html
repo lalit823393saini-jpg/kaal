@@ -2891,12 +2891,13 @@ function hammerUpdate(P, dt){
   } else if (H.state === 'return'){
     const tx = P.x + P.face*14, ty = P.y - 48, dx = tx - H.x, dy = ty - H.y, d = Math.hypot(dx, dy) || 1, sp = 1700;
     smartJump('r' + (H.id || 0), H.x, dx, H.y);   // they duck out of its way on the way back too
-    if (H.grab && !H.grab.dead){ const g = H.grab; g.x = H.x - (sign(dx) || 1)*12; g.y = H.y + 46*(g.size || 1); g.vx = 0; g.vy = 0; g.onG = false; g.state = 'stun'; g.timer = 0.3; g.atk = null; H.hit.add(g); }   // whoever was holding it is dragged along
+    if (H.grab && !H.grab.dead){ const g = H.grab; g.hmGrab = false; g.x = H.x - (sign(dx) || 1)*12; g.y = H.y + 46*(g.size || 1); g.vx = 0; g.vy = 0; g.onG = false; g.state = 'stun'; g.timer = 0.3; g.atk = null; H.hit.add(g); }   // whoever was holding it is dragged along
     H.x += dx/d*sp*dt; H.y += dy/d*sp*dt; H.rot = Math.atan2(dy, dx);   // straight back to your hand, head first
     hammerHits(H, sign(dx) || 1);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF'], spd:60, size:3, life:0.3, kind:'star', g:0});
     if (d < 30){ H.state = 'held'; P.catchT = 0.25;
-      if (H.grab && !H.grab.dead){ const g = H.grab; damageEnemy(g, 80*FM(), {kb:520, dir:sign(g.x - P.x) || P.face, src:'form', heavy:true, knockdown:1.4, noStop:true}); pop(g.x, g.y - 100*(g.size || 1), 'Should have let go', '#7FE3FF'); } H.grab = null; ringFx(P.x, P.y - 48, 50, '#7FE3FF'); sfx('clang'); G.shake = Math.max(G.shake, 2.5); vib(25);   // caught
+      if (H.seeker){ H.seeker.hmSeek = false; H.seeker = null; }
+      if (H.grab && !H.grab.dead){ const g = H.grab; g.hmGrab = false; damageEnemy(g, 80*FM(), {kb:520, dir:sign(g.x - P.x) || P.face, src:'form', heavy:true, knockdown:1.4, noStop:true}); pop(g.x, g.y - 100*(g.size || 1), 'Should have let go', '#7FE3FF'); } H.grab = null; ringFx(P.x, P.y - 48, 50, '#7FE3FF'); sfx('clang'); G.shake = Math.max(G.shake, 2.5); vib(25);   // caught
       // the shock of the catch bursts out of you: everyone near is shoved back, the light ones far, the heavy ones barely
       for (const e of G.E){ if (e.dead || e.remote) continue; const dx2 = e.x - P.x, dd = Math.abs(dx2); if (dd > 240 || Math.abs(e.y - P.y) > 140) continue;
         const fall = 1 - dd/240, m = webMass(e), push = (520*fall/m)*(isBoss(e) ? 0.3 : 1);
@@ -2908,9 +2909,15 @@ function hammerUpdate(P, dt){
   } else if (H.state === 'ground'){
     H.rot = 0; H.y = GROUND - 12;
     H.tryT = (H.tryT || 0) - dt;   // only you can lift it: anyone else who tries just strains at it
-    if (H.grab && (H.grab.dead || Math.abs(H.grab.x - H.x) > 40)) H.grab = null;
-    if (!H.grab) for (const e of G.E){ if (e.dead || e.remote || isBoss(e) || Math.abs(e.x - H.x) > 26 || !e.onG) continue; H.grab = e; pop(e.x, e.y - 100*(e.size || 1), "Can't lift it", '#7FE3FF'); break; }
-    if (H.grab){ const e = H.grab; e.x = H.x + (sign(e.x - H.x) || 1)*14; e.vx = 0; e.state = 'stun'; e.timer = 0.3; e.atk = null; e.react = null; }   // it holds on, straining
+    if (H.grab && (H.grab.dead || H.grab.webHeld || H.grab.webHung)){ H.grab.hmGrab = false; H.grab = null; }
+    if (H.seeker && (H.seeker.dead || H.seeker === H.grab)) H.seeker = null;
+    if (!H.grab && !H.seeker){   // the nearest one goes for it
+      let best = null, bd = 520; for (const e of G.E){ if (e.dead || e.remote || isBoss(e) || e.champ || !e.onG) continue; const d = Math.abs(e.x - H.x); if (d < bd){ bd = d; best = e; } }
+      if (best){ H.seeker = best; best.hmSeek = true; pop(best.x, best.y - 100*(best.size || 1), 'The hammer!', '#FF8A5A'); } }
+    if (H.seeker && Math.abs(H.seeker.x - H.x) < 30 && H.seeker.onG){ const e = H.seeker; H.seeker = null; e.hmSeek = false; H.grab = e; e.hmGrab = true; H.strainT = 0; pop(e.x, e.y - 100*(e.size || 1), "Can't lift it", '#7FE3FF'); }
+    if (H.grab){ const e = H.grab, side = sign(e.x - H.x) || 1; e.x = H.x + side*22; e.face = -side; e.vx = 0; e.state = 'recover'; e.timer = 0.3; e.atk = null; e.react = null;   // both hands on the haft, heaving
+      H.strainT = (H.strainT || 0) + dt; if (H.strainT > 1.6){ H.strainT = 0; pop(e.x, e.y - 100*(e.size || 1), ['Hnnngh!', "It won't move", 'So heavy...'][(Math.random()*3)|0], '#FF8A5A'); }
+      if (Math.random() < 0.25) emit(H.x, GROUND - 4, {n:1, col:['#5a4a40'], spd:40, size:3, life:0.4, kind:'rock', g:1.2, vy:-40}); }
   }
 }
 /* M: the hammer hangs from the leather strap on the end of the haft; you swing it round and round beside you, faster and faster,
@@ -3007,7 +3014,7 @@ function drawHammer(P){
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(127,227,255,0.5)'; ctx.lineWidth = 10; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(H.x - Math.cos(H.rot)*90, H.y - Math.sin(H.rot)*90); ctx.lineTo(H.x, H.y); ctx.stroke(); ctx.restore();
     drawHammerAt(H.x - Math.cos(H.rot)*30, H.y - Math.sin(H.rot)*30, H.rot); return; }
-  drawHammerAt(H.x - 32, GROUND - 14, 0);   // lying where it fell
+  drawHammerAt(H.x - 32, GROUND - 14, H.grab ? Math.sin(G.time*40)*0.03 : 0);   // lying where it fell (twitching if someone heaves at it)
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(H.x, GROUND - 10, 2, H.x, GROUND - 10, 34); g.addColorStop(0, `rgba(127,227,255,${0.35 + 0.15*Math.sin(G.time*4)})`); g.addColorStop(1, 'rgba(127,227,255,0)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(H.x, GROUND - 10, 34, 0, 6.283); ctx.fill(); ctx.restore();
 }
@@ -6004,6 +6011,11 @@ function attackersNow(){ let n=0; for (const e of G.E) if (!e.dead && !e.T.range
 function updateEnemy(e, dt){
   const P = G.P;
   if (e.webHeld){ e.state = 'stun'; e.timer = Math.max(e.timer || 0, 0.5); e.vx = 0; e.vy = 0; e.onG = false; e.flash -= dt; e.hurtBar -= dt; return; }   // on the end of a web line: the player moves it
+  if (e.hmGrab && G.hm && G.hm.grab === e){ e.flash -= dt; e.hurtBar -= dt; if (e.hp <= 0){ killEnemy(e); return; } e.walk = 0; return; }   // holding on to the hammer
+  if (e.hmSeek && G.hm && G.hm.seeker === e && G.hm.state === 'ground' && e.onG && !(e.hurtT > 0) && e.state !== 'hurt' && e.state !== 'down'){   // walking over to pick up the hammer
+    const dir = sign(G.hm.x - e.x) || 1; e.face = dir; e.vx = dir*clamp(e.spd || 120, 80, 220)*Math.min(1, Math.abs(G.hm.x - e.x)/20); e.x += e.vx*dt; e.walk += dt*Math.abs(e.vx)*0.045/e.size; e.state = 'chase'; e.atk = null; e.flash -= dt; e.hurtBar -= dt;
+    if (e.hp <= 0){ killEnemy(e); } return; }
+  else if (e.hmSeek && (!G.hm || G.hm.seeker !== e || G.hm.state !== 'ground')) e.hmSeek = false;
   if (e.webHung || e.webBound > 0){ fcBoundTick(e, dt); return; }   // hung up or wrapped in a cocoon
   if (e.webThrown) webFlight(e, dt);
   if (e.react){ e.react.t += dt; if (e.react.k === 'flip' ? (e.onG && e.react.t > 0.15) : e.react.t >= e.react.d) e.react = null; }
@@ -7533,7 +7545,8 @@ function getPose(e){
     P_.legs = [0.95 + 0.45*ph, 2.1, 0.1 - 0.45*ph, 1.5]; P_.legW = 1; P_.legAir = true;   // one knee drawn up, the other leg pushing
   }
   if (!e.isPlayer && e.react) hitReactPose(e, P_);
-  if (e.webBound > 0 && !e.webHung){ P_.roll = 0; P_.lean = 0; P_.a = 1.35; P_.a2 = 1.45; P_.b = 1.5; P_.b2 = 1.5; P_.ext = P_.ext2 = 0.55; P_.crouch = 0; }   // arms pinned in a cocoon
+  if (e.hmGrab){ const sh = Math.sin(G.time*40)*0.05; P_.roll = 0; P_.lean = -0.35 + sh; P_.crouch = 16; P_.a = 1.05 + sh; P_.a2 = 0.95 - sh; P_.ext = P_.ext2 = 1; P_.legs = FC_LEG.horse; P_.legW = 1; }
+  else if (e.webBound > 0 && !e.webHung){ P_.roll = 0; P_.lean = 0; P_.a = 1.35; P_.a2 = 1.45; P_.b = 1.5; P_.b2 = 1.5; P_.ext = P_.ext2 = 0.55; P_.crouch = 0; }   // arms pinned in a cocoon
   else if (e.webHeld || e.webHung){ P_.roll = e.webRoll || 0; P_.lean = 0; P_.a = -2.2; P_.a2 = -1.9; P_.b = -2.6; P_.b2 = -2.1; P_.ext = P_.ext2 = 1; P_.crouch = 0; }
   if (e.isPlayer && e.atk && e.atk.d.kick && e.atk.d.aim && e.onG !== false){ P_.legs = [0, 0, -0.24, 0.42]; P_.legW = 1; }   // supporting knee soft under the kick
   if (e.isPlayer && e.form && formClipWeapon(e) && FORM_MAP[e.form.id]){ formClipPose(e, P_); choreoOverlay(e, P_); }   // Stage 2: breathing forms, plus their twirls
