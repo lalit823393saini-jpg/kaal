@@ -816,7 +816,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -2732,7 +2732,7 @@ function startHammer(){
   G.hammerS = { spawnT:2.5 };
   for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Hammer mode', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw it · Z again: call it back · M: swing it by the strap, then an uppercut', '#7FE3FF'); }, 1200);
+  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back · M: strap swing + uppercut · N: lightning from the sky', '#7FE3FF'); }, 1200);
   setScreen(null); G.running = true;
 }
 const HM_SPEED = 1450;
@@ -2764,6 +2764,11 @@ function hammerUpdate(P, dt){
     } else if (H.state !== 'return'){   // Z again: it comes back to your hand, through anyone in the way
       H.state = 'return'; H.hit = new Set(); H.vy = 0; pop(P.x, P.y - 110, 'Return!', '#7FE3FF'); sfx('whoosh'); }
   }
+  H.stormCd = (H.stormCd || 0) - dt;
+  if (pressed.launch && H.state === 'held' && !H.strap && !H.storm && !(P.throwT > 0) && !P.dead){   // N: call the storm
+    if (H.stormCd > 0) pop(P.x, P.y - 110, 'Storm: ' + H.stormCd.toFixed(1) + ' s', 'rgba(127,227,255,0.8)');
+    else { H.storm = { t:0, dir:P.face || 1, n:0, tick:0 }; H.stormCd = 5; sfx('storm'); } }
+  if (H.storm) hammerStormTick(P, H, dt);
   if (pressed.map && H.state === 'held' && !H.strap && !(P.throwT > 0) && !P.dead){ H.strap = { t:0, a:Math.PI/2, av:0, hit:new Map() }; sfx('whoosh'); }   // M: let it hang from the strap
   if (H.strap) hammerStrapTick(P, H, dt);
   if (H.state === 'held' && H.windT > 0){ H.windT -= dt;
@@ -2825,6 +2830,21 @@ function hammerStrapTick(P, H, dt){
       G.shake = Math.max(G.shake, 3); sfx('kick'); sfx('clang', 0.02); vib(35); }
   } else H.strap = null;
 }
+/* N: the hammer goes up to the sky and gathers lightning, then you point it at them and bolts fall on everyone on that side */
+function hammerStormTick(P, H, dt){
+  const S = H.storm; S.t += dt; P.vx *= Math.pow(0.02, dt);
+  if (S.t < 0.4){ if (Math.random() < 0.5){ const h = hammerHand(P); bolt(h[0] + rnd(-30, 30), h[1] - 90, h[0], h[1] - 40, '#7FE3FF'); } }   // the hammer drinks in the lightning
+  if (S.t >= 0.5 && S.t < 1.25){ S.tick -= dt;
+    if (S.tick <= 0){ S.tick = 0.08;
+      const foes = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*S.dir > 0 && (e.x - P.x)*S.dir < 620);
+      const e = foes.length ? foes[S.n++ % foes.length] : null;
+      const x = e ? e.x + rnd(-6, 6) : P.x + S.dir*rnd(120, 560), top = (G.camY || 0) - 40;
+      bolt(x + rnd(-40, 40), top, x, e ? e.y - 30*(e.size || 1) : GROUND, '#DFF6FF'); bolt(x + rnd(-60, 60), top, x, e ? e.y - 30*(e.size || 1) : GROUND, '#7FE3FF');   // from the sky
+      ringFx(x, GROUND, 50, '#7FE3FF', true); cracks(x, 30, '#7FE3FF');
+      if (e) damageEnemy(e, 60*FM(), {kb:80, dir:S.dir, src:'form', stun:1.0, noStop:true, burn:6});
+      flash('#DFF6FF', 0.08); sfx('storm', 0.01); } }
+  if (S.t >= 1.35) H.storm = null;
+}
 /* anything the flying hammer touches is smashed out of its way */
 function hammerHits(H, dir){
   for (const e of G.E){
@@ -2852,6 +2872,14 @@ function drawHammerAt(x, y, ang, a, sc){
 }
 function drawHammer(P){
   const H = G.hm; if (!H || G.mode !== 'hammer') return;
+  if (H.state === 'held' && H.storm && !P.dead){ const S = H.storm, h = hammerHand(P), f = P.face || 1;
+    const up = -Math.PI/2, fwd = f > 0 ? -0.45 : Math.PI + 0.45, ang = S.t < 0.42 ? up : lerp(up, fwd, FC_EASE(Math.min(1, (S.t - 0.42)/0.1)));
+    const q = Math.min(1, S.t/0.25)*(1 - clamp((S.t - 1.15)/0.2, 0, 1));
+    ctx.save(); ctx.fillStyle = `rgba(10,20,40,${0.35*q})`; ctx.fillRect(G.camX - 60, (G.camY || 0) - 200, VW + 120, VH + 600); ctx.restore();   // storm clouds over the sky
+    drawHammerAt(h[0] - Math.cos(ang)*4, h[1] - Math.sin(ang)*4, ang, 1, 0.85);
+    if (S.t < 0.5){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const hx = h[0] + Math.cos(ang)*30, hy = h[1] + Math.sin(ang)*30, g = ctx.createRadialGradient(hx, hy, 2, hx, hy, 40);
+      g.addColorStop(0, 'rgba(223,246,255,0.9)'); g.addColorStop(1, 'rgba(127,227,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 40, 0, 6.283); ctx.fill(); ctx.restore(); }   // it glows with the charge
+    return; }
   if (H.state === 'held' && H.strap && !P.dead){ const S = H.strap, h = hammerHand(P);
     if (S.t < 0.6){ const ux = Math.cos(S.a), uy = Math.sin(S.a);
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(127,227,255,0.25)'; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(h[0], h[1], 58, S.a - 1.2*(P.face || 1), S.a, P.face < 0); ctx.stroke(); ctx.restore();   // the blur of the swing
@@ -4731,6 +4759,7 @@ function updatePlayer(dt){
       const jb = (ST.passive === 'gale' || ST.passive === 'kaal') ? 1.18 : 1;
       P.vy = -720*jb; P.onG = false; P.jumpsLeft = Math.max(0, P.jumpsLeft - 1); burst(P.x, P.y, 5, '#2a1418', 120, 3);
     }
+    if (G.mode === 'hammer') pressed.launch = false;   // in Hammer mode N calls the storm instead
     if ((pressed.attack || pressed.kick || pressed.launch) && !P.vthrow && !P.gsum){   // no attacks while the vajra is being drawn
       const w = pressed.launch ? 'launch' : pressed.kick ? 'kick' : 'punch';
       if ((w === 'kick' || w === 'launch') && !ST.sword.fist){ if (G.time - (P.nkT||-9) > 1){ P.nkT = G.time; pop(P.x, P.y-90, 'Kicks need your fists — press H', '#FFD9B0'); } }
@@ -7424,7 +7453,10 @@ function getPose(e){
       case 'deflect':  P_.lean = lerp(P_.lean || 0, 0.2, w); P_.crouch = Math.max(P_.crouch || 0, 6*w); break;
       case 'catch':    P_.a2 = lerp(P_.a2, -0.2, w); P_.ext2 = 1; P_.lean = lerp(P_.lean || 0, -0.15, w); break;   // the free hand up where it was caught
     } }
-  if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.strap){ const S = G.hm.strap;
+  if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.storm){ const S = G.hm.storm;
+    if (S.t < 0.42){ const u = FC_EASE(Math.min(1, S.t/0.2)); P_.a = lerp(P_.a, -1.62, u); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.12, u); }   // straight up to the sky
+    else { const u = FC_EASE(Math.min(1, (S.t - 0.42)/0.1)); P_.a = lerp(-1.62, -0.45, u); P_.ext = 1; P_.lean = lerp(-0.12, 0.2, u); } }   // then at them
+  else if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.strap){ const S = G.hm.strap;
     if (S.t < 0.6){ P_.a = -0.55 + 0.15*Math.sin(S.t*24); P_.ext = 1; P_.lean = 0.05; P_.crouch = Math.max(P_.crouch || 0, 6); }   // arm out to the side, wrist turning the strap
     else { const u = FC_EASE(S.up || 0); P_.a = lerp(1.35, -1.6, u); P_.ext = 1; P_.lean = lerp(0.3, -0.2, u); P_.crouch = Math.max(P_.crouch || 0, 14*(1 - u)); } }   // from a crouch, low to high
   else if (e.isPlayer && G.mode === 'hammer' && G.hm){ if (e.throwT > 0){ const p = clamp((0.34 - e.throwT)/0.34, 0, 1);   // the throw: arm drawn back over the shoulder, then whipped through and out
@@ -10135,7 +10167,8 @@ function renderScene(){
   if (G.mode === 'arena' && AR.p1 && G.P){ arRender(); return; }
   const sk = SHAKE();
   const ck = G.calmK || 1;
-  const shx = ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickX)*ck, shy = ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickY)*ck;
+  const noShake = G.mode === 'hammer';   // Hammer mode: the screen stays still
+  const shx = noShake ? 0 : ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickX)*ck, shy = noShake ? 0 : ((G.shake>0 ? rnd(-G.shake,G.shake)*sk : 0) + G.kickY)*ck;
   // camera zoom punch, centred on the player
   const z = G.zoomK || 1, P0 = G.P;
   const pvx = P0 ? P0.x - G.camX : VW/2, pvy = P0 ? P0.y - 40 - (G.camY || 0) : GROUND;
