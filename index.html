@@ -816,7 +816,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -1151,11 +1151,11 @@ const SWORDS = {
   scythe:   { name:"Reaper's Scythe", price:2200, unlock:16, desc:'A huge curved blade on a long haft. Slow, very wide, and every swing cuts through 4 enemies. Enemies under 25% health take double damage from it.', dmg:1.45, spd:0.78, reach:1.4, len:60, w:3.4, curve:true, wide:true, cleave:4, kb:1.4, reap:true, blade:'#1a1d22', edge:'#B9FFD9', glow:'#2FE08A' },
   thunder:  { name:'Storm Fang',     price:2600, unlock:18, desc:'A blade that hums with lightning. Fast swings, and 35% of your hits throw a bolt to the nearest other enemy for half damage.', dmg:1.2, spd:1.18, reach:1.0, len:40, chain:0.35, blade:'#2a2a10', edge:'#FFF6B0', glow:'#FFE14D' },
   fists:    { name:'Iron Fists',     price:350,  fist:true, desc:'Hand-to-hand, with its own move list. Press H (or the Fist button) to switch any time. Punch and kick are separate buttons, and the direction you hold picks the move: straights, backfists, low body blows, push kicks, axe kicks, sweeps, dive kicks, plus Dragon Rush and Earthshaker. Launch an enemy and juggle them in the air. See Controls > Fist moves.', dmg:0.80, spd:1.35, reach:0.70, len:0, edge:'#FFD9B0' },
-  vajra:      { name:'Vajra',           astra:'vajra',      price:550000,  desc:'Throw it and it bursts into a storm of lightning: up to 250 enemies of strength 5 or less die on the spot. Then it vanishes and takes 30 s to return.', lore:'Forged from the bones of a sage who gave them freely, it is said to be harder than diamond.', dmg:2.2, spd:1.2, reach:1.05, len:44, w:3, edge:'#FFF3B0', glow:'#7FCBFF' },
-  gada:       { name:'Gada',            astra:'gada',       price:600000,  desc:'Raise your hand and it falls from the sky into it. Thrown, it wounds every enemy on the way out, then crushes them all on the way back. Kills up to 300 enemies.', lore:'The weapon of the strongest of the strong. Only a steady heart can lift it.', dmg:2.6, spd:0.82, reach:1.2, len:52, w:3.4, cleave:3, kb:2.2, edge:'#FFE9A8', glow:'#FF9A2A' },
-  chakra:     { name:'Sudarshan Chakra',astra:'chakra',     price:700000,  desc:'Throw it and it sweeps the whole field, end to end, taking the heads of up to 300 enemies of strength 5 or less, then returns to spin on your finger.', lore:'It never stops turning, and it always returns to the hand that sent it.', dmg:2.1, spd:1.45, reach:1.0, len:40, w:3, edge:'#FFF4C2', glow:'#FF6A1A' },
-  trishul:    { name:'Trishul',         astra:'trishul',    price:800000,  desc:'Throw it and it flies in a straight line, piercing through up to 150 enemies of strength 5 or less, then returns to your hand.', lore:'Its three points are said to cut through past, present and future.', dmg:2.4, spd:1.0, reach:1.6, len:66, w:3, cleave:3, edge:'#FFFFFF', glow:'#8FE3FF' },
-  brahmastra: { name:'Brahmastra',      astra:'brahmastra', price:1200000, desc:'The ultimate astra. Loosed into the sky, it rains light over the whole field and kills up to 500 enemies of strength 5 or less. Vanishes for 60 s.', lore:'Called only when nothing else is left. Its light is seen across three worlds.', dmg:3.2, spd:1.05, reach:1.3, len:58, w:3, cleave:5, kb:1.6, edge:'#FFFBE6', glow:'#FFD36A' }
+  vajra:      { name:'Vajra',           astra:'vajra',      price:550000,  desc:'Drawn from the case on your back and thrown: it bursts on the first enemy and the lightning leaps from one to the next, nearest to nearest, killing up to 250 of strength 5 or less. Then it vanishes for 30 s.', lore:'Forged from the bones of a sage who gave them freely, it is said to be harder than diamond.', dmg:2.2, spd:1.2, reach:1.05, len:44, w:3, edge:'#FFF3B0', glow:'#7FCBFF' },
+  gada:       { name:'Gada',            astra:'gada',       price:600000,  desc:'Raise your hand and it falls from the sky into it. Leap with it over your head and bring it down on the earth: the ground rolls away both ways in a wave that crushes up to 300 enemies.', lore:'The weapon of the strongest of the strong. Only a steady heart can lift it.', dmg:2.6, spd:0.82, reach:1.2, len:52, w:3.4, cleave:3, kb:2.2, edge:'#FFE9A8', glow:'#FF9A2A' },
+  chakra:     { name:'Sudarshan Chakra',astra:'chakra',     price:700000,  desc:'Sent from your finger, it hunts them one by one, banking from each to the next nearest, taking the heads of up to 300 enemies of strength 5 or less, then returns to spin on your finger.', lore:'It never stops turning, and it always returns to the hand that sent it.', dmg:2.1, spd:1.45, reach:1.0, len:40, w:3, edge:'#FFF4C2', glow:'#FF6A1A' },
+  trishul:    { name:'Trishul',         astra:'trishul',    price:800000,  desc:'Thrown high over them, it turns point-down and plunges into the ground at their heart, drags everyone near to it, and three pillars of fire rise: up to 150 enemies of strength 5 or less. Then it returns to your hand.', lore:'Its three points are said to cut through past, present and future.', dmg:2.4, spd:1.0, reach:1.6, len:66, w:3, cleave:3, edge:'#FFFFFF', glow:'#8FE3FF' },
+  brahmastra: { name:'Brahmastra',      astra:'brahmastra', price:1200000, desc:'The ultimate astra. You kneel in stillness while its arrow of light forms over you; loosed into the sky, it rains light over the whole field and kills up to 500 enemies of strength 5 or less. Vanishes for 60 s.', lore:'Called only when nothing else is left. Its light is seen across three worlds.', dmg:3.2, spd:1.05, reach:1.3, len:58, w:3, cleave:5, kb:1.6, edge:'#FFFBE6', glow:'#FFD36A' }
 };
 /* Firearms: a sidearm that sits beside your sword. G (or the Gun button) fires in the direction you face. */
 const GUNS = {
@@ -4821,6 +4821,7 @@ function updatePlayer(dt){
   if (pressed.astra) tryAstra(P);
   if (P.vthrow) updateVajraThrow(P, dt);
   if (P.gsum) updateGadaSummon(P, dt);
+  if (P.bsum) updateBrahmaSummon(P, dt);
   webTick(P, dt);
   formChoreoTick(P);
   if (pressed.switch && G.dojo && G.time - (P.dojoT || -9) > 1.5){ P.dojoT = G.time; toast('Dojo: no blades here', 0.8); }
@@ -6543,6 +6544,40 @@ function autoDodgeWatch(P){
     autoDodge(P, e);
   }
 }
+/* ===== CINEMATIC CAM (T, every mode but the versus ones): when you throw something big - the hammer, an astra, the X of wind,
+   a boulder, a wheel of fire, a kunai, a body you hurl - time slows right down and the camera rides with it,
+   through every hit, until it lands or comes home; then it eases back to you. ===== */
+function followable(p){ return p.xBlade || p.kind === 'boulder' || p.kind === 'sunwheel' || p.kind === 'kunai' || p.kind === 'bloodspear' || (p.kind === 'moonlet' && p.big); }
+function astraFocus(A){
+  if (A.queue) return null;   // the whole field at once: nothing to ride with
+  if (A.chain) return { x:A.lx, y:A.ly };
+  if (A.C.kind === 'quake') return A.wave < 1500 ? { x:A.x + A.dir*A.wave, y:GROUND - 60 } : null;
+  if (A.C.kind === 'rain') return null;
+  return { x:A.x, y:A.y };
+}
+function startFollow(get){ G.follow = { get, last:get(), lost:0, t:0 }; }
+function followTick(dt){
+  const P = G.P;
+  if (!SV.set.cinecam || !P || G.mode === 'arena' || G.mode === 'duel' || G.mode === 'coop' || P.dead){ if (G.follow) G.follow = null; return; }
+  if (!G.follow){
+    const H = G.hm;
+    if (H && H.state === 'fly' && H._fol !== H.id){ H._fol = H.id; startFollow(() => H.state === 'fly' ? { x:H.x, y:H.y } : null); }
+    else if (H && H.state === 'return' && H._folR !== H.id){ H._folR = H.id; startFollow(() => H.state === 'return' ? { x:H.x, y:H.y } : null); }
+    else if (G.astra && G._folA !== G.astra){ const A = G.astra; G._folA = A; startFollow(() => G.astra === A ? astraFocus(A) : null); }
+    else {
+      const p = G.proj.find(p => !p._fs && p.life > 0 && followable(p));
+      if (p){ for (const q of G.proj) if (followable(q)) q._fs = true; startFollow(() => p.life > 0 ? { x:p.x, y:p.y } : null); }
+      else { const e = G.E.find(e => e.webThrown && e.webThrown.hurl && !e.webThrown._fs && !e.dead); if (e){ const F = e.webThrown; F._fs = true; startFollow(() => (e.webThrown === F && !e.dead) ? { x:e.x, y:e.y - 40 } : null); } }
+    }
+    if (G.follow && !G.follow.last) G.follow = null;
+  }
+  const F = G.follow; if (!F) return;
+  F.t += dt; const tg = F.get();
+  if (tg){ F.last = tg; F.lost = 0; } else F.lost += dt;
+  if (!G.mo || G.mo.kind !== 'follow') G.mo = { kind:'follow', t:0, end:0.6, depth:0.22 };   // slow motion while it flies
+  if (tg && F.t < 6) G.mo.end = Math.max(G.mo.end, G.mo.t + 0.35);
+  if (F.lost > 0.45 || F.t > 6.5) G.follow = null;   // it landed: hold a beat on it, then back to you
+}
 function hurtPlayer(dmg, kb, e, full){
   const P = G.P;
   // mid-attack (a swing or a form) the hero slips the blow and keeps cutting; it needs a moment before it works again
@@ -7595,6 +7630,9 @@ function getPose(e){
       case 'deflect':  P_.lean = lerp(P_.lean || 0, 0.2, w); P_.crouch = Math.max(P_.crouch || 0, 6*w); break;
       case 'catch':    P_.a2 = lerp(P_.a2, -0.2, w); P_.ext2 = 1; P_.lean = lerp(P_.lean || 0, -0.15, w); break;   // the free hand up where it was caught
     } }
+  if (e.isPlayer && e.gsum && e.gsum.leap && !e.gsum.landed){ P_.a = -1.7; P_.a2 = -1.7; P_.ext = P_.ext2 = 1; P_.lean = -0.25; P_.crouch = 0; }   // gada over the head in the air
+  else if (e.isPlayer && e.gsum && e.gsum.landed){ P_.a = 1.1; P_.a2 = 1.0; P_.ext = P_.ext2 = 1; P_.lean = 0.5; P_.crouch = 18; }   // brought down on the earth
+  if (e.isPlayer && e.bsum && !e.bsum.released){ P_.a = -1.45; P_.a2 = -1.55; P_.ext = P_.ext2 = 0.8; P_.lean = 0; P_.crouch = 20; P_.legs = FC_LEG.kneel; P_.legW = 1; }   // kneeling, hands raised together
   if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.storm){ const S = G.hm.storm;
     if (S.t < 0.42){ const u = FC_EASE(Math.min(1, S.t/0.2)); P_.a = lerp(P_.a, -1.62, u); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.12, u); }   // straight up to the sky
     else { const u = FC_EASE(Math.min(1, (S.t - 0.42)/0.1)); P_.a = lerp(-1.62, -0.45, u); P_.ext = 1; P_.lean = lerp(-0.12, 0.2, u); } }   // then at them
@@ -10477,7 +10515,7 @@ function renderScene(){
       if (P.form && P.form.id==='stone5' && P.form.mtn){ const M = P.form.mtn; drawRock(P.x, P.y - 120, 62, M.rot, M.seed); }
       if ((P.flyPose || 0) > 0.05) drawBoosterHousings(P);   // the boosters sit on the boots, in front
       if (P.ride) ctx.restore();
-      if (!P.ride){ drawAstraHeld(P); if (P.gsum) drawGadaSummon(P); }
+      if (!P.ride){ drawAstraHeld(P); if (P.gsum) drawGadaSummon(P); if (P.bsum) drawBrahmaSummon(P); }
       if (P.wg) drawWebLine(P);
       drawFormTwirl(P);
       if (P.blockT >= 0 && P.blockT < G.ST.parry){ ctx.strokeStyle='rgba(255,231,168,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(P.x+P.face*18,P.y-46,16,0,Math.PI*2); ctx.stroke(); }
@@ -14026,6 +14064,8 @@ function frameBody(now){
   moodT -= dt; if (moodT <= 0){ moodT = 0.5; MUS.mood = musicMood(); if (MUS.filt && AU.c && (!G.P || !G.running) && MUS.filt.frequency.value < 15000) MUS.filt.frequency.setTargetAtTime(16000, AU.c.currentTime, 0.2); }
   if (!G.P){ demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
   if (pressed.pause && G.running && (!G.over || G.mode === 'duel')) togglePause();
+  if (pressed.grab && G.running && !G.paused && G.mode !== 'arena'){   // T: cinematic follow cam on / off
+    SV.set.cinecam = !SV.set.cinecam; save(); toast(SV.set.cinecam ? 'Cinematic cam ON' : 'Cinematic cam off', 1.4); }
   if (pressed.dodgeAlways && G.running && !G.paused){   // P: dodge every attack, all the time (P again: only while attacking)
     SV.set.dodge = dodgeMode() === 'always' ? 'attack' : 'always'; save(); syncSettings();
     toast(SV.set.dodge === 'always' ? 'Dodge: ALWAYS — every attack is slipped' : 'Dodge: only while attacking', 1.4); }
@@ -14129,6 +14169,7 @@ function step(dt){
   // big-move slow motion: a breathing form, a divya astra, the first shot of a gun
   if (P && P.form && P.form !== G.moForm && !P.form.wait && FORMS[P.form.id] && P.form.sid){ G.moForm = P.form; startMo('form', 2.0); }
   G.moK = 1;
+  followTick(dt);
   if (G.mo && !G.cine && !(G.introT > 0)){
     const M = G.mo; M.t += dt;
     if (M.kind === 'form' && !P.form && M.t > 0.35) M.end = Math.min(M.end, M.t + 0.25);
@@ -14386,10 +14427,11 @@ function step(dt){
   } else if (G.slowK <= 0.5 && G.ghosts.length && G.ghostT<=0){ G.ghosts.shift(); G.ghostT=0.04; }
 
   // camera
-  const focusX = (G.introT > 0 && G.introBoss) ? G.introBoss.x - VW*0.5 : P.x - VW*0.42 + P.face*60;
+  const FT = G.follow && G.follow.last;   // cinematic cam: the camera rides with what you threw
+  const focusX = (G.introT > 0 && G.introBoss) ? G.introBoss.x - VW*0.5 : FT ? FT.x - VW*0.5 : P.x - VW*0.42 + P.face*60;
   const target = clamp(focusX, 0, Math.max(0, G.worldW - VW));
-  G.camX = lerp(G.camX, target, Math.min(1, dt*(G.introT > 0 ? 3 : 5)));
-  G.camY = G.fc ? lerp(G.camY || 0, Math.min(0, P.y - 230), Math.min(1, dt*4)) : 0;   // free city: look up when you climb high
+  G.camX = lerp(G.camX, target, Math.min(1, dt*(G.introT > 0 ? 3 : FT ? 7 : 5)));
+  G.camY = G.fc ? lerp(G.camY || 0, Math.min(0, (FT ? FT.y : P.y) - 230), Math.min(1, dt*4)) : 0;   // free city: look up when you climb high
 
   // waves / win
   const alive = G.E.filter(e=>!e.dead).length;
@@ -15044,11 +15086,11 @@ function drawAstra(sg, e, tint){
    ========================================================= */
 const ASTRA_STR = 5;
 const ASTRA_POWER = {
-  vajra:      { kind:'strike', kills:250, cd:30, dmg:320, how:'Thrown forward, bursts into lightning' },
-  gada:       { kind:'return', kills:300, cd:2.5, dmg:280, speed:1250, range:1600, rx:44, ry:70, spin:14, size:78, how:'Wounds on the way out, crushes on the way back' },
-  chakra:     { kind:'sweep',  kills:300, cd:2.5, dmg:260, speed:1750, rx:72, ry:120, behead:true, size:30, how:'Sweeps the whole field end to end, takes heads, returns to your finger' },
-  trishul:    { kind:'return', kills:150, cd:5, dmg:300, speed:2000, range:1500, rx:60, ry:90, spin:0, size:74, how:'Flies straight, pierces, returns' },
-  brahmastra: { kind:'rain',   kills:500, cd:60, dmg:600, how:'Loosed into the sky, rains light over the whole field' }
+  vajra:      { kind:'chain',  kills:250, cd:30, dmg:320, how:'Thrown forward, it bursts and the lightning leaps from one enemy to the next' },
+  gada:       { kind:'quake',  kills:300, cd:2.5, dmg:280, speed:1250, range:1600, rx:44, ry:70, spin:14, size:78, how:'Leap, and bring it down on the earth: the ground rolls out both ways and crushes them' },
+  chakra:     { kind:'seek',   kills:300, cd:2.5, dmg:260, speed:1750, rx:72, ry:120, behead:true, size:30, how:'Hunts them one by one, weaving through the field, takes heads, returns to your finger' },
+  trishul:    { kind:'plant',  kills:150, cd:5, dmg:300, speed:2000, range:1500, rx:60, ry:90, spin:0, size:74, how:'Plunges into the ground among them, draws them in, and three pillars of fire rise' },
+  brahmastra: { kind:'rain',   kills:500, cd:60, dmg:600, how:'Called up in stillness, loosed into the sky, rains light over the whole field' }
 };
 const astraTier = id => SV.swords[id] || 0;
 function astraCap(id){ return Math.round(ASTRA_POWER[id].kills * (1 + 0.1*astraTier(id))); }
@@ -15061,7 +15103,7 @@ function tryAstra(P){
   if (G.astra){ pop(P.x, P.y-100, sw.name + ' is still out', '#FFE7A8'); return; }
   if (P.astraCd > 0){ pop(P.x, P.y-100, `${sw.name}: ${Math.ceil(P.astraCd)} s`, '#FFE7A8'); return; }
   if (P.form || P.dashT > 0) return;
-  if (P.vthrow || P.gsum) return;                          // already drawing / summoning
+  if (P.vthrow || P.gsum || P.bsum) return;                // already drawing / summoning
   if (id === 'vajra' && !P.ride){                          // the vajra is drawn from the case on his back first
     P.atk = null; P.blockT = -1; P.queued = false;
     P.vthrow = { t:0, released:false, cleared:false }; sfx('whoosh');
@@ -15072,7 +15114,25 @@ function tryAstra(P){
     P.gsum = { t:0, lit:false, got:false, released:false }; sfx('swish');
     return;
   }
+  if (id === 'brahmastra' && !P.ride){   // kneel, be still; the arrow of light forms over you; then it goes up
+    P.atk = null; P.blockT = -1; P.queued = false; P.bsum = { t:0, released:false }; sfx('slowIn'); return; }
   launchAstra(P, id, P.x + P.face*20, P.y - 54);
+}
+function updateBrahmaSummon(P, dt){
+  const V = P.bsum; if (P.dead || P.ride){ P.bsum = null; return; }
+  V.t += dt; P.vx *= Math.pow(0.001, dt);
+  if (FXL() > 0 && V.t < 0.9) for (let k = 0; k < 2; k++){ const a = rnd(0, 6.283), r = rnd(120, 220); G.parts.push({x:P.x + Math.cos(a)*r, y:P.y - 60 + Math.sin(a)*r*0.6, vx:-Math.cos(a)*r*2.2, vy:-Math.sin(a)*r*1.3, life:0.45, max:0.45, col:Math.random() < 0.5 ? '#FFD36A' : '#FFFFFF', size:2.4, real:true}); }   // light drawn in to you
+  if (!V.released && V.t >= 0.95){ V.released = true; launchAstra(P, 'brahmastra', P.x, P.y - 150); }
+  if (V.t >= 1.15) P.bsum = null;
+}
+function drawBrahmaSummon(P){
+  const V = P.bsum; if (!V || V.released) return;
+  const g = clamp(V.t/0.8, 0, 1), x = P.x, y = P.y - 150 - 20*g, L = 40 + 90*g;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 3; k++){ const r = 200*(1 - ((V.t*1.6 + k/3) % 1)); ctx.globalAlpha = 0.35*(r/200); ctx.strokeStyle = '#FFD36A'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(P.x, P.y - 60, r, r*0.6, 0, 0, 6.283); ctx.stroke(); }   // rings closing in
+  ctx.globalAlpha = 0.25*g; const gr = ctx.createRadialGradient(x, y, 4, x, y, L); gr.addColorStop(0, '#FFF4D0'); gr.addColorStop(1, 'rgba(255,211,106,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, L, 0, 6.283); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = g;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI/2); ctx.translate(-L*0.5, 0); drawAstraShape(ctx, 'brahmastra', L, 0.6 + 0.6*g, astraNow(), true); ctx.restore(); ctx.globalAlpha = 1;   // the arrow, growing, point to the sky
 }
 /* ---------- gada summon: raise the left hand, light falls from the sky, the gada forms in the hand, throw ---------- */
 const GS = { raise:0.16, beam:0.14, land:0.40, hold:0.60, release:0.76, end:0.96 };
@@ -15089,15 +15149,14 @@ function updateGadaSummon(P, dt){
     ringFx(h[0], h[1], 70, glow); ringFx(h[0], h[1], 36, '#FFF4D0');
     if (FXL() > 0) emit(h[0], h[1], { n:18, col:['#FFE7A0','#FF9A2A','#FFFFFF'], spd:280, size:2.4, life:0.45, kind:'spark', g:0.2 });
   }
-  if (!V.released && V.t >= GS.release){
-    V.released = true; const h = gadaHand(P);
-    launchAstra(P, 'gada', h[0], h[1]);
-  }
-  if (V.t >= GS.end) P.gsum = null;
+  if (!V.released && V.t >= GS.release){   // up into the air with it, over your head
+    V.released = true; V.leap = true; if (P.onG){ P.vy = -720; P.onG = false; } sfx('whoosh'); }
+  if (V.leap && !V.landed && V.t > GS.release + 0.12 && P.onG){ V.landed = true; V.landT = V.t; gadaQuake(P); }   // and down on the earth
+  if ((!V.leap && V.t >= GS.end) || (V.landed && V.t - V.landT > 0.3) || V.t > 3) P.gsum = null;
 }
 /* the column of light and the gada in the hand (drawn in world space, over the hero) */
 function drawGadaSummon(P){
-  const V = P.gsum; if (!V || V.released) return;
+  const V = P.gsum; if (!V || (V.released && !V.leap) || V.landed) return;
   const h = gadaHand(P), hx = h[0], hy = h[1], t = V.t, art = ASTRA_ART.gada, ga = ctx.globalAlpha;
   // the beam: falls from far above, hits the hand, then fades as the gada takes shape
   if (t >= GS.beam){
@@ -15124,6 +15183,16 @@ function drawGadaSummon(P){
     ctx.restore(); ctx.globalAlpha = ga;
   }
 }
+/* the gada comes down: the earth rolls away from it both ways in a wave that crushes everything it reaches */
+function gadaQuake(P){
+  const id = 'gada', C = Object.assign({}, ASTRA_POWER.gada, { kind:'quake' }), A0 = ASTRA_ART.gada, h = gadaHand(P);
+  G.astra = { id, C, x:P.x + P.face*30, y:GROUND, dir:P.face, t:0, dist:0, rot:0, leg:1, wave:0, hit:new Set(), killed:0, cap:astraCap(id), trail:[],
+    dmg: C.dmg*(1 + 0.12*astraTier(id))*(1 + 0.08*SV.body.dmg), queue:null, qi:0, done:false };
+  showBanner('Divya Astra', SWORDS.gada.name, C.how, A0.glow); startMo('astra', 0.5, 0.45);
+  flash(A0.glow, 0.35); zoomPunch(1.08); G.shake = Math.max(G.shake, 16); vib(90); sfx('boom'); sfx('stone', 0.03);
+  ringFx(P.x + P.face*30, GROUND, 260, A0.glow, true); cracks(P.x + P.face*30, 260, A0.glow);
+  emit(h[0], GROUND - 6, {n:40, col:['#FFE7A0','#FF9A2A','#5a4a40'], spd:600, size:6, life:1.0, kind:'rock', g:1.6, vy:-380, real:true});
+}
 /* the throw itself: unchanged from before, but it can now start from the hand that holds it */
 function launchAstra(P, id, hx, hy){
   const C = ASTRA_POWER[id], sw = SWORDS[id], f = P.face, A = ASTRA_ART[id];
@@ -15131,6 +15200,14 @@ function launchAstra(P, id, hx, hy){
   G.astra = { id, C, x:hx, y:hy, dir:f, t:0, dist:0, rot:0, leg:0, hit:new Set(), killed:0, cap:astraCap(id), trail:[],
     dmg: C.dmg * (1 + 0.12*astraTier(id)) * (1 + 0.08*SV.body.dmg), queue:null, qi:0, done:false };
   if (C.kind === 'sweep'){ G.astra.target = f > 0 ? G.worldW - 40 : 40; }
+  if (C.kind === 'seek'){   // the chakra picks its path: always the next nearest, so it weaves through them
+    const left = G.E.filter(e => !e.dead && !e.remote), path = []; let cx = hx, cy = hy;
+    while (left.length && path.length < 60){ let bi = 0, bd = 1e9; left.forEach((e, i) => { const d = Math.hypot(e.x - cx, e.y - cy); if (d < bd){ bd = d; bi = i; } }); const e = left.splice(bi, 1)[0]; path.push(e); cx = e.x; cy = e.y; }
+    Object.assign(G.astra, { path, pi:0, vx:f*C.speed, vy:-200 }); }
+  if (C.kind === 'plant'){   // the trishul picks the heart of them, or a good throw ahead
+    const ahead = G.E.filter(e => !e.dead && !e.remote && (e.x - P.x)*f > 40 && (e.x - P.x)*f < 900);
+    const px = ahead.length ? ahead.reduce((s, e) => s + e.x, 0)/ahead.length : P.x + f*600;
+    Object.assign(G.astra, { plantX:clamp(px, 60, G.worldW - 60), phase:'fly', pt:0 }); }
   showBanner('Divya Astra', sw.name, C.how, A.glow);
   if (id === 'gada') startMo('astra', 0.4, 0.55);   // only a short beat at the throw: the fight keeps moving
   else startMo('astra', 2.4, 0.3);
@@ -15239,6 +15316,70 @@ function updateAstra(dt){
     return;
   }
   A.trail.unshift({ x:A.x, y:A.y }); if (A.trail.length > 10) A.trail.pop();
+  if (A.chain){   // vajra: the lightning leaps from one to the next
+    A.cT += dt;
+    while (A.cT >= 0.03 && A.ci < A.chain.length){ A.cT -= 0.03; const e = A.chain[A.ci++]; if (e.dead) continue;
+      const ex = e.x, ey = e.y - 34*(e.size || 1);
+      bolt(A.lx, A.ly, ex, ey, '#BFE6FF'); bolt(A.lx, A.ly, ex, ey, '#FFFFFF');
+      if (Math.random() < 0.5) bolt(ex, ey, ex + rnd(-80, 80), ey + rnd(-60, 40), '#7FCBFF');   // a fork crackling off
+      astraStrike(e, A, sign(ex - A.lx) || A.dir); A.lx = ex; A.ly = ey; sfx('zap', 0.005); }
+    if (A.ci >= A.chain.length){ A.endT = (A.endT || 0) + dt; if (A.endT > 0.3) finishAstra(false); }
+    G.hitstop = Math.min(hs, 0.05); return;
+  }
+  if (A.C.kind === 'chain'){   // vajra: a short, blinding flight, then it bursts and the lightning starts to leap
+    A.x += A.dir*2300*dt; A.y = lerp(A.y, P.y - 70, Math.min(1, dt*6));
+    const struck = G.E.find(e => !e.dead && !e.remote && Math.abs(e.x - A.x) < 30 && Math.abs(e.y - 34*(e.size || 1) - A.y) < 70);
+    if (struck || A.t > 0.32 || A.x < 40 || A.x > G.worldW - 40){
+      flash('#DCF0FF', 0.5); G.bwT = Math.max(G.bwT, 0.6); ringFx(A.x, A.y, 220, '#7FCBFF'); burst(A.x, A.y, 30, '#7FCBFF', 600, 4, true);
+      sfx('boom'); sfx('zap'); sfx('storm', 0.08); vib(100); showBanner('Vajra', 'The lightning leaps', '', '#7FCBFF');
+      const left = G.E.filter(e => !e.dead && !e.remote), chain = []; let cx = A.x, cy = A.y;   // nearest to nearest, so it jumps like real lightning
+      while (left.length){ let bi = 0, bd = 1e9; left.forEach((e, i) => { const d = Math.hypot(e.x - cx, e.y - cy); if (d < bd){ bd = d; bi = i; } }); const e = left.splice(bi, 1)[0]; chain.push(e); cx = e.x; cy = e.y; }
+      A.chain = chain; A.ci = 0; A.cT = 0; A.lx = A.x; A.ly = A.y; }
+    return;
+  }
+  if (A.C.kind === 'quake'){   // gada: the earth rolls away both ways
+    A.wave += 1300*dt;
+    for (const e of G.E){ if (e.dead || e.remote || A.hit.has(e)) continue; if (Math.abs(e.x - A.x) > A.wave) continue;
+      A.hit.add(e); const d = sign(e.x - A.x) || A.dir; astraStrike(e, A, d); if (!e.dead){ e.vy = -420; e.onG = false; } }
+    if (FXL() > 0) for (const d of [-1, 1]){ const x = A.x + d*A.wave; if (x > 20 && x < G.worldW - 20) emit(x, GROUND - 4, {n:2, col:['#FFE7A0','#5a4a40'], spd:200, size:5, life:0.6, kind:'rock', g:1.6, vy:-240}); }
+    if (A.wave > 1700) finishAstra(false);
+    G.hitstop = Math.min(G.hitstop, hs + 0.02); return;
+  }
+  if (A.C.kind === 'seek'){   // chakra: hunting them one by one, curving from each to the next, then home to the finger
+    A.trail.unshift({ x:A.x, y:A.y }); if (A.trail.length > 12) A.trail.pop();
+    while (A.pi < A.path.length && (A.path[A.pi].dead || A.killed >= A.cap)) A.pi++;
+    const tgt = A.leg === 0 ? A.path[A.pi] : null;
+    let tx, ty;
+    if (tgt){ tx = tgt.x; ty = tgt.y - 40*(tgt.size || 1); } else { A.leg = 2; const h = astraHand(P); tx = h[0]; ty = h[1] - 10; }
+    const dx = tx - A.x, dy = ty - A.y, d = Math.hypot(dx, dy) || 1, sp = A.C.speed*(A.leg === 2 ? 1.2 : 1);
+    A.vx = lerp(A.vx, dx/d*sp, Math.min(1, dt*9)); A.vy = lerp(A.vy, dy/d*sp, Math.min(1, dt*9));   // it banks round into each one
+    A.x += A.vx*dt; A.y += A.vy*dt;
+    astraHits(A, sign(A.vx) || 1);
+    if (tgt && d < 34){ if (!A.hit.has(tgt)){ A.hit.add(tgt); astraStrike(tgt, A, sign(A.vx) || 1); } A.pi++; sfx('swish', 0.01); }
+    if (A.leg === 2 && d < 26){ finishAstra(true); G.hitstop = Math.min(G.hitstop, hs); return; }
+    if (A.t > 8) finishAstra(false);
+    G.hitstop = Math.min(G.hitstop, hs + 0.02); return;
+  }
+  if (A.C.kind === 'plant' && A.phase !== 'back'){   // trishul: flies to them, turns point-down, plunges in, draws them close, and fire rises
+    A.pt += dt;
+    if (A.phase === 'fly'){ const dx = A.plantX - A.x, sp = A.C.speed*0.8*dt; A.x += sign(dx)*Math.min(Math.abs(dx), sp); A.y = lerp(A.y, P.y - 140, Math.min(1, dt*5));   // high over their heads: it does not touch them yet
+      if (Math.abs(A.plantX - A.x) < 3){ A.phase = 'turn'; A.pt = 0; sfx('swish'); } }
+    else if (A.phase === 'turn'){ A.y -= 60*dt; if (A.pt > 0.28){ A.phase = 'plunge'; A.pt = 0; } }
+    else if (A.phase === 'plunge'){ A.y += 2600*dt; if (A.y >= GROUND - 20){ A.y = GROUND - 20; A.phase = 'pull'; A.pt = 0; flash('#FF9A4A', 0.25); ringFx(A.x, GROUND, 200, '#FF9A4A', true); cracks(A.x, 120, '#FF9A4A'); sfx('boom'); vib(60); } }
+    else if (A.phase === 'pull'){   // a whirl of force drags them in to it
+      for (const e of G.E){ if (e.dead || e.remote || isBoss(e)) continue; const dx = A.x - e.x; if (Math.abs(dx) > 380 || Math.abs(dx) < 30) continue; e.x += sign(dx)*Math.min(Math.abs(dx) - 30, 520*dt); e.vx = 0; e.state = 'hurt'; e.timer = 0.3; }
+      if (FXL() > 0) for (let k = 0; k < 3; k++){ const a = rnd(0, 6.283), r = rnd(100, 380); G.parts.push({x:A.x + Math.cos(a)*r, y:GROUND - rnd(10, 160), vx:-Math.cos(a)*r*2, vy:0, life:0.4, max:0.4, col:'#FF9A4A', size:2.5, real:true}); }
+      if (A.pt > 0.6){ A.phase = 'erupt'; A.pt = 0; A.pillars = [A.x - 150, A.x, A.x + 150];
+        for (const e of G.E){ if (e.dead || e.remote || A.hit.has(e)) continue; if (Math.abs(e.x - A.x) > 260) continue; A.hit.add(e); astraStrike(e, A, sign(e.x - A.x) || A.dir); }
+        flash('#FFE0A0', 0.45); zoomPunch(1.08); G.shake = Math.max(G.shake, 16); sfx('boom'); sfx('sun', 0.03); vib(100); showBanner('Trishul', 'Three pillars of fire', '', '#FF9A4A'); } }
+    else if (A.phase === 'erupt'){ if (A.pt > 0.55){ A.phase = 'back'; A.leg = 1; A.hit = new Set(); A.y = GROUND - 60; sfx('whoosh'); } }
+    G.hitstop = Math.min(G.hitstop, hs + 0.02); return;
+  }
+  if (A.C.kind === 'plant' && A.phase === 'back'){   // and home to your hand
+    const tx = P.x + P.face*12, ty = P.y - 52, dx = tx - A.x, dy = ty - A.y, d = Math.hypot(dx, dy), sp = A.C.speed*dt;
+    if (d <= sp + 18){ finishAstra(true); G.hitstop = Math.min(G.hitstop, hs); return; }
+    A.x += dx/d*sp; A.y += dy/d*sp; return;
+  }
   if (A.C.kind === 'strike'){   // vajra: a short, blinding flight, then the storm
     A.x += A.dir * 2300 * dt; A.y = lerp(A.y, P.y - 70, Math.min(1, dt*6));
     if (A.t > 0.32 || A.x < 40 || A.x > G.worldW - 40){
@@ -15294,14 +15435,34 @@ function astraHand(P){
   return arm ? [arm[2], arm[3]] : [P.x - P.face*10, P.y - 40];
 }
 function drawAstraFlight(){
-  const A = G.astra; if (!A || A.queue) return;
+  const A = G.astra; if (!A || A.queue || A.chain) return;
+  if (A.C.kind === 'quake'){   // two ridges of broken earth rolling away from the blow
+    ctx.save();
+    for (const d of [-1, 1]){ const x = A.x + d*A.wave, a = Math.max(0, 1 - A.wave/1700);
+      ctx.globalAlpha = 0.9*a; ctx.fillStyle = '#5a4a40'; ctx.beginPath(); ctx.moveTo(x - d*70, GROUND + 2); ctx.quadraticCurveTo(x - d*20, GROUND - 46, x, GROUND - 30); ctx.lineTo(x + d*12, GROUND + 2); ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = '#FFB347'; ctx.globalAlpha = 0.6*a; ctx.fillRect(x - 3, GROUND - 34, 6, 34); ctx.globalCompositeOperation = 'source-over'; }
+    ctx.restore(); ctx.globalAlpha = 1; return; }
+  if (A.C.kind === 'plant' && A.phase !== 'back' && A.phase !== 'fly'){
+    const art = ASTRA_ART.trishul, t = astraNow(), L = A.C.size;
+    if (A.phase === 'erupt'){   // three pillars of fire
+      const u = A.pt/0.55, k = Math.min(1, u*5)*(1 - Math.max(0, (u - 0.6)/0.4));
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (const [i, x] of A.pillars.entries()){ const w = i === 1 ? 70 : 50, top = (G.camY || 0) - 60;
+        const g = ctx.createLinearGradient(x - w, 0, x + w, 0); g.addColorStop(0, 'rgba(255,120,40,0)'); g.addColorStop(0.5, `rgba(255,236,190,${0.9*k})`); g.addColorStop(1, 'rgba(255,120,40,0)');
+        ctx.fillStyle = g; ctx.fillRect(x - w, top, w*2, GROUND - top); }
+      ctx.restore(); }
+    if (A.phase === 'pull'){ ctx.save(); ctx.strokeStyle = 'rgba(255,154,74,0.5)'; ctx.lineWidth = 2; for (let k = 0; k < 3; k++){ const r = 380*(1 - ((A.pt*2 + k/3) % 1)); ctx.beginPath(); ctx.ellipse(A.x, GROUND - 40, r, r*0.25, 0, 0, 6.283); ctx.stroke(); } ctx.restore(); }   // the pull
+    const ang = A.phase === 'turn' ? lerp(A.dir > 0 ? 0 : Math.PI, Math.PI/2, FC_EASE(Math.min(1, A.pt/0.28))) : Math.PI/2;   // turning point-down, then planted
+    ctx.save(); ctx.translate(A.x, A.y); ctx.rotate(ang); ctx.translate(-L*0.6, 0); drawAstraShape(ctx, 'trishul', L, 1.1, t, true); ctx.restore();
+    return; }
   const t = astraNow(), id = A.id, art = ASTRA_ART[id];
   for (let i = 0; i < A.trail.length; i++){ const q = A.trail[i]; glowDot(ctx, q.x, q.y, 26*(1 - i/12), art.glow, 0.35*(1 - i/A.trail.length)); }
   if (id === 'vajra' && A.trail.length > 1){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.strokeStyle = '#FFC83D';
     for (let i = 1; i < A.trail.length; i++){ const p = A.trail[i-1], q = A.trail[i]; ctx.globalAlpha = 0.6*(1 - i/A.trail.length); ctx.lineWidth = 3*(1 - i/A.trail.length) + 0.5; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
     ctx.restore(); }
   ctx.save(); ctx.translate(A.x, A.y);
-  if (id === 'chakra'){
+  if (id === 'chakra' && A.C.kind === 'seek'){ const L = 70; glowDot(ctx, 0, 0, 70, art.aura, 0.5); ctx.rotate(Math.atan2(A.vy || 0, A.vx || 1)*0.2); ctx.translate(-L*0.66, 0); drawAstraShape(ctx, id, L, 1.2, t*3, true, true); }   // banking as it turns
+  else if (id === 'chakra'){
     const L = 70; glowDot(ctx, 0, 0, 70, art.aura, 0.5);
     ctx.translate(-L*0.66, 0); drawAstraShape(ctx, id, L, 1.2, t*3, true, true);
   } else if (id === 'gada'){
