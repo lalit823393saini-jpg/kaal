@@ -2980,10 +2980,11 @@ function hammerCatchTry(H){
 function hammerHits(H, dir){
   for (const e of G.E){
     if (e.dead || e.remote || H.hit.has(e) || !sameLayer(e) || (e._hmTry === H.id && e._hmCatch)) continue;   // the one reaching for it is not struck
-    const s = e.size || 1; if (Math.hypot(e.x - H.x, (e.y - 32*s) - H.y) > 30 + 20*s) continue;
+    const s = e.size || 1;
+    if (Math.abs(e.x - H.x) > 12 + 12*s || H.y < e.y - 72*s || H.y > e.y + 4) continue;   // the head itself has to reach the body
     H.hit.add(e);
     damageEnemy(e, 240*FM(), {kb:640, dir, src:'form', heavy:true, unblockable:true, breakArmor:6, knockdown:1.4, noStop:true});
-    impactFx(e.x, e.y - 36*s, '#7FE3FF', 1.4); bolt(H.x, H.y - 60, e.x, e.y - 36*s, '#7FE3FF');
+    impactFx(H.x, H.y, '#7FE3FF', 1.4); sparks(H.x, H.y); ringFx(H.x, H.y, 40, '#7FE3FF');   // the impact is where the iron meets them, no lightning
     G.shake = Math.max(G.shake, 2.5); G.hitstop = Math.max(G.hitstop, 0.02); sfx('kick'); vib(15);
   }
 }
