@@ -1170,7 +1170,8 @@ const GUNS = {
 };
 const GUN_TIER_MAX = 3;
 const gunTierCost = (id, t) => Math.max(120, Math.round((GUNS[id].price * 0.45 * (t+1)) / 10) * 10);
-const hasAstra = () => !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
+const noPowersMode = () => !!(G_ref && (G_ref.mode === 'spider' || G_ref.mode === 'hammer'));   // Spider and Hammer modes: no Divya Astras, no breathing styles
+const hasAstra = () => !noPowersMode() && !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
 const hasGun = () => !!(SV.eq.gun && GUNS[SV.eq.gun] && (SV.eq.gun in SV.guns));
 const isFistId = id => !!(SWORDS[id] && SWORDS[id].fist);
 const hasFists = () => 'fists' in SV.swords || !!(G_ref && ((G_ref.dojo && G_ref.mode === 'levels') || G_ref.mode === 'train' || G_ref.mode === 'spider' || G_ref.mode === 'hammer'));   // the dojo lends you fists   // the dojo lends you fists
@@ -2763,6 +2764,40 @@ function smartJump(id, x, vx, y){
     e._readId = id;
     if (Math.random() < G.smart){ e.vy = -700; e.onG = false; e.atk = null; pop(e.x, e.y - 100*(e.size || 1), 'Read it!', '#FF8A5A'); } }
 }
+/* ===== HAMMER & SPIDER MODES: the enemies are built to outclass you. Their health grows with your own damage upgrades and their
+   blows with your own health, so they stay above your level however strong you get; every kill pushes them further.
+   And many carry gear: Grenadier (a bomb that lands, blinks and blows), Netter (a net that pins you where you stand),
+   Hooker (a chain hook that drags you in), Shocker (a baton whose blows stun you). ===== */
+const GEAR = { grenade:{ tag:'GRENADIER', col:'#FF7A2A' }, net:{ tag:'NETTER', col:'#E8E0C8' }, hook:{ tag:'HOOK', col:'#C9C9D6' }, baton:{ tag:'SHOCKER', col:'#7FCBFF' } };
+function outclass(e, k){
+  const P = G.P, myDmg = 1 + 0.08*(SV.body.dmg || 0), myHp = P ? P.maxHp/100 : 1;
+  e.maxHp *= 1.45*myDmg + 0.015*Math.min(k, 200); e.hp = e.maxHp;
+  e.dmg *= 1.35*myHp + 0.01*Math.min(k, 200); e.spd *= 1.08;
+  const ranged = e.T && e.T.ranged;
+  if (!ranged && !isBoss(e) && Math.random() < Math.min(0.7, 0.25 + 0.01*k)){
+    const g = ['grenade', 'net', 'hook', 'baton'][(Math.random()*4)|0]; e.gear = g; e.gearT = rnd(1.5, 3); }
+  return e;
+}
+function gearTick(dt){
+  const P = G.P; if (!P || P.dead) return;
+  for (const e of G.E){ if (!e.gear || e.dead || e.remote || e.webHeld || e.webHung || e.webBound > 0 || e.state === 'down' || e.state === 'hurt' || e.hmGrab) continue;
+    e.gearT -= dt; if (e.gearT > 0) continue;
+    const dx = P.x - e.x, dist = Math.abs(dx), dir = sign(dx) || 1, s = e.size || 1, hy = e.y - 52*s;
+    if (e.gear === 'grenade' && dist > 140 && dist < 560){   // a lob that lands at your feet
+      const T = 0.8, vx = dx/T, vy = (P.y - 10 - hy - 0.5*1400*T*T)/T;
+      G.eproj.push({ kind:'bomb', x:e.x, y:hy, vx, vy, g:1400, r:7, dmg:e.dmg*1.6, life:4, rot:0, fuse:0.7, owner:e });
+      e.face = dir; e.gearT = rnd(3.5, 5); pop(e.x, e.y - 100*s, 'Bomb!', '#FF7A2A'); sfx('whoosh'); }
+    else if (e.gear === 'net' && dist > 120 && dist < 520){   // a weighted net straight at you
+      G.eproj.push({ kind:'net', x:e.x + dir*20, y:P.y - 44, vx:dir*640, vy:0, g:0, r:12, dmg:0, life:1.2, rot:0, owner:e });
+      e.face = dir; e.gearT = rnd(4, 6); sfx('swish'); }
+    else if (e.gear === 'hook' && dist > 110 && dist < 400){   // a chain hook
+      G.eproj.push({ kind:'hook', x:e.x + dir*16, y:hy + 10, vx:dir*900, vy:0, g:0, r:8, dmg:e.dmg*0.5, life:0.6, rot:0, owner:e });
+      e.face = dir; e.gearT = rnd(4, 6); sfx('swish'); }
+    else e.gearT = 0.5;
+  }
+  if (P.netT > 0){ P.netT -= dt; P.vx *= Math.pow(0.0005, dt); if (P.onG) P.vy = Math.max(P.vy, 0); P.atk = null; }   // pinned under the net
+  if (P.pullT > 0){ P.pullT -= dt; P.vx = P.pullV; }   // dragged in on the chain
+}
 /* ===== CHAMPIONS (Hammer and Spider modes): now and then, once the enemies have started learning, a champion arrives.
    Bigger, far tougher than you, hitting much harder, with two powers of its own:
    blink (appears behind you and strikes), quake (a telegraphed ground slam), aegis (an energy shield that must be broken first),
@@ -2811,6 +2846,17 @@ function championTick(dt){
       G.E.push(twin); smoke(twin.x, twin.y - 30, 14); pop(e.x, e.y - 130*e.size, 'Split!', '#C77DFF'); sfx('shadow'); }
   }
 }
+/* the gear tags over their heads, the shock baton crackling, and the net over you if you are caught */
+function drawGear(P){
+  ctx.save(); ctx.font = '600 12px Teko, sans-serif'; ctx.textAlign = 'center';
+  for (const e of G.E){ if (!e.gear || e.dead) continue; const g = GEAR[e.gear], s = e.size || 1;
+    ctx.fillStyle = g.col; ctx.globalAlpha = 0.9; ctx.fillText(g.tag, e.x, e.y - 98*s - (e.champ ? 18 : 0));
+    if (e.gear === 'baton' && Math.random() < 0.15) bolt(e.x + (e.face || 1)*16, e.y - 50*s, e.x + (e.face || 1)*30, e.y - 66*s, '#7FCBFF'); }
+  ctx.globalAlpha = 1; ctx.restore();
+  if (P && P.netT > 0){ ctx.save(); ctx.strokeStyle = '#E8E0C8'; ctx.lineWidth = 1.4; ctx.globalAlpha = Math.min(1, P.netT*2);
+    for (let k = -3; k <= 3; k++){ ctx.beginPath(); ctx.moveTo(P.x + k*7 - 12, P.y - 74); ctx.lineTo(P.x + k*7 + 12, P.y + 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(P.x + k*7 + 12, P.y - 74); ctx.lineTo(P.x + k*7 - 12, P.y + 2); ctx.stroke(); }
+    ctx.restore(); ctx.globalAlpha = 1; }
+}
 /* their aura, their name, their shield, the slam about to land */
 function drawChampions(){
   for (const e of G.E){ const C = e.champ; if (!C || e.dead) continue; const s = e.size || 1, t = G.time;
@@ -2832,7 +2878,7 @@ function startHammer(){
   G.worldW = 3200; resetCommon();
   G.hm = { state:'held', x:0, y:0, vx:0, vy:0, rot:0, hit:new Set() };
   G.hammerS = { spawnT:2.5 }; G.smart = 0; G.smartL = 2; G.smartAnn = false;
-  for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
+  for (let i = 0; i < 3; i++) G.E.push(outclass(makeEnemy('grunt', 1000 + i*160, G.diff, false), 0));
   toast('Hammer mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back · M: strap swing + uppercut · N: lightning from the sky', '#7FE3FF'); }, 1200);
   setScreen(null); G.running = true;
@@ -2854,7 +2900,7 @@ function hammerTick(dt, alive){
   const side = Math.random() < 0.6 - 0.25*(G.smart || 0) ? 1 : -1;   // smarter ones come at you from behind more often
   let x = P.x + side*(VW*0.55 + rnd(60, 200));
   if (x < 60 || x > G.worldW - 60) x = P.x - side*(VW*0.55 + rnd(60, 200));
-  G.E.push(champSpawnRoll(k) ? makeChampion(clamp(x, 60, G.worldW - 60)) : makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true));
+  G.E.push(outclass(champSpawnRoll(k) ? makeChampion(clamp(x, 60, G.worldW - 60)) : makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true), k));
 }
 /* the hammer each frame: thrown, falling, lying on the ground, or flying back to your hand */
 function hammerUpdate(P, dt){
@@ -3040,7 +3086,7 @@ function startSpider(){
   G.spiderTheme = ((G.spiderTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.spiderTheme];
   G.worldW = 2600; resetCommon(); fcNew();
   G.spider = { spawnT:2.5 }; G.smart = 0; G.smartL = 2; G.smartAnn = false;
-  for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
+  for (let i = 0; i < 3; i++) G.E.push(outclass(makeEnemy('grunt', 1000 + i*160, G.diff, false), 0));
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
     isTouch ? 'Swing: web to buildings · Web: catch enemies · Climb: crawl a wall · Net: wrap / hang'
@@ -3062,7 +3108,7 @@ function spiderTick(dt, alive){
   const side = Math.random() < 0.65 - 0.25*(G.smart || 0) ? 1 : -1;
   let x = P.x + side*(VW*0.55 + rnd(60, 200));
   if (x < 60 || x > G.worldW - 60) x = P.x - side*(VW*0.55 + rnd(60, 200));
-  G.E.push(champSpawnRoll(k) ? makeChampion(clamp(x, 60, G.worldW - 60)) : makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true));
+  G.E.push(outclass(champSpawnRoll(k) ? makeChampion(clamp(x, 60, G.worldW - 60)) : makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true), k));
 }
 /* the suit: red and blue, white lenses, a spider on the chest — drawn over the same body the game animates */
 function drawSpiderSuit(e, segs, tint){
@@ -3538,7 +3584,7 @@ function computeStats(){
   const tier = SV.swords[swId] || 0;
   const b = SV.body;
   // the equipped style grants a small passive just for carrying it
-  const eqStyle = SV.eq.style && SV.styles[SV.eq.style] ? SV.eq.style : null;
+  const eqStyle = !noPowersMode() && SV.eq.style && SV.styles[SV.eq.style] ? SV.eq.style : null;
   const bodyDmg = (1 + 0.08*b.dmg) * (eqStyle === 'sun' ? 1.06 : eqStyle === 'kaal' ? 1.1 : 1);
   return {
     sword: sw, swordId: swId, tier, aura: (COSMETICS[SV.eq.aura] || COSMETICS.aura_none),
@@ -3554,7 +3600,7 @@ function computeStats(){
     passive: eqStyle,
     scarf: COSMETICS[SV.eq.scarf].col,
     trail: COSMETICS[SV.eq.trail].col,
-    style: SV.eq.style && SV.styles[SV.eq.style] ? SV.eq.style : null
+    style: !noPowersMode() && SV.eq.style && SV.styles[SV.eq.style] ? SV.eq.style : null
   };
 }
 
@@ -5240,6 +5286,7 @@ $('fiSkip').onclick = closeFormIntro;
 $('fiOff').onclick = () => { SV.set.noFormCards = true; save(); closeFormIntro(); toast('Form cards off. Reset progress to see them again.', 1.6); };
 function tryForm(i){
   const P = G.P, sid = G.ST.style;
+  if (noPowersMode()) return;   // no breathing forms in Spider and Hammer modes
   if (!sid || P.form || P.dead) return;
   if (G.mode === 'coop' && !NET.coopCfg.forms){ if (G.time - (P.nbT||-9) > 0.9){ P.nbT = G.time; pop(P.x, P.y-90, 'Breathing forms are off in this co-op', '#9FD3F0'); } return; }
   if ((SV.styles[sid]||0) <= i) return;
@@ -6406,6 +6453,12 @@ function arrowDodge(P, q){
 function projHitPlayer(q){
   const P = G.P;
   if (q.dodged) return;
+  if ((q.kind === 'net' || q.kind === 'hook') && !(q.kind !== 'meteor' && arrowDodgeCheck(P, { x:q.x - sign(q.vx)*20, y:q.y, vx:q.vx }))){
+    q.life = 0; if (P.dead || P.inv > 0) return;
+    if (q.kind === 'net'){ P.netT = 1.3; pop(P.x, P.y - 110, 'Netted!', '#E8E0C8'); sfx('swish'); }   // pinned where you stand
+    else { const o = q.owner, d = o ? (sign(o.x - P.x) || 1) : -sign(q.vx); P.pullT = 0.28; P.pullV = d*760; P.onG = false; P.vy = -160;   // dragged in on the chain
+      hurtPlayer(q.dmg, 0, o || { x:q.x, face:sign(q.vx) || 1 }, false); if (o && !o.dead){ o.state = 'windup'; o.timer = o.wind*0.4; } pop(P.x, P.y - 110, 'Hooked!', '#C9C9D6'); sfx('clang'); }
+    return; }
   if (q.kind !== 'meteor' && arrowDodgeCheck(P, { x:q.x - sign(q.vx)*20, y:q.y, vx:q.vx })){ arrowDodge(P, q); return; }
   if (P.inv > 0 || P.dead) return;
   if (G.world && (q.inH || null) !== (P.inH || null)) return;
@@ -6585,6 +6638,7 @@ function hurtPlayer(dmg, kb, e, full){
   if (P.atk) P.lastAtkT = G.time;
   if (autoDodge(P, e)) return;
   const iron = P.ironT > 0;
+  if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0)){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
   if (iron) dmg *= 0.5;
   if (iron && e && e.T && !e.dead && !e.remote && Math.abs(e.x - P.x) < 150 && G.ST.style === 'stone')   // Granite Skin: striking stone hurts
     damageEnemy(e, 12*FM(), { kb:220, dir:sign(e.x - P.x) || 1, stun:0.7, src:'form', noStop:true });
@@ -9356,6 +9410,12 @@ function drawEProj(){
     if (q.life <= 0) continue;
     const ang = Math.atan2(q.vy, q.vx);
     ctx.save(); ctx.translate(q.x, q.y);
+    if (q.kind === 'bomb'){ ctx.fillStyle = '#2A2A2E'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 6.283); ctx.fill(); ctx.strokeStyle = '#8A6A4A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(3, -7); ctx.lineTo(7, -12); ctx.stroke();
+      if (q.g === 0 && Math.floor(q.fuse*10) % 2 === 0){ ctx.fillStyle = '#FF3B2F'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, 6.283); ctx.fill(); }   // blinking on the ground
+      ctx.restore(); continue; }
+    if (q.kind === 'net'){ ctx.strokeStyle = '#E8E0C8'; ctx.lineWidth = 1.4; const R = 16; for (let k = -2; k <= 2; k++){ ctx.beginPath(); ctx.moveTo(k*6, -R); ctx.lineTo(k*6, R); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-R, k*6); ctx.lineTo(R, k*6); ctx.stroke(); } ctx.restore(); continue; }
+    if (q.kind === 'hook'){ ctx.restore(); if (q.owner){ ctx.save(); ctx.strokeStyle = '#8A8A96'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(q.owner.x, q.owner.y - 50*(q.owner.size || 1)); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.restore(); }   // the chain
+      ctx.save(); ctx.translate(q.x, q.y); ctx.scale(sign(q.vx) || 1, 1); ctx.strokeStyle = '#C9C9D6'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 7, -1.2, 2.2); ctx.stroke(); ctx.restore(); continue; }
     switch (q.kind){
       case 'arrow': case 'kunai':
         ctx.rotate(ang);
@@ -10468,7 +10528,7 @@ function renderScene(){
     if (P.form && P.form.id==='frost5' && !P.form.wait) drawBlizzard(P);
     if (P.form && !P.form.wait && (P.form.id==='frost2' || P.form.id==='frost3' || P.form.id==='frost4')) drawFrostForm(P);
     drawShadowForms(P);
-    drawChampions();
+    drawChampions(); drawGear(P);
     drawSunForms(P);
     if (G.kaalStop && (G.stopT || 0) > 0) drawKaalClock(P);
     if (P.form && P.form.id === 'serpent2' && !P.form.wait) drawConstrictor(P);
@@ -14326,6 +14386,11 @@ function step(dt){
       if (q.kind==='meteor' && Math.random()<0.8) emit(q.x, q.y, {n:1, col:['#FF7A2A','#FFE14D'], spd:40, size:5, life:0.4, kind:'ember', g:-0.2, real:false});
       if (q.kind==='blood' && Math.random()<0.4) emit(q.x, q.y, {n:1, col:['#FF3B2F','#5A0A16'], spd:30, size:3, life:0.35, kind:'ember', g:0, real:false});
     }
+    if (q.kind === 'bomb'){   // it lands, skids, blinks, and goes off
+      if (q.y >= GROUND - 8){ q.y = GROUND - 8; q.vy = 0; q.g = 0; q.vx *= Math.pow(0.02, wdt); q.fuse -= wdt; q.rot = 0;
+        if (q.fuse <= 0){ q.life = 0; ringFx(q.x, GROUND - 10, 120, '#FF7A2A', true); burst(q.x, GROUND - 10, 24, '#FF7A2A', 420, 5, true); emit(q.x, GROUND - 10, {n:16, col:['#FF7A2A','#FFE14D','#444'], spd:300, size:6, life:0.6, kind:'ember', g:-0.2}); sfx('boom');
+          if (Math.abs(P.x - q.x) < 120 && Math.abs(P.y - GROUND) < 90 && !P.dead) hurtPlayer(q.dmg, 260, { x:q.x, y:GROUND, face:sign(P.x - q.x) || 1 }, true); } }
+      continue; }
     if (q.y >= GROUND - 2){
       if (q.kind==='meteor') meteorBoom(q);
       else if (q.kind!=='blood'){ q.life = 0; burst(q.x, GROUND, 4, '#2a1418', 120, 2); }
@@ -14450,7 +14515,7 @@ function step(dt){
   }
   if (G.mode === 'spider' && !P.dead) spiderTick(dt, alive);
   if (G.mode === 'hammer' && !P.dead) hammerTick(dt, alive);
-  if (G.mode === 'hammer' || G.mode === 'spider') championTick(dt);
+  if (G.mode === 'hammer' || G.mode === 'spider'){ championTick(dt); gearTick(dt); }
   G.E = G.E.filter(e=>!e.dead);
   updateHUD(alive);
 }
