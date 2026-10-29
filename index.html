@@ -803,7 +803,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <button class="mode new" id="goRush" style="--mc:#FF5A3D"><span class="mn">Boss Rush</span><span class="md">Iron Ronin, Kage, Gorath and Asura back to back. Beat the clock.</span><span class="mb" id="mbRush"></span></button>
     <button class="mode new" id="goBlitz" style="--mc:#FFE14D"><span class="mn">Blitz</span><span class="md">90 seconds. Enemies never stop. Every kill adds 1 s, every combo adds score.</span><span class="mb" id="mbBlitz"></span></button>
     <button class="mode new" id="goZomb" style="--mc:#8FE38A"><span class="mn">Zombie Outbreak</span><span class="md">Six areas of the walking dead, wave by wave. Ride a bike or a car and run them down.</span><span class="mb" id="mbZomb"></span></button>
-    <button class="mode new" id="goShadow" style="--mc:#9B6BFF"><span class="mn">Shadow Legion</span><span class="md">Kill them, then raise their shadows out of the ground to fight for you. Raise as many as you like; they stand as long as your mana lasts.</span><span class="mb">New</span></button>
+    <button class="mode new" id="goShadow" style="--mc:#9B6BFF"><span class="mn">Shadow Legion · Hunter</span><span class="md">Gates open in the city: go in, clear the dungeon and its boss before the gate breaks, collect mana crystals, rise through the Hunter ranks. Kill them, then raise their shadows out of the ground to fight for you. Raise as many as you like; they stand as long as your mana lasts.</span><span class="mb">New</span></button>
     <button class="mode new" id="goHammer" style="--mc:#7FE3FF"><span class="mn">Hammer mode</span><span class="md">A war hammer of storm-iron. Smash with it, throw it with Z and it flies head first through everything in its path; Z again calls it back. Only you can lift it, and the more you fight with it the farther it flies.</span><span class="mb">New</span></button>
     <button class="mode new" id="goSpider" style="--mc:#E8202A"><span class="mn">Spider Chase</span><span class="md">Run and swing through an endless city while they come flying after you. Leave web traps behind you to stop them. How far can you get?</span><span class="mb">New</span></button>
     <button class="mode" id="goFree" style="--mc:#F6B26B"><span class="mn">Free mode</span><span class="md">Sandbox. Spawn anything, set the strength, test your loadout.</span><span class="mb" id="mbFree"></span></button>
@@ -2878,15 +2878,17 @@ function startShadow(){
   G.mode = 'shadow'; G.level = 0; G.diff = diffFor(3);
   G.shadowTheme = ((G.shadowTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.shadowTheme];
   G.worldW = 3200; resetCommon();
-  G.allies = []; G.corpses = []; G.shadowS = { spawnT:2 }; G.stored = [];   // shadows that sank are kept here, ready to be called back
+  G.allies = []; G.corpses = []; G.shadowS = { spawnT:2 }; G.stored = []; G.legionMode = 'guard'; makeGates(); G.dungeon = null; G.city = null; G.crystals = [];
+  setTimeout(() => { if (G.mode === 'shadow' && G.gates && !G.gates.length) newGate(); }, 1500);   // the first gate opens soon after you arrive   // shadows that sank are kept here, ready to be called back
   { const box = $('extraBtns'); if (box && !document.getElementById('riseBtn')){ const b = document.createElement('button'); b.id = 'riseBtn'; b.className = 'tb sm'; b.dataset.k = 'clone'; b.textContent = 'Rise'; b.style.setProperty('--sc', '#9B6BFF'); b.setAttribute('aria-label', 'Hold over a fading body to raise its shadow; tap away from bodies to send the shadows back'); box.appendChild(b); bindTouch(b);
+    const en = document.createElement('button'); en.id = 'enterBtn'; en.className = 'tb sm'; en.dataset.k = 'interact'; en.textContent = 'Enter'; en.style.setProperty('--sc', '#3FA9FF'); en.setAttribute('aria-label', 'Enter the gate you stand at'); box.appendChild(en); bindTouch(en);
+    const at = document.createElement('button'); at.id = 'cmdBtn'; at.className = 'tb sm'; at.dataset.k = 'legionCmd'; at.textContent = 'Attack'; at.style.setProperty('--sc', '#FF8A8A'); at.setAttribute('aria-label', 'Shadows: attack or guard'); box.appendChild(at); bindTouch(at);
     const r = document.createElement('button'); r.id = 'returnBtn'; r.className = 'tb sm'; r.dataset.k = 'webAll'; r.textContent = 'Return'; r.style.setProperty('--sc', '#9B6BFF'); r.setAttribute('aria-label', 'Send every shadow back into the dark'); box.appendChild(r); bindTouch(r); } }
   G.P.manaMax = manaMaxFor(); G.P.mana = G.P.manaMax;
-  for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Shadow Legion', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
     isTouch ? 'Kill · hold Rise: every fallen body rises (or your kept shadows return) · Return: send them all back'
-            : 'Kill · hold R anywhere: every fallen body rises (or your kept shadows return) · B: send them all back', '#9B6BFF'); }, 900);
+            : 'Gates open in the city · O at a gate: enter its dungeon · clear it before it breaks · R: raise shadows · Tab: attack / guard · B: send back', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -2894,17 +2896,11 @@ function shadowTick(dt, alive){
   const S = G.shadowS, P = G.P; if (!S || !P) return;
   const k = G.kills;
   if (k > (SV.shadowBest || 0)){ SV.shadowBest = k; saveSoon(); }
-  G.diff = diffFor(Math.min(14, 3 + Math.floor(k/10)));
-  // spawning: they come in numbers, and more the bigger your legion is
-  S.spawnT -= dt;
-  const legion = G.allies.filter(a => !a.fade).length, want = Math.min(4 + Math.floor(k/6) + Math.floor(legion*0.7), 18);
-  if (alive < want && S.spawnT <= 0){
-    S.spawnT = Math.max(0.5, 1.6 - k*0.015);
-    const pool = ['grunt', 'grunt', 'fencer', 'assassin', 'brute', 'ninja', 'runner', 'shield', 'archer', 'demon'];
-    const side = Math.random() < 0.5 ? 1 : -1; let x = P.x + side*(VW*0.55 + rnd(60, 200));
-    if (x < 60 || x > G.worldW - 60) x = P.x - side*(VW*0.55 + rnd(60, 200));
-    G.E.push(makeEnemy(pool[(Math.random()*Math.min(pool.length, 3 + Math.floor(k/5)))|0], clamp(x, 60, G.worldW - 60), G.diff, true));
-  }
+  gatesTick(dt, alive);
+  const legion = G.allies.filter(a => !a.fade).length;
+  if (pressed.legionCmd && legion){   // Tab: attack / guard
+    G.legionMode = G.legionMode === 'attack' ? 'guard' : 'attack';
+    pop(P.x, P.y - 125, G.legionMode === 'attack' ? 'ATTACK!' : 'Guard me', G.legionMode === 'attack' ? '#FF8A8A' : '#C9A8FF'); sfx('shadow'); }
   // mana: drains for every shadow standing, refills when none are
   if (legion) P.mana -= SHADOW_DRAIN*legion*dt; else P.mana = Math.min(P.manaMax, P.mana + manaRegenFor()*dt);
   if (P.mana <= 0 && legion){ P.mana = 0; for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Out of mana: the shadows sink', '#9B6BFF'); }
@@ -2915,7 +2911,7 @@ function shadowTick(dt, alive){
   if (held.clone && !P.dead){ P.raiseT = (P.raiseT || 0) + dt;
     if (FXL() > 0 && Math.random() < 0.6) for (const c of G.corpses) if (Math.random() < 0.3) G.parts.push({ x:c.x + rnd(-20, 20), y:GROUND - rnd(0, 16), vx:0, vy:-rnd(80, 180), life:0.5, max:0.5, col:Math.random() < 0.5 ? '#2B1D4E' : '#9B6BFF', size:4, real:true });
     if (P.raiseT >= 0.45){ P.raiseT = -9;   // once per hold
-      if (G.corpses.length) raiseAll(P); else if ((G.stored || []).length) callShadows(P); else pop(P.x, P.y - 110, 'No bodies to raise', 'rgba(201,168,255,0.8)'); } }
+      G.legionMode = 'guard'; if (G.corpses.length) raiseAll(P); else if ((G.stored || []).length) callShadows(P); else pop(P.x, P.y - 110, 'No bodies to raise', 'rgba(201,168,255,0.8)'); } }
   else P.raiseT = 0;
   P.raise = held.clone && P.raiseT >= 0 ? { t:P.raiseT } : null;
   if (pressed.webAll && G.allies.some(a => !a.fade)){ for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Return to the dark', '#9B6BFF'); sfx('shadow'); }   // B: all of them back inside
@@ -2941,6 +2937,137 @@ function callShadows(P){
   P.mana -= n*CALL_COST;
   pop(P.x, P.y - 125, n + (G.stored.length ? ' rise · ' + G.stored.length + ' wait' : ' rise'), '#C9A8FF'); sfx('shadow'); vib(40);
 }
+/* ===== GATES & DUNGEONS. Gates open in the city without warning; each leads to a dungeon of a given rank (E, D, C, B, A, S).
+   Walk up to a blue gate and press O to go in: monsters and magical creatures, spike traps, and a boss at the end. Kill the boss
+   and the gate closes: coins, mana crystals and Hunter experience. Leave a gate too long and it BREAKS: it turns red, and a
+   commander leads its army out into the city, and more keep coming until the commander falls.
+   You are a Hunter: clearing gates raises your rank, and the gates that open get more dangerous with it. ===== */
+const RANKS = ['E', 'D', 'C', 'B', 'A', 'S'], RANK_COL = ['#9FD3FF', '#7FE39F', '#FFE14D', '#FF9A3D', '#FF5A8A', '#C77DFF'];
+const RANK_XP = [0, 60, 180, 420, 900, 1800], RANK_BOSS = ['kage', 'ronin', 'ogre', 'asura', 'abom', 'yama'];
+const hunterRank = () => { const xp = SV.hunterXP || 0; let r = 0; for (let i = 0; i < RANK_XP.length; i++) if (xp >= RANK_XP[i]) r = i; return r; };
+function makeGates(){ G.gates = []; G.waves = 0; G.gateT = 3; G.crystalsFx = []; }
+function newGate(){
+  const P = G.P, hr = hunterRank(), rank = clamp(hr + ((Math.random()*4)|0) - 1, 0, 5);
+  let x; for (let i = 0; i < 20; i++){ x = rnd(200, G.worldW - 200); if (Math.abs(x - P.x) > 350 && !G.gates.some(g => Math.abs(g.x - x) < 300)) break; }
+  const g = { x, rank, timer:70 + 12*(5 - rank) + rnd(0, 20), red:false, commander:null, spawnT:0 };
+  G.gates.push(g); pop(P.x, P.y - 130, RANKS[rank] + '-rank gate opened', RANK_COL[rank]); sfx('shadow');
+}
+function gateEnemy(g, type, boost){
+  const e = makeEnemy(type, g.x + rnd(-20, 20), G.diff, false);
+  const k = 1 + 0.04*G.waves + (boost || 0) + 0.35*(g.rank || 0);   // stronger every wave, and by the gate's rank
+  e.maxHp *= k; e.hp = e.maxHp; e.dmg *= 1 + 0.025*G.waves + (boost || 0)*0.6 + 0.2*(g.rank || 0); e.alert = true; e.state = 'chase'; e.fromGate = g;   // out of the gate and straight for you
+  ringFx(g.x, GROUND - 60, 60, g.red ? '#FF3B3B' : '#3FA9FF'); G.E.push(e); return e;
+}
+function gatesTick(dt, alive){
+  const P = G.P; if (!G.gates) makeGates();
+  if (G.dungeon){ dungeonTick(dt, alive); return; }
+  G.diff = diffFor(Math.min(24, 3 + Math.floor(G.waves/6) + 2*hunterRank()));
+  const pool = ['grunt', 'fencer', 'assassin', 'brute', 'ninja', 'runner', 'shield', 'archer', 'demon', 'zombie', 'bloater'];
+  G.gateT -= dt; if (G.gateT <= 0){ G.gateT = rnd(28, 42); if (G.gates.length < 3) newGate(); }   // gates open without warning
+  for (const g of G.gates){
+    if (!g.red){ g.timer -= dt;
+      if (g.timer <= 0){ g.red = true; g.spawnT = 1;   // DUNGEON BREAK
+        const c = gateEnemy(g, Math.random() < 0.5 ? 'brute' : 'demon', 2.5); c.size *= 1.45; c.maxHp *= 2.5; c.hp = c.maxHp; c.dmg *= 1.4; c.cmdr = true; g.commander = c;
+        for (let i = 0; i < 5; i++){ const m = gateEnemy(g, pool[2 + ((Math.random()*9)|0)], 0.8); m.army = c; }
+        showBanner('DUNGEON BREAK', RANKS[g.rank] + '-rank gate turned red', 'Its commander leads an army into the city · bring it down', '#FF3B3B'); sfx('boom'); vib(80); } }
+    else { g.spawnT -= dt; if (g.spawnT <= 0 && alive < 22){ g.spawnT = 2.6; for (let i = 0; i < 2; i++){ const m = gateEnemy(g, pool[2 + ((Math.random()*9)|0)], 0.8); m.army = g.commander; } G.waves++; alive += 2; } }
+  }
+  const near = G.gates.find(g => !g.red && Math.abs(g.x - P.x) < 90);
+  G.gateNear = near || null;
+  if (near && pressed.interact && !P.dead) enterDungeon(near);
+}
+function gateCommanderFell(e){
+  const g = (G.gates || []).find(g => g.commander === e); if (!g) return;
+  for (const m of G.E) if (m.army === e) m.army = null;
+  G.gates.splice(G.gates.indexOf(g), 1);   // the broken gate closes
+  const P = G.P; if (P) P.mana = Math.min(P.manaMax, P.mana + P.manaMax*0.5);
+  SV.coins = (SV.coins || 0) + 300*(g.rank + 1); SV.hunterXP = (SV.hunterXP || 0) + 15*(g.rank + 1); saveSoon();
+  showBanner('Gate closed', 'The dungeon break is over', '+' + 300*(g.rank + 1) + ' coins · +50% mana', '#3FA9FF');
+}
+/* ---------- inside a dungeon ---------- */
+function enterDungeon(g){
+  const P = G.P, r = g.rank;
+  G.city = { E:G.E, corpses:G.corpses, x:P.x, theme:G.theme, worldW:G.worldW };
+  G.E = []; G.corpses = []; G.eproj = []; G.worldW = 2800; G.theme = 'temple';
+  P.x = 140; P.y = GROUND; P.vx = 0; G.camX = 0;
+  for (const a of G.allies){ a.x = P.x + (a.slot || rnd(-60, 60)); a.tgt = null; }
+  const traps = []; for (let x = 600; x < 2400; x += rnd(380, 560)) traps.push({ x, w:70, t:rnd(0, 2.5) });
+  G.dungeon = { g, rank:r, kills:0, need:8 + 4*r, boss:null, spawnT:1, done:false, traps };
+  G.diff = diffFor(Math.min(30, 4 + 4*r));
+  showBanner(RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', 'Mind the spike traps · collect the mana crystals', RANK_COL[r]); sfx('shadow');
+}
+function dungeonTick(dt, alive){
+  const D = G.dungeon, P = G.P, r = D.rank;
+  const pool = ['grunt', 'fencer', 'assassin', 'brute', 'ninja', 'demon', 'zombie', 'bloater', 'runner', 'shield'];
+  if (!D.boss && !D.done){ D.spawnT -= dt;
+    if (D.spawnT <= 0 && alive < 6 + r && D.kills + alive < D.need){ D.spawnT = Math.max(0.8, 1.6 - 0.12*r);
+      const n = Math.min(2 + (r > 2 ? 1 : 0), D.need - D.kills - alive);   // they come in packs
+      for (let i = 0; i < n; i++){
+        const x = clamp(P.x + (Math.random() < 0.8 ? 1 : -1)*(VW*0.55 + rnd(40, 200)), 60, G.worldW - 60);
+        const e = makeEnemy(pool[(Math.random()*Math.min(pool.length, 4 + r))|0], x, G.diff, false);
+        const k = 1 + 0.45*r; e.maxHp *= k; e.hp = e.maxHp; e.dmg *= 1 + 0.25*r; e.alert = true; e.state = 'chase'; e.dun = true; G.E.push(e); } }
+    if (D.kills >= D.need){   // the boss
+      const b = makeEnemy(RANK_BOSS[r], clamp(P.x + 520, 100, G.worldW - 100), G.diff, false);
+      const k = 1 + 0.6*r; b.maxHp *= k; b.hp = b.maxHp; b.dmg *= 1 + 0.3*r; b.alert = true; b.state = 'chase'; b.dun = true; b.dunBoss = true; G.E.push(b); D.boss = b;
+      showBanner('Dungeon Boss', RANKS[r] + '-rank', 'Bring it down to close the gate', RANK_COL[r]); sfx('boom'); vib(80); } }
+  for (const t of D.traps){ t.t += dt; const up = (t.t % 2.6) < 0.8;   // spike traps: up, down, up
+    t.up = up; if (up && P.onG && !P.dead && Math.abs(P.x - t.x) < t.w/2 && !(P.inv > 0)){ hurtPlayer(10 + 6*r, 260, { x:t.x, face:sign(P.x - t.x) || 1 }, true); P.inv = Math.max(P.inv, 0.6); } }
+  for (const c of G.crystals || []){ c.t += dt; if (!c.got && Math.abs(c.x - P.x) < 34 && Math.abs(c.y - (P.y - 20)) < 60){ c.got = true;   // mana crystals
+    SV.crystals = (SV.crystals || 0) + c.v; SV.coins = (SV.coins || 0) + 15*c.v; P.mana = Math.min(P.manaMax, P.mana + P.manaMax*0.02*c.v); pop(c.x, c.y - 30, '+' + c.v + ' crystal', '#7FE3FF'); sfx('coin'); } }
+  G.crystals = (G.crystals || []).filter(c => !c.got && c.t < 25);
+  if (D.done){ D.exitT -= dt; if (D.exitT <= 0) leaveDungeon(); }
+}
+function dungeonKill(e){
+  const D = G.dungeon; if (!D || !e.dun) return;
+  D.kills++;
+  if (Math.random() < 0.6 || e.dunBoss) (G.crystals = G.crystals || []).push({ x:e.x, y:GROUND - 14, v:e.dunBoss ? 10*(D.rank + 1) : D.rank + 1, t:0 });
+  if (e.dunBoss && !D.done){ D.done = true; D.exitT = 3.5;
+    const coins = 250*(D.rank + 1)*(D.rank + 1), xp = [20, 40, 70, 120, 200, 350][D.rank];
+    SV.coins = (SV.coins || 0) + coins; SV.hunterXP = (SV.hunterXP || 0) + xp; saveSoon();
+    const before = D.rankBefore = hunterRank();
+    showBanner('Gate cleared', RANKS[D.rank] + '-rank dungeon', '+' + coins + ' coins · +' + xp + ' Hunter XP · collect the crystals', RANK_COL[D.rank]); }
+}
+function leaveDungeon(){
+  const D = G.dungeon, P = G.P, C = G.city; if (!D || !C) return;
+  const g = D.g; G.gates.splice(G.gates.indexOf(g), 1);   // the gate closes behind you
+  G.E = C.E; G.corpses = C.corpses; G.eproj = []; G.worldW = C.worldW; G.theme = C.theme; G.crystals = [];
+  P.x = g.x; P.y = GROUND; P.vx = 0; for (const a of G.allies){ a.x = P.x + (a.slot || 0); a.tgt = null; }
+  G.dungeon = null; G.city = null;
+  const r = hunterRank(); if (r > (D.rankBefore ?? r)) showBanner('RANK UP', 'You are now a ' + RANKS[r] + '-rank Hunter', 'More dangerous gates will open', RANK_COL[r]);
+}
+function drawGates(){
+  if (G.dungeon){   // spike traps and crystals
+    for (const t of G.dungeon.traps){ if (t.x < G.camX - 100 || t.x > G.camX + VW + 100) continue;
+      ctx.save(); ctx.fillStyle = '#2a2230'; ctx.fillRect(t.x - t.w/2, GROUND - 4, t.w, 6);
+      if (t.up){ ctx.fillStyle = '#C9C9D6'; for (let k = 0; k < 6; k++){ const x = t.x - t.w/2 + 6 + k*11.5; ctx.beginPath(); ctx.moveTo(x - 5, GROUND - 2); ctx.lineTo(x, GROUND - 30); ctx.lineTo(x + 5, GROUND - 2); ctx.fill(); } }
+      else { ctx.fillStyle = 'rgba(255,80,80,0.35)'; ctx.fillRect(t.x - t.w/2, GROUND - 6, t.w, 3); }
+      ctx.restore(); }
+    for (const c of G.crystals || []){ const y = c.y - 4*Math.sin(G.time*4 + c.x);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(127,227,255,0.35)'; ctx.beginPath(); ctx.arc(c.x, y, 14, 0, 6.283); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.fillStyle = '#7FE3FF'; ctx.strokeStyle = '#E8FBFF'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.x, y - 11); ctx.lineTo(c.x + 6, y); ctx.lineTo(c.x, y + 9); ctx.lineTo(c.x - 6, y); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
+    return; }
+  for (const g of G.gates || []){ if (g.x >= G.camX - 60 && g.x <= G.camX + VW + 60) continue;   // off screen: a marker at the edge pointing to it
+    const left = g.x < G.camX, ex = left ? G.camX + 18 : G.camX + VW - 18, ey = GROUND - 150, c = g.red ? '#FF3B3B' : RANK_COL[g.rank];
+    ctx.save(); ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(ex + (left ? -10 : 10), ey); ctx.lineTo(ex + (left ? 6 : -6), ey - 10); ctx.lineTo(ex + (left ? 6 : -6), ey + 10); ctx.fill();
+    ctx.font = '600 13px Teko, sans-serif'; ctx.textAlign = left ? 'left' : 'right'; ctx.fillText(RANKS[g.rank] + (g.red ? ' BREAK ' : ' gate ') + Math.round(Math.abs(g.x - G.P.x)/10) + ' m', ex + (left ? 10 : -10), ey + 24); ctx.restore(); }
+  for (const g of G.gates || []){ if (g.x < G.camX - 200 || g.x > G.camX + VW + 200) continue;
+    const col = g.red ? [255, 59, 59] : [63, 169, 255], c = `rgb(${col})`, cx = g.x, cy = GROUND - 95, t = G.time;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const gr = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120); gr.addColorStop(0, `rgba(${col},0.55)`); gr.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(cx, cy, 70, 110, 0, 0, 6.283); ctx.fill();
+    for (let k = 0; k < 4; k++){ ctx.strokeStyle = `rgba(${col},${0.6 - k*0.12})`; ctx.lineWidth = 4 - k*0.6; ctx.beginPath(); ctx.ellipse(cx, cy, 52 - k*9, 92 - k*14, 0, t*(1.5 + k*0.6), t*(1.5 + k*0.6) + 5); ctx.stroke(); }   // the swirl
+    ctx.restore();
+    ctx.save(); ctx.fillStyle = 'rgba(8,4,16,0.75)'; ctx.beginPath(); ctx.ellipse(cx, cy, 34, 70, 0, 0, 6.283); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.textAlign = 'center'; ctx.font = '600 16px Teko, sans-serif'; ctx.fillStyle = RANK_COL[g.rank];
+    ctx.fillText(RANKS[g.rank] + '-RANK ' + (g.red ? 'DUNGEON BREAK' : 'GATE'), cx, cy - 128);
+    ctx.font = '600 13px Teko, sans-serif'; ctx.fillStyle = g.red ? '#FF8A8A' : '#DCEBFF';
+    if (!g.red){ const s = Math.max(0, Math.ceil(g.timer)); ctx.fillText('breaks in ' + Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0'), cx, cy - 112);
+      if (G.gateNear === g) ctx.fillText(isTouch ? 'tap Enter' : 'O: enter the dungeon', cx, cy + 128); }
+    ctx.restore(); }
+  ctx.save(); ctx.font = '600 13px Teko, sans-serif'; ctx.textAlign = 'center';
+  for (const e of G.E){ if (!e.cmdr || e.dead) continue; ctx.fillStyle = '#FF8A8A'; ctx.fillText('GATE COMMANDER', e.x, e.y - 100*e.size - 12); }
+  ctx.restore();
+}
 function raiseShadow(P, c, many){
   c.taken = true; P.mana -= SHADOW_COST;
   const a = makeEnemy(c.type, c.x, G.diff, false);
@@ -2951,22 +3078,43 @@ function raiseShadow(P, c, many){
 }
 /* the shadows' own little minds: find the nearest enemy, close in, strike; nothing to fight, keep at your back */
 function alliesTick(dt){
-  const P = G.P;
+  const P = G.P, live = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1), guard = G.legionMode !== 'attack';
+  // guard formation: the four nearest stand close, each to its own spot; the rest wait a little further off, both sides of you
+  const slots = [-55, 55, -100, 100];
+  const byDist = live.slice().sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x));
+  const guards = guard ? byDist.slice(0, 4) : [];
+  guards.forEach(a => { a.role = 'guard'; }); live.forEach(a => { if (!guards.includes(a)) a.role = guard ? 'reserve' : 'attack'; });
+  const freeSlots = slots.slice();
+  for (const a of guards){ if (a.slot == null || !freeSlots.includes(a.slot)){ freeSlots.sort((p, q) => Math.abs(P.x + p - a.x) - Math.abs(P.x + q - a.x)); a.slot = freeSlots[0]; } freeSlots.splice(freeSlots.indexOf(a.slot), 1); }
+  let ri = 0; for (const a of live) if (a.role === 'reserve'){ a.slot = (ri % 2 ? 1 : -1)*(160 + 26*Math.floor(ri/2)); ri++; }
+  // threats: enemies that come close to you; a guard goes out to meet them, kills them, and comes back
+  const threats = guard ? G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 230 && Math.abs(e.y - P.y) < 160) : [];
+  for (const a of guards){ if (a.tgt && (a.tgt.dead || Math.abs(a.tgt.x - P.x) > 340)) a.tgt = null; }
+  for (const e of threats){ if (guards.some(a => a.tgt === e)) continue; const free = guards.filter(a => !a.tgt).sort((p, q) => Math.abs(p.x - e.x) - Math.abs(q.x - e.x))[0]; if (free) free.tgt = e; }
+  // guards stop shots aimed at you
+  if (guard) for (const q of G.eproj){ if (q.life <= 0 || q.kind === 'meteor') continue; for (const a of guards){ if (Math.abs(q.x - a.x) < 22*(a.size || 1) && q.y > a.y - 80*(a.size || 1) && q.y < a.y){ q.life = 0; sparks(q.x, q.y); break; } } }
   for (const a of G.allies){
     if (a.fade){ a.fade += dt; continue; }
     a.rise = Math.min(1, (a.rise ?? 0) + dt*2.5);
     if (a.rise < 1) continue;
-    let tgt = a.tgt && !a.tgt.dead ? a.tgt : null;
-    if (!tgt || Math.abs(tgt.x - a.x) > 700){ let bd = 650; tgt = null; for (const e of G.E){ if (e.dead || e.remote) continue; const d = Math.abs(e.x - a.x); if (d < bd){ bd = d; tgt = e; } } a.tgt = tgt; }
     const spd = (a.T.spd || 120)*1.25*(G.diff.spd || 1);
+    let tgt = null;
+    if (a.role === 'attack'){   // Tab: hunt the nearest enemy
+      tgt = a.tgt && !a.tgt.dead && Math.abs(a.tgt.x - a.x) < 900 ? a.tgt : null;
+      if (!tgt){ let bd = 900; for (const e of G.E){ if (e.dead || e.remote) continue; const d = Math.abs(e.x - a.x); if (d < bd){ bd = d; tgt = e; } } a.tgt = tgt; } }
+    else if (a.role === 'guard') tgt = a.tgt && !a.tgt.dead ? a.tgt : null;
+    else { tgt = null; a.tgt = null; }
     if (a.state === 'windup'){ a.timer -= dt; a.vx = 0; if (a.timer <= 0){ a.state = 'swing'; a.timer = 0.14;
-        if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; damageEnemy(tgt, a.dmg, { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true, unblockable:true, breakArmor:1 }); /* shadows go round shields and guards */ G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false; if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0}); } } }
+        if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; damageEnemy(tgt, a.dmg, { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true, unblockable:true }); G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false;
+          if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0}); } } }
     else if (a.state === 'swing'){ a.timer -= dt; if (a.timer <= 0){ a.state = 'recover'; a.timer = 0.3; } }
     else if (a.state === 'recover'){ a.timer -= dt; a.vx = 0; if (a.timer <= 0) a.state = 'idle'; }
-    else if (tgt){ const dx = tgt.x - a.x; a.face = sign(dx) || a.face;
+    else if (tgt){ const dx = tgt.x - a.x; if (Math.abs(dx) > 8) a.face = sign(dx);
       if (Math.abs(dx) < 55*a.size){ a.state = 'windup'; a.timer = 0.22; a.vx = 0; } else { a.vx = sign(dx)*spd; a.state = 'chase'; } }
-    else { const home = P.x - P.face*(70 + 30*((G.allies.indexOf(a)) % 4)), dx = home - a.x; a.face = sign(P.x - a.x) || a.face;   // at your back
-      if (Math.abs(dx) > 20){ a.vx = sign(dx)*Math.min(spd*1.3, Math.abs(dx)*4); a.state = 'chase'; } else { a.vx = 0; a.state = 'idle'; } }
+    else {   // to its spot by you, then still, facing out (no flipping back and forth)
+      const home = clamp(P.x + (a.slot || 0), 20, G.worldW - 20), dx = home - a.x;
+      if (Math.abs(dx) > 14){ a.vx = sign(dx)*Math.min(spd*1.4, Math.abs(dx)*5); a.state = 'chase'; a.face = sign(dx); }
+      else { a.vx = 0; a.state = 'idle'; a.face = sign(a.slot || 1); } }
     a.x = clamp(a.x + a.vx*dt, 20, G.worldW - 20); a.walk = (a.walk || 0) + dt*Math.abs(a.vx)*0.045/(a.size || 1);
   }
   for (const a of G.allies) if (a.fade > 0.7 && !a.kept){ a.kept = true; if (!(G.P && G.P.dead)) (G.stored = G.stored || []).push({ type:a.type, size:a.size, dmg:a.dmg }); }
@@ -3959,7 +4107,7 @@ function comboFor(sw){
    ========================================================= */
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
-  j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways',
+  j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll' };
 const held = {}, pressed = {};
 let slowToggled = false;
@@ -4387,7 +4535,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['riseBtn', 'returnBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['riseBtn', 'returnBtn', 'cmdBtn', 'enterBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -4982,6 +5130,8 @@ function alertEnemy(e){
 function killEnemy(e){
   if (e.dead) return;
   e.dead = true; G.kills++;
+  if (G.mode === 'shadow' && e.cmdr) gateCommanderFell(e);
+  if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
   if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ G.corpses.push({ x:e.x, type:e.type, size:e.size || 1, dmg:e.dmg, t:0, life:isBoss(e) ? 10 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
   if (G.mode === 'hammer' && G.P){ const lv = hammerLevel(); SV.hammerXP = (SV.hammerXP || 0) + (isBoss(e) ? 5 : 1); saveSoon(); if (hammerLevel() > lv){ pop(G.P.x, G.P.y - 120, 'Hammer Lv ' + hammerLevel() + '!', '#7FE3FF'); sfx('clang'); } }
   const s = e.size, f = G.P ? G.P.face : 1;
@@ -10703,6 +10853,7 @@ function renderScene(){
   if ((G.camY || 0) < -0.5){ const TH = THEMES[G.theme] || THEMES.bamboo; ctx.fillStyle = TH.near; ctx.fillRect(G.camX - 60, GROUND + G.camY - 2, VW + 120, -G.camY + 4); }   // looking up: the far ground fills the gap
   drawGround();
   if (G.fc) fcDrawBack();
+  if (G.mode === 'shadow') drawGates();
   if (G.mode === 'world' && G.world && G.P) drawWorldBack();
   if (FXL() > 0){ ctx.save(); drawFog(); ctx.restore(); drawLights(); }
   for (const o of G.orbs){ const oy = o.y+Math.sin(G.time*4+o.x)*3; ctx.fillStyle='#FFE9B0'; ctx.globalAlpha=0.3; ctx.beginPath(); ctx.arc(o.x,oy,12,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; ctx.beginPath(); ctx.arc(o.x,oy,6,0,Math.PI*2); ctx.fill(); }
@@ -14989,7 +15140,7 @@ function updateHUD(alive){
     info.innerHTML = G.mode==='levels'
       ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>${(() => { const c = chalState(); return c ? ` &nbsp; <b style="color:${c.fail ? '#FF6A5A' : c.ok ? '#8FE38A' : '#FFB347'}">⚑ ${c.txt}</b>` : ''; })()}`
       : G.mode==='train' ? `Training &nbsp; step <span>${G.train ? Math.min(G.train.i + 1, TRAIN.length) : 0}</span>/${TRAIN.length}`
-      : G.mode==='shadow' ? `Shadow Legion &nbsp; kills <span>${G.kills}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}/${(P.manaMax || 100).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; waiting <span>${(G.stored || []).length}</span> &nbsp; enemies <span>${alive}</span>`
+      : G.mode==='shadow' ? (G.dungeon ? `${RANKS[G.dungeon.rank]}-rank Dungeon &nbsp; kills <span>${G.dungeon.kills}/${G.dungeon.need}</span> &nbsp; ${G.dungeon.boss ? (G.dungeon.done ? 'boss <span>down</span>' : 'boss <span>here</span>') : ''} &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; crystals <span>${SV.crystals || 0}</span>` : `Hunter <span style="color:${RANK_COL[hunterRank()]}">${RANKS[hunterRank()]}-rank</span> &nbsp; gates <span>${(G.gates || []).map(g => RANKS[g.rank] + (g.red ? '!' : ' ' + Math.max(0, Math.ceil(g.timer)) + 's')).join(' · ') || 'none'}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length} (${G.legionMode === 'attack' ? 'attacking' : 'guarding'})</span> &nbsp; crystals <span>${SV.crystals || 0}</span>`)
       : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
       : G.mode==='spider' ? `Spider Chase &nbsp; distance <span>${(G.spider && G.spider.dist) || 0} m</span> &nbsp; best <span>${SV.spiderBest || 0} m</span> &nbsp; trapped <span>${(G.spider && G.spider.trapped) || 0}</span> &nbsp; chasing <span>${G.E.filter(e => e.flyChase && !e.dead).length}</span>`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
