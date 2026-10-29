@@ -1931,6 +1931,7 @@ function webTick(P, dt){
   }
   if (W.st === 'shot'){
     W.t += dt; W.vy += WEBS.drop*dt; W.x += W.vx*dt; W.y += W.vy*dt;
+    if (W.key !== 'kunai'){ W.id = W.id || ('w' + Math.random()); smartJump(W.id, W.x, W.vx, W.y); }
     if (W.key !== 'kunai') for (const e of G.E){ if (e.dead || e.vanish || e.remote || e.webHeld || !sameLayer(e)) continue;
       if (Math.hypot(e.x - W.x, (e.y - 32*e.size) - W.y) > 28*e.size + 8) continue;
       if (isBoss(e) || e.size > 1.6){   // too heavy to lift: you are the lighter one, so the line pulls YOU in
@@ -2723,13 +2724,52 @@ function fcDrawFront(){
     ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(lerp(f.x1, f.x2, k), lerp(f.y1, f.y2, k)); ctx.stroke(); }
   ctx.globalAlpha = 1; ctx.restore();
 }
+/* Spider and Hammer modes: for the first 10 kills the enemies stay as they are; after that they learn.
+   Every 4 kills is a level: more health and harder hits, faster feet, shorter wind-ups and recoveries, more of them attacking
+   together and blocking more. They also start to read your throws: a smart one may jump your hammer or your web. */
+function learnDiff(k){
+  const L = k <= 10 ? 2 : Math.min(40, 2 + Math.floor((k - 10)/4));
+  const d = diffFor(L);
+  G.smart = k <= 10 ? 0 : clamp((k - 10)/40, 0, 0.75);
+  if (k > 10 && !G.smartAnn){ G.smartAnn = true; if (G.P){ pop(G.P.x, G.P.y - 130, 'The enemies are learning!', '#FF8A5A'); sfx('slowIn'); } }
+  if (L > (G.smartL || 2) && L % 3 === 0 && G.P) pop(G.P.x, G.P.y - 130, 'Enemy level ' + L, '#FF8A5A');
+  G.smartL = L;
+  return d;
+}
+/* and they learn to fight: a smart enemy reads your swing as it starts and gets out of the way (a step back, or a roll
+   right past you to your back), backs off when it is badly hurt, and ducks the hammer as it flies back to you */
+function smartEnemyTick(P, dt){
+  if (!(G.smart > 0) || P.dead) return;
+  const starting = (P.atk && P.atk !== P._atkSeen) || (P.form && !P.form.wait && P.form !== P._formSeen);
+  if (starting){ P._atkSeen = P.atk; P._formSeen = P.form;
+    const chance = G.smart*(P.form ? 0.35 : 0.55);
+    for (const e of G.E){ if (e.dead || e.remote || isBoss(e) || !e.onG || e.webHeld || e.webHung || e.webBound > 0) continue;
+      const dx = (e.x - P.x)*P.face; if (dx < -20 || dx > 140 || Math.abs(e.y - P.y) > 90) continue;
+      if (e.state === 'hurt' || e.state === 'down' || e.state === 'stun' || Math.random() > chance) continue;
+      const away = sign(e.x - P.x) || 1, roll = Math.random() < 0.3;
+      e.evadeUntil = G.time + 0.32; e.atk = null; e.comboLeft = 0; e.face = -away;
+      if (roll){ e.vx = -away*620; e.vy = -160; pop(e.x, e.y - 100*(e.size || 1), 'Rolled past!', '#FF8A5A'); }   // under your swing to your back
+      else { e.vx = away*460; e.vy = -260; pop(e.x, e.y - 100*(e.size || 1), 'Evaded!', '#FF8A5A'); }          // a quick hop back out of reach
+      e.onG = false; sfx('swish', 0.01); } }
+  for (const e of G.E){   // badly hurt ones back away instead of trading blows
+    if (e.dead || e.remote || isBoss(e) || !e.onG || e.hp > e.maxHp*0.3 || e.state === 'hurt' || e.state === 'down') continue;
+    if (Math.abs(e.x - P.x) < 150 && Math.random() < dt*G.smart*1.5){ const away = sign(e.x - P.x) || 1; e.vx = away*380; e.vy = -150; e.onG = false; e.atk = null; e.evadeUntil = G.time + 0.25; } }
+}
+/* a smart enemy sees a throw coming and jumps it (decided once per throw, so it is a read, not a twitch) */
+function smartJump(id, x, vx, y){
+  if (!(G.smart > 0)) return;
+  for (const e of G.E){ if (e.dead || e.remote || !e.onG || isBoss(e) || e._readId === id) continue;
+    const dx = (e.x - x)*(sign(vx) || 1); if (dx < 30 || dx > 170 || Math.abs((e.y - 40*(e.size || 1)) - y) > 70) continue;
+    e._readId = id;
+    if (Math.random() < G.smart){ e.vy = -700; e.onG = false; e.atk = null; pop(e.x, e.y - 100*(e.size || 1), 'Read it!', '#FF8A5A'); } }
+}
 /* ===== HAMMER MODE: a war hammer of storm-iron. Swing it, throw it (Z), call it back (Z). Only you can lift it. ===== */
 function startHammer(){
   G.mode = 'hammer'; G.level = 0; G.diff = diffFor(2);
   G.hammerTheme = ((G.hammerTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.hammerTheme];
   G.worldW = 3200; resetCommon();
   G.hm = { state:'held', x:0, y:0, vx:0, vy:0, rot:0, hit:new Set() };
-  G.hammerS = { spawnT:2.5 };
+  G.hammerS = { spawnT:2.5 }; G.smart = 0; G.smartL = 2; G.smartAnn = false;
   for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Hammer mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back · M: strap swing + uppercut · N: lightning from the sky', '#7FE3FF'); }, 1200);
@@ -2742,14 +2782,14 @@ function hammerTick(dt, alive){
   const S = G.hammerS, P = G.P; if (!S || !P) return;
   const k = G.kills;
   if (k > (SV.hammerBest || 0)){ SV.hammerBest = k; saveSoon(); }
-  G.diff = diffFor(Math.min(9, 2 + Math.floor(k/12)));
+  G.diff = learnDiff(k);   // past 10 kills they learn: stronger, faster, sharper
   S.spawnT -= dt;
   const want = Math.min(3 + Math.floor(k/5), 10);
   if (alive >= want || S.spawnT > 0) return;
   S.spawnT = Math.max(0.6, 1.8 - k*0.02);
   const pool = ['grunt', 'grunt', 'fencer', 'assassin', 'brute', 'ninja', 'runner', 'shield', 'archer', 'gunner', 'demon'];
   const type = pool[(Math.random()*Math.min(pool.length, 3 + Math.floor(k/4)))|0];
-  const side = Math.random() < 0.6 ? 1 : -1;
+  const side = Math.random() < 0.6 - 0.25*(G.smart || 0) ? 1 : -1;   // smarter ones come at you from behind more often
   let x = P.x + side*(VW*0.55 + rnd(60, 200));
   if (x < 60 || x > G.worldW - 60) x = P.x - side*(VW*0.55 + rnd(60, 200));
   G.E.push(makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true));
@@ -2773,7 +2813,7 @@ function hammerUpdate(P, dt){
   if (H.strap) hammerStrapTick(P, H, dt);
   if (H.state === 'held' && H.windT > 0){ H.windT -= dt;
     if (H.windT <= 0){   // the arm comes through: it leaves the hand here
-      H.state = 'fly'; H.dir = P.face || H.dir || 1; H.x = P.x + H.dir*30; H.y = P.y - 56; H.vx = H.dir*HM_SPEED; H.vy = 0; H.trav = 0; H.max = hammerRange(); H.hit = new Set();
+      H.id = (H.id || 0) + 1; H.state = 'fly'; H.dir = P.face || H.dir || 1; H.x = P.x + H.dir*30; H.y = P.y - 56; H.vx = H.dir*HM_SPEED; H.vy = 0; H.trav = 0; H.max = hammerRange(); H.hit = new Set();
       sfx('whoosh'); G.shake = Math.max(G.shake, 2); vib(20); } }
   if (H.state === 'fly'){
     if (H.trav < H.max && H.x > 20 && H.x < G.worldW - 20){ H.x += H.vx*dt; H.trav += Math.abs(H.vx)*dt; }   // straight and level until its strength runs out
@@ -2782,10 +2822,12 @@ function hammerUpdate(P, dt){
         ringFx(H.x, GROUND, 120, '#7FE3FF', true); cracks(H.x, 70, '#7FE3FF'); burst(H.x, GROUND - 4, 14, '#5a4a40', 300, 4, true);
         G.shake = Math.max(G.shake, 4); sfx('boom'); sfx('stone', 0.02); vib(30); } }
     H.rot = H.trav < H.max ? (H.dir > 0 ? 0 : Math.PI) : Math.atan2(H.vy, H.vx*0.3);   // head first, no spin; it tips over as it drops
+    if (H.trav < H.max) smartJump('h' + H.id, H.x, H.vx, H.y);
     hammerHits(H, sign(H.vx) || H.dir);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF','#3A3F4A'], spd:60, size:3, life:0.35, kind:'star', g:0});
   } else if (H.state === 'return'){
     const tx = P.x + P.face*14, ty = P.y - 48, dx = tx - H.x, dy = ty - H.y, d = Math.hypot(dx, dy) || 1, sp = 1700;
+    smartJump('r' + (H.id || 0), H.x, dx, H.y);   // they duck out of its way on the way back too
     H.x += dx/d*sp*dt; H.y += dy/d*sp*dt; H.rot = Math.atan2(dy, dx);   // straight back to your hand, head first
     hammerHits(H, sign(dx) || 1);
     if (FXL() > 0) emit(H.x, H.y, {n:2, col:['#7FE3FF','#FFFFFF'], spd:60, size:3, life:0.3, kind:'star', g:0});
@@ -2907,7 +2949,7 @@ function startSpider(){
   G.mode = 'spider'; G.level = 0; G.diff = diffFor(2);
   G.spiderTheme = ((G.spiderTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.spiderTheme];
   G.worldW = 2600; resetCommon(); fcNew();
-  G.spider = { spawnT:2.5 };
+  G.spider = { spawnT:2.5 }; G.smart = 0; G.smartL = 2; G.smartAnn = false;
   for (let i = 0; i < 3; i++) G.E.push(makeEnemy('grunt', 1000 + i*160, G.diff, false));
   toast('Spider mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider mode', 'Climb · Swing · Web them up',
@@ -2920,14 +2962,14 @@ function spiderTick(dt, alive){
   const S = G.spider, P = G.P; if (!S || !P) return;
   const k = G.kills;
   if (k > (SV.spiderBest || 0)){ SV.spiderBest = k; saveSoon(); }
-  G.diff = diffFor(Math.min(9, 2 + Math.floor(k/12)));
+  G.diff = learnDiff(k);   // past 10 kills they learn: stronger, faster, sharper
   S.spawnT -= dt;
   const want = Math.min(3 + Math.floor(k/5), 10);
   if (alive >= want || S.spawnT > 0) return;
   S.spawnT = Math.max(0.6, 1.8 - k*0.02);
   const pool = ['grunt', 'grunt', 'fencer', 'assassin', 'ninja', 'runner', 'brute', 'archer', 'gunner', 'shield', 'demon'];
   const type = pool[(Math.random()*Math.min(pool.length, 3 + Math.floor(k/4)))|0];
-  const side = Math.random() < 0.65 ? 1 : -1;
+  const side = Math.random() < 0.65 - 0.25*(G.smart || 0) ? 1 : -1;
   let x = P.x + side*(VW*0.55 + rnd(60, 200));
   if (x < 60 || x > G.worldW - 60) x = P.x - side*(VW*0.55 + rnd(60, 200));
   G.E.push(makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true));
@@ -4363,6 +4405,7 @@ function ringFx(x,y,max,col,flat,w){ G.rings.push({x,y,r:10,max,col,life:0.45,fl
    ========================================================= */
 function damageEnemy(e, dmg, o){
   const P = G.P; o = o || {};
+  if (e.evadeUntil > G.time && !e.remote && (o.src === 'slash' || o.fist || o.src === 'form')){ pop(e.x, e.y - 90*(e.size || 1), 'Miss', '#FF8A5A'); return false; }   // it got out of the way
   if (G.mode === 'hammer' && o.fist && G.hm && G.hm.state === 'held' && !e.dead){   // a hammer in your fist: every blow lands like a falling wall
     dmg *= 2.4; o = Object.assign({}, o, { kb:(o.kb || 120)*1.8, heavy:true, breakArmor:Math.max(o.breakArmor || 0, 2) });
     impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 2.5); }
@@ -4621,7 +4664,7 @@ function updatePlayer(dt){
   }
   const shBusy = sheathTick(P, dt);   // finishing/sheathing: sword, gun, forms and blocking wait for it
   P.inv -= dt; P.hurtT -= dt; P.dashCd -= dt; P.flash -= dt; P.comboGap += dt; P.ironT -= dt; P.cloneCd -= dt; P.dsCd -= dt; P.dashWin -= dt;
-  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dgT = (P.dgT || 0) - dt; P.noDashT = (P.noDashT || 0) - dt; hammerUpdate(P, dt); if (P.dgT > 0 && P.dgVX && (P.dgKind === 'roll' || P.dgKind === 'sidestep' || P.dgKind === 'backflip' || P.dgKind === 'frontflip' || P.dgKind === 'sway')) P.vx = P.dgVX; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
+  P.hiddenT -= dt; P.ambush -= dt; P.frenzyT = (P.frenzyT || 0) - dt; P.dgT = (P.dgT || 0) - dt; P.noDashT = (P.noDashT || 0) - dt; hammerUpdate(P, dt); if (G.mode === 'hammer' || G.mode === 'spider') smartEnemyTick(P, dt); if (P.dgT > 0 && P.dgVX && (P.dgKind === 'roll' || P.dgKind === 'sidestep' || P.dgKind === 'backflip' || P.dgKind === 'frontflip' || P.dgKind === 'sway')) P.vx = P.dgVX; if (P.atk) P.lastAtkT = G.time; autoDodgeWatch(P); P.landT = (P.landT||0) - dt; P.webFly = (P.webFly||0) - dt; P.swingCutT = (P.swingCutT||0) - dt;
   if (pressed.ride && G.veh && !P.form && P.hurtT <= 0) mountVehicle();
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
@@ -14442,8 +14485,8 @@ function updateHUD(alive){
     info.innerHTML = G.mode==='levels'
       ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>${(() => { const c = chalState(); return c ? ` &nbsp; <b style="color:${c.fail ? '#FF6A5A' : c.ok ? '#8FE38A' : '#FFB347'}">⚑ ${c.txt}</b>` : ''; })()}`
       : G.mode==='train' ? `Training &nbsp; step <span>${G.train ? Math.min(G.train.i + 1, TRAIN.length) : 0}</span>/${TRAIN.length}`
-      : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemies <span>${alive}</span>`
-      : G.mode==='spider' ? `Spider mode &nbsp; kills <span>${G.kills}</span> &nbsp; best <span>${SV.spiderBest || 0}</span> &nbsp; enemies <span>${alive}</span>`
+      : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
+      : G.mode==='spider' ? `Spider mode &nbsp; kills <span>${G.kills}</span> &nbsp; best <span>${SV.spiderBest || 0}</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
       : G.mode==='coop' ? `Wave <span>${NET.wave}</span>/${NET.coopCfg.waves} &nbsp; enemies <span>${G.E.filter(e => !e.dead && !e.remote).length}</span> &nbsp; with ${escH(NET.oppName || 'Ally')}`
       : G.mode==='duel' ? `Round <span>${NET.round}</span> &nbsp; you <span>${NET.wins[NET.role==='host'?0:1]}</span> : <span>${NET.wins[NET.role==='host'?1:0]}</span> rival`
