@@ -817,7 +817,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: hold <b>R</b> over a body to raise its shadow &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R</b> call your kept shadows back, <b>B</b> send them into the dark &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -2880,15 +2880,16 @@ function startShadow(){
   G.worldW = 3200; resetCommon();
   G.allies = []; G.corpses = []; G.shadowS = { spawnT:2 }; G.stored = []; G.legionMode = 'guard'; makeGates(); G.dungeon = null; G.city = null; G.crystals = [];
   setTimeout(() => { if (G.mode === 'shadow' && G.gates && !G.gates.length) newGate(); }, 1500);   // the first gate opens soon after you arrive   // shadows that sank are kept here, ready to be called back
-  { const box = $('extraBtns'); if (box && !document.getElementById('riseBtn')){ const b = document.createElement('button'); b.id = 'riseBtn'; b.className = 'tb sm'; b.dataset.k = 'clone'; b.textContent = 'Rise'; b.style.setProperty('--sc', '#9B6BFF'); b.setAttribute('aria-label', 'Hold over a fading body to raise its shadow; tap away from bodies to send the shadows back'); box.appendChild(b); bindTouch(b);
+  { const box = $('extraBtns'); if (box && !document.getElementById('riseBtn')){ const b = document.createElement('button'); b.id = 'riseBtn'; b.className = 'tb sm'; b.dataset.k = 'arise'; b.textContent = 'Arise'; b.style.setProperty('--sc', '#9B6BFF'); b.setAttribute('aria-label', 'Raise the shadows of every fallen body'); box.appendChild(b); bindTouch(b);
+    const cl = document.createElement('button'); cl.id = 'callBtn'; cl.className = 'tb sm'; cl.dataset.k = 'clone'; cl.textContent = 'Call'; cl.style.setProperty('--sc', '#C9A8FF'); cl.setAttribute('aria-label', 'Call your kept shadows back, strongest first'); box.appendChild(cl); bindTouch(cl);
     const en = document.createElement('button'); en.id = 'enterBtn'; en.className = 'tb sm'; en.dataset.k = 'interact'; en.textContent = 'Enter'; en.style.setProperty('--sc', '#3FA9FF'); en.setAttribute('aria-label', 'Enter the gate you stand at'); box.appendChild(en); bindTouch(en);
     const at = document.createElement('button'); at.id = 'cmdBtn'; at.className = 'tb sm'; at.dataset.k = 'legionCmd'; at.textContent = 'Attack'; at.style.setProperty('--sc', '#FF8A8A'); at.setAttribute('aria-label', 'Shadows: attack or guard'); box.appendChild(at); bindTouch(at);
     const r = document.createElement('button'); r.id = 'returnBtn'; r.className = 'tb sm'; r.dataset.k = 'webAll'; r.textContent = 'Return'; r.style.setProperty('--sc', '#9B6BFF'); r.setAttribute('aria-label', 'Send every shadow back into the dark'); box.appendChild(r); bindTouch(r); } }
   G.P.manaMax = manaMaxFor(); G.P.mana = G.P.manaMax;
   toast('Shadow Legion', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
-    isTouch ? 'Kill · hold Rise: every fallen body rises (or your kept shadows return) · Return: send them all back'
-            : 'Gates open in the city · O at a gate: enter its dungeon · clear it before it breaks · R: raise shadows · Tab: attack / guard · B: send back', '#9B6BFF'); }, 900);
+    isTouch ? 'Kill · Arise: the fallen rise as shadows · Return: send them back · Call: bring them back, strongest first'
+            : 'O at a gate: enter its dungeon · Alt: ARISE (raise the fallen) · B: send back · R: call back · Tab: attack / guard', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -2904,37 +2905,64 @@ function shadowTick(dt, alive){
   // mana: drains for every shadow standing, refills when none are
   if (legion) P.mana -= SHADOW_DRAIN*legion*dt; else P.mana = Math.min(P.manaMax, P.mana + manaRegenFor()*dt);
   if (P.mana <= 0 && legion){ P.mana = 0; for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Out of mana: the shadows sink', '#9B6BFF'); }
-  // bodies fade
-  for (const c of G.corpses) c.t += dt;
+  // bodies fade (not while the dungeon is cleared: that is your time to take their shadows)
+  const hold = G.dungeon && G.dungeon.done;
+  if (!hold) for (const c of G.corpses) c.t += dt;
   G.corpses = G.corpses.filter(c => c.t < c.life && !c.taken);
-  // R held anywhere: every fading body on the field rises (as many as the mana pays for); if there are none, the kept ones come back
-  if (held.clone && !P.dead){ P.raiseT = (P.raiseT || 0) + dt;
-    if (FXL() > 0 && Math.random() < 0.6) for (const c of G.corpses) if (Math.random() < 0.3) G.parts.push({ x:c.x + rnd(-20, 20), y:GROUND - rnd(0, 16), vx:0, vy:-rnd(80, 180), life:0.5, max:0.5, col:Math.random() < 0.5 ? '#2B1D4E' : '#9B6BFF', size:4, real:true });
-    if (P.raiseT >= 0.45){ P.raiseT = -9;   // once per hold
-      G.legionMode = 'guard'; if (G.corpses.length) raiseAll(P); else if ((G.stored || []).length) callShadows(P); else pop(P.x, P.y - 110, 'No bodies to raise', 'rgba(201,168,255,0.8)'); } }
-  else P.raiseT = 0;
-  P.raise = held.clone && P.raiseT >= 0 ? { t:P.raiseT } : null;
+  // Alt: ARISE. Every fallen body on the field is offered a place in the legion; the strong may refuse
+  if (pressed.arise && !P.dead){ P.raiseFx = 0.55;
+    if (FXL() > 0) for (const c of G.corpses) for (let i = 0; i < 6; i++) G.parts.push({ x:c.x + rnd(-20, 20), y:GROUND - rnd(0, 16), vx:0, vy:-rnd(80, 180), life:0.5, max:0.5, col:Math.random() < 0.5 ? '#2B1D4E' : '#9B6BFF', size:4, real:true });
+    if (G.corpses.length) raiseAll(P); else pop(P.x, P.y - 110, 'No fallen to raise', 'rgba(201,168,255,0.8)'); }
+  // R: the shadows you sent back come out again behind you, strongest first
+  if (pressed.clone && !P.dead){ P.raiseFx = 0.55;
+    if ((G.stored || []).length) callShadows(P);
+    else pop(P.x, P.y - 110, G.corpses.length ? 'No kept shadows · Alt: raise the fallen' : 'No kept shadows', 'rgba(201,168,255,0.8)'); }
+  P.raiseFx = Math.max(0, (P.raiseFx || 0) - dt);
+  P.raise = P.raiseFx > 0 ? { t:0.55 - P.raiseFx } : null;
   if (pressed.webAll && G.allies.some(a => !a.fade)){ for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Return to the dark', '#9B6BFF'); sfx('shadow'); }   // B: all of them back inside
   alliesTick(dt);
 }
 const CALL_COST = 10;
+const MAX_TRIES = 3;
+/* how likely a body is to refuse you: the weak always kneel, the strong may not (less often as your Hunter rank grows) */
+function refuseChance(c){
+  const hr = hunterRank();
+  if (c.tier === 'boss') return Math.max(0.25, 0.6 - 0.06*hr);
+  if (c.tier === 'elite') return Math.max(0.08, 0.25 - 0.03*hr);
+  return 0;
+}
 function raiseAll(P){
   const can = Math.min(G.corpses.length, Math.floor(P.mana/SHADOW_COST));
   if (!can){ pop(P.x, P.y - 110, 'Not enough mana (' + SHADOW_COST + ' each)', '#9B6BFF'); return; }
-  const list = G.corpses.slice().sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, can);
-  list.forEach((c, i) => { raiseShadow(P, c, true); const a = G.allies[G.allies.length - 1]; if (a) a.rise = -0.06*i; });
-  pop(P.x, P.y - 125, 'Rise! ×' + can, '#C9A8FF'); sfx('shadow'); vib(50);
+  const list = G.corpses.slice().sort((a, b) => (b.pow || 0) - (a.pow || 0) || Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, can);   // the strongest are offered first
+  let rose = 0, refused = 0;
+  for (const c of list){
+    if (Math.random() < refuseChance(c)){   // it will not kneel
+      P.mana -= SHADOW_COST; c.tries = (c.tries || 0) + 1; refused++;
+      burst(c.x, GROUND - 30, 22, '#FF3B5C', 320, 4, true); ringFx(c.x, GROUND - 10, 80, '#FF3B5C', true);
+      if (c.tries >= MAX_TRIES){ c.taken = true; pop(c.x, GROUND - 120*c.size, 'It rejects you for good', '#FF5A6A'); smoke(c.x, GROUND - 20, 20); }
+      else pop(c.x, GROUND - 120*c.size, 'REFUSED · ' + (MAX_TRIES - c.tries) + (MAX_TRIES - c.tries === 1 ? ' try left' : ' tries left'), '#FF5A6A');
+      continue; }
+    raiseShadow(P, c, true); const a = G.allies[G.allies.length - 1]; if (a) a.rise = -0.06*rose; rose++;
+    if (c.tier === 'boss') pop(c.x, GROUND - 130*c.size, 'It kneels', '#E9D8FF');
+  }
+  if (rose) pop(P.x, P.y - 125, 'ARISE! ×' + rose, '#C9A8FF');
+  else if (refused) pop(P.x, P.y - 125, 'They refuse you', '#FF8A9A');
+  sfx('shadow'); vib(refused && !rose ? 90 : 50);
 }
 function callShadows(P){
   const n = Math.min(G.stored.length, Math.floor(P.mana/CALL_COST));
   if (!n){ pop(P.x, P.y - 110, 'Not enough mana (' + CALL_COST + ' each)', '#9B6BFF'); return; }
-  const back = G.stored.splice(0, n);
-  back.forEach((d, i) => {   // they rise around you, one after another
-    const x = clamp(P.x + (i % 2 ? 1 : -1)*(40 + 26*Math.floor(i/2)), 20, G.worldW - 20);
+  G.stored.sort((a, b) => (b.pow || 0) - (a.pow || 0));   // the strongest come out first and stand closest
+  const back = G.stored.splice(0, n), dir = -(P.face || 1);
+  G.legionBack = dir; G.legionFaceT = 0;
+  let off = 50;
+  back.forEach((d, i) => {   // they rise in a line behind you, one after another
+    const x = clamp(P.x + dir*off, 20, G.worldW - 20); off += i < 8 ? 30*(d.size || 1) : 12;
     const a = makeEnemy(d.type, x, G.diff, false);
-    a.shadow = true; a.size = d.size; a.dmg = d.dmg; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -0.12*i; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
+    a.shadow = true; a.size = d.size; a.dmg = d.dmg; a.pow = d.pow || 0; a.tier = d.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -0.12*i; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
     G.allies.push(a); ringFx(x, GROUND - 10, 60, '#9B6BFF', true); });
-  P.mana -= n*CALL_COST;
+  P.mana -= n*CALL_COST; G.legionMode = 'guard';
   pop(P.x, P.y - 125, n + (G.stored.length ? ' rise · ' + G.stored.length + ' wait' : ' rise'), '#C9A8FF'); sfx('shadow'); vib(40);
 }
 /* ===== GATES & DUNGEONS. Gates open in the city without warning; each leads to a dungeon of a given rank (E, D, C, B, A, S).
@@ -3015,17 +3043,18 @@ function dungeonTick(dt, alive){
   for (const c of G.crystals || []){ c.t += dt; if (!c.got && Math.abs(c.x - P.x) < 34 && Math.abs(c.y - (P.y - 20)) < 60){ c.got = true;   // mana crystals
     SV.crystals = (SV.crystals || 0) + c.v; SV.coins = (SV.coins || 0) + 15*c.v; P.mana = Math.min(P.manaMax, P.mana + P.manaMax*0.02*c.v); pop(c.x, c.y - 30, '+' + c.v + ' crystal', '#7FE3FF'); sfx('coin'); } }
   G.crystals = (G.crystals || []).filter(c => !c.got && c.t < 25);
-  if (D.done){ D.exitT -= dt; if (D.exitT <= 0) leaveDungeon(); }
+  if (D.done){ D.exitT -= dt; if (D.exitT <= 0 || (pressed.interact && !P.dead)) leaveDungeon(); }
 }
+const ARISE_TIME = 20;   // seconds after the dungeon boss falls to raise its shadow (and the others') before the gate closes
 function dungeonKill(e){
   const D = G.dungeon; if (!D || !e.dun) return;
   D.kills++;
   if (Math.random() < 0.6 || e.dunBoss) (G.crystals = G.crystals || []).push({ x:e.x, y:GROUND - 14, v:e.dunBoss ? 10*(D.rank + 1) : D.rank + 1, t:0 });
-  if (e.dunBoss && !D.done){ D.done = true; D.exitT = 3.5;
+  if (e.dunBoss && !D.done){ D.done = true; D.exitT = ARISE_TIME;
     const coins = 250*(D.rank + 1)*(D.rank + 1), xp = [20, 40, 70, 120, 200, 350][D.rank];
     SV.coins = (SV.coins || 0) + coins; SV.hunterXP = (SV.hunterXP || 0) + xp; saveSoon();
     const before = D.rankBefore = hunterRank();
-    showBanner('Gate cleared', RANKS[D.rank] + '-rank dungeon', '+' + coins + ' coins · +' + xp + ' Hunter XP · collect the crystals', RANK_COL[D.rank]); }
+    showBanner('Gate cleared', '+' + coins + ' coins · +' + xp + ' Hunter XP', (isTouch ? 'Arise' : 'Alt') + ': take their shadows · ' + ARISE_TIME + ' s before the gate closes · ' + (isTouch ? 'Enter' : 'O') + ': leave now', RANK_COL[D.rank]); }
 }
 function leaveDungeon(){
   const D = G.dungeon, P = G.P, C = G.city; if (!D || !C) return;
@@ -3045,6 +3074,11 @@ function drawGates(){
     for (const c of G.crystals || []){ const y = c.y - 4*Math.sin(G.time*4 + c.x);
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(127,227,255,0.35)'; ctx.beginPath(); ctx.arc(c.x, y, 14, 0, 6.283); ctx.fill(); ctx.restore();
       ctx.save(); ctx.fillStyle = '#7FE3FF'; ctx.strokeStyle = '#E8FBFF'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.x, y - 11); ctx.lineTo(c.x + 6, y); ctx.lineTo(c.x, y + 9); ctx.lineTo(c.x - 6, y); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
+    if (G.dungeon.done && G.P){ const s = Math.max(0, Math.ceil(G.dungeon.exitT));   // the time left to take their shadows
+      ctx.save(); ctx.textAlign = 'center'; ctx.font = '600 18px Teko, sans-serif'; ctx.fillStyle = s <= 5 ? '#FF8A9A' : '#C9A8FF';
+      ctx.fillText('Gate closes in ' + s + ' s', G.P.x, G.P.y - 175);
+      ctx.font = '600 13px Teko, sans-serif'; ctx.fillStyle = '#DCD0FF';
+      ctx.fillText((isTouch ? 'Arise' : 'Alt') + ': take their shadows · ' + (isTouch ? 'Enter' : 'O') + ': leave now', G.P.x, G.P.y - 158); ctx.restore(); }
     return; }
   for (const g of G.gates || []){ if (g.x >= G.camX - 60 && g.x <= G.camX + VW + 60) continue;   // off screen: a marker at the edge pointing to it
     const left = g.x < G.camX, ex = left ? G.camX + 18 : G.camX + VW - 18, ey = GROUND - 150, c = g.red ? '#FF3B3B' : RANK_COL[g.rank];
@@ -3071,7 +3105,7 @@ function drawGates(){
 function raiseShadow(P, c, many){
   c.taken = true; P.mana -= SHADOW_COST;
   const a = makeEnemy(c.type, c.x, G.diff, false);
-  a.shadow = true; a.size = c.size; a.dmg = c.dmg*1.25; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = 0; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
+  a.shadow = true; a.size = c.size; a.dmg = c.dmg*1.25; a.pow = c.pow || 0; a.tier = c.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = 0; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
   G.allies.push(a);
   ringFx(c.x, GROUND - 10, 70, '#9B6BFF', true);
   if (!many){ burst(c.x, GROUND - 20, 18, '#2B1D4E', 300, 4, true); pop(c.x, GROUND - 110*c.size, 'Rise!', '#C9A8FF'); sfx('shadow'); vib(40); }
@@ -3079,14 +3113,13 @@ function raiseShadow(P, c, many){
 /* the shadows' own little minds: find the nearest enemy, close in, strike; nothing to fight, keep at your back */
 function alliesTick(dt){
   const P = G.P, live = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1), guard = G.legionMode !== 'attack';
-  // guard formation: the four nearest stand close, each to its own spot; the rest wait a little further off, both sides of you
-  const slots = [-55, 55, -100, 100];
-  const byDist = live.slice().sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x));
-  const guards = guard ? byDist.slice(0, 4) : [];
+  // formation: a line behind you, strongest closest. The direction only turns once you have faced a way for a moment
+  if (G.legionFaceLast !== P.face){ G.legionFaceLast = P.face; G.legionFaceT = 0; } else G.legionFaceT = (G.legionFaceT || 0) + dt;
+  if (G.legionBack == null || G.legionFaceT > 0.6) G.legionBack = -(P.face || 1);
+  const byPow = live.slice().sort((a, b) => (b.pow || 0) - (a.pow || 0));
+  const guards = guard ? byPow.slice(0, 4) : [];   // the four strongest step out to meet anything that comes for you
   guards.forEach(a => { a.role = 'guard'; }); live.forEach(a => { if (!guards.includes(a)) a.role = guard ? 'reserve' : 'attack'; });
-  const freeSlots = slots.slice();
-  for (const a of guards){ if (a.slot == null || !freeSlots.includes(a.slot)){ freeSlots.sort((p, q) => Math.abs(P.x + p - a.x) - Math.abs(P.x + q - a.x)); a.slot = freeSlots[0]; } freeSlots.splice(freeSlots.indexOf(a.slot), 1); }
-  let ri = 0; for (const a of live) if (a.role === 'reserve'){ a.slot = (ri % 2 ? 1 : -1)*(160 + 26*Math.floor(ri/2)); ri++; }
+  { let off = 50; byPow.forEach((a, i) => { a.slot = G.legionBack*off; off += i < 8 ? 30*(a.size || 1) : 12; }); }
   // threats: enemies that come close to you; a guard goes out to meet them, kills them, and comes back
   const threats = guard ? G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 230 && Math.abs(e.y - P.y) < 160) : [];
   for (const a of guards){ if (a.tgt && (a.tgt.dead || Math.abs(a.tgt.x - P.x) > 340)) a.tgt = null; }
@@ -3114,10 +3147,10 @@ function alliesTick(dt){
     else {   // to its spot by you, then still, facing out (no flipping back and forth)
       const home = clamp(P.x + (a.slot || 0), 20, G.worldW - 20), dx = home - a.x;
       if (Math.abs(dx) > 14){ a.vx = sign(dx)*Math.min(spd*1.4, Math.abs(dx)*5); a.state = 'chase'; a.face = sign(dx); }
-      else { a.vx = 0; a.state = 'idle'; a.face = sign(a.slot || 1); } }
+      else { a.vx = 0; a.state = 'idle'; a.face = -(G.legionBack || -1); } }
     a.x = clamp(a.x + a.vx*dt, 20, G.worldW - 20); a.walk = (a.walk || 0) + dt*Math.abs(a.vx)*0.045/(a.size || 1);
   }
-  for (const a of G.allies) if (a.fade > 0.7 && !a.kept){ a.kept = true; if (!(G.P && G.P.dead)) (G.stored = G.stored || []).push({ type:a.type, size:a.size, dmg:a.dmg }); }
+  for (const a of G.allies) if (a.fade > 0.7 && !a.kept){ a.kept = true; if (!(G.P && G.P.dead)) (G.stored = G.stored || []).push({ type:a.type, size:a.size, dmg:a.dmg, pow:a.pow || 0, tier:a.tier || '' }); }
   G.allies = G.allies.filter(a => !(a.fade > 0.7));
 }
 function drawShadowLegion(){
@@ -3125,7 +3158,8 @@ function drawShadowLegion(){
   for (const c of G.corpses){ const k = 1 - c.t/c.life;   // a fading body: a dark stain and wisps, until it is gone
     ctx.save(); ctx.globalAlpha = 0.65*k; ctx.fillStyle = '#1A1030'; ctx.beginPath(); ctx.ellipse(c.x, GROUND - 2, 34*c.size, 8*c.size, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 0.5*k; ctx.fillStyle = '#9B6BFF'; for (let i = 0; i < 3; i++){ const y = GROUND - ((G.time*40 + i*20) % 50)*c.size; ctx.beginPath(); ctx.arc(c.x + (i - 1)*12*c.size, y, 3, 0, 6.283); ctx.fill(); }
-    if (false){ ctx.globalAlpha = k; ctx.font = '600 14px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#C9A8FF'; ctx.fillText(isTouch ? 'hold Rise' : 'hold R', c.x, GROUND - 24); }
+    if (c.tier === 'boss'){ ctx.globalAlpha = Math.min(1, k*2); ctx.font = '600 14px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = c.tries ? '#FF8A9A' : '#E9D8FF';   // a strong body: it may refuse you
+      ctx.fillText(c.tries ? (MAX_TRIES - c.tries) + (MAX_TRIES - c.tries === 1 ? ' try left' : ' tries left') : 'Strong soul · may refuse', c.x, GROUND - 24); }
     ctx.restore(); ctx.globalAlpha = 1; }
   for (const a of G.allies){ const s = a.size || 1, rise = Math.max(0, a.rise || 0), fade = a.fade ? Math.max(0, 1 - a.fade/0.7) : 1;
     if (a.x < G.camX - 120 || a.x > G.camX + VW + 120) continue;   // off screen: not drawn
@@ -4108,7 +4142,7 @@ function comboFor(sw){
 const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'jump', arrowup:'jump', ' ':'jump',
   s:'down', arrowdown:'down',
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
-  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll' };
+  '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -4121,7 +4155,7 @@ addEventListener('keydown', ev => {
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
-addEventListener('keyup', ev => { const a = keyMap[ev.key.toLowerCase()]; if (a) held[a] = false; });
+addEventListener('keyup', ev => { const a = keyMap[ev.key.toLowerCase()]; if (a) held[a] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
 cv.addEventListener('mousedown', ev => { if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
 addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; });
 cv.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -4535,7 +4569,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['riseBtn', 'returnBtn', 'cmdBtn', 'enterBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -5132,7 +5166,8 @@ function killEnemy(e){
   e.dead = true; G.kills++;
   if (G.mode === 'shadow' && e.cmdr) gateCommanderFell(e);
   if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
-  if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ G.corpses.push({ x:e.x, type:e.type, size:e.size || 1, dmg:e.dmg, t:0, life:isBoss(e) ? 10 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
+  if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ const big = isBoss(e) || e.cmdr || e.dunBoss, elite = !big && e.dun && G.dungeon && G.dungeon.rank >= 3;
+    G.corpses.push({ x:e.x, type:e.type, size:e.size || 1, dmg:e.dmg, pow:(e.maxHp || 100)*(e.dmg || 10)*(big ? 4 : 1), tier:big ? 'boss' : elite ? 'elite' : '', tries:0, t:0, life:big ? 14 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
   if (G.mode === 'hammer' && G.P){ const lv = hammerLevel(); SV.hammerXP = (SV.hammerXP || 0) + (isBoss(e) ? 5 : 1); saveSoon(); if (hammerLevel() > lv){ pop(G.P.x, G.P.y - 120, 'Hammer Lv ' + hammerLevel() + '!', '#7FE3FF'); sfx('clang'); } }
   const s = e.size, f = G.P ? G.P.face : 1;
   const far = G.massKill && (e.x < G.camX - 150 || e.x > G.camX + VW + 150);
