@@ -2994,6 +2994,64 @@ function drawMonarch(){
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(P.x, cy, r, 0, 6.283); ctx.fill(); ctx.restore();
     if (FXL() > 0 && Math.random() < 0.7) G.parts.push({ x:P.x + rnd(-24, 24)*s, y:P.y - rnd(0, 80)*s, vx:rnd(-20, 20), vy:-rnd(60, 160), life:0.6, max:0.6, col:Math.random() < 0.6 ? '#2B1D4E' : '#9B6BFF', size:5, real:true }); }
 }
+/* ===== MAGIC BEASTS: the monster ranks follow the hunter ranks, and a monster is always deadlier than a hunter of the same rank.
+   E-D: goblins, wolfkin, the risen (dumb, many).  C-B: lizardmen, orcs, golems (tough hides, packs).
+   A: high orcs, giants, ice elves (clever, they speak).  S: the Ant King, the Demon King (calamities).
+   Beyond S: the Monarchs. ===== */
+const MON_HP = [1, 1.5, 2.2, 3.2, 4.5, 6.5, 12], MON_DMG = [1, 1.2, 1.45, 1.75, 2.1, 2.5, 3.2];
+const SPECIES = {
+  goblin:  { base:'grunt',    name:'Goblin',     size:0.74, hp:0.7, dmg:0.75, spd:1.25, skin:['#6F9A3A', '#5C8A2E', '#7AA046'], cloth:['#5A4632', '#4A3A28'], ears:'point', nose:true, hairS:'bald', weapons:['dagger', 'katana'], voice:'goblin' },
+  wolf:    { base:'ninja',    name:'Wolfkin',    size:0.95, hp:0.85, spd:1.35, skin:['#6A6A72', '#8A7A68', '#4A4A52'], cloth:['#3A3A40', '#4A3E32'], head:'wolf', weapons:['dagger'], voice:'wolf' },
+  undead:  { base:'zombie',   name:'Risen',      size:1.0, hp:1.1, skin:['#D8D2C0', '#C8C2B0'], cloth:['#3A3A44', '#2E2A30'], head:'skull', weapons:['katana', 'spear'], voice:'undead' },
+  lizard:  { base:'fencer',   name:'Lizardman',  size:1.05, hp:1.2, spd:1.1, skin:['#3E8A6A', '#5A9A3A', '#2E7A7A'], cloth:['#6A4A2A', '#3A5A3A'], head:'lizard', weapons:['spear', 'katana'], voice:'lizard' },
+  orc:     { base:'grunt',    name:'Orc',        size:1.28, hp:1.7, dmg:1.3, skin:['#5A7A4A', '#6A6A4A', '#4E6E3E'], cloth:['#5A3A22', '#4A4A4A'], tusks:true, hairS:'mohawk', weapons:['great', 'katana'], voice:'orc' },
+  golem:   { base:'brute',    name:'Stone Golem',size:1.85, hp:2.6, dmg:1.4, spd:0.75, skin:['#8A8478', '#7A766C'], cloth:['#6E6A62', '#7A7468'], head:'golem', fist:true, voice:'golem' },
+  highorc: { base:'brute',    name:'High Orc',   size:1.45, hp:2.0, dmg:1.5, spd:1.25, skin:['#3E5A34', '#34502C'], cloth:['#2A2A30', '#4A1E1E'], tusks:true, hairS:'topknot', weapons:['great', 'twin'], smart:true, lines:['Human! Your bones will feed my clan.', 'The clan does not retreat!', 'Fight me, little hunter.'] },
+  giant:   { base:'brute',    name:'Giant',      size:2.4, hp:4.0, dmg:1.8, spd:0.85, skin:['#C99A72', '#B07850', '#E8C4A0'], cloth:['#5A4632', '#3A4A5A'], beard:true, weapons:['great'], smart:true, lines:['Tiny thing. I will step on you.', 'Hmm? A bug with a sword.', 'Your city will make a fine meal.'] },
+  iceelf:  { base:'fencer',   name:'Ice Elf',    size:1.05, hp:1.4, dmg:1.3, spd:1.4, skin:['#CFE4F2', '#BCD8EC'], cloth:['#3A6A9A', '#E8F4FF'], hair:['#F4F8FF', '#BFE4FF'], hairS:'long', ears:'long', eye:'#7FD3FF', weapons:['katana', 'twin'], smart:true, ice:true, lines:['Your blood will freeze before you fall.', 'Humans... so warm. So weak.', 'Winter has come for you.'] },
+  ant:     { base:'assassin', name:'Ant Soldier',size:1.0, hp:1.6, dmg:1.3, spd:1.5, skin:['#2A1838', '#3A1E2A'], cloth:['#1E1428', '#2A1A22'], head:'ant', weapons:['twin', 'dagger'], voice:'ant' },
+};
+const SPECIES_BY_RANK = [['goblin', 'goblin', 'wolf'], ['wolf', 'undead', 'goblin'], ['lizard', 'orc', 'undead'], ['orc', 'golem', 'lizard'], ['highorc', 'giant', 'iceelf'], ['highorc', 'iceelf', 'giant', 'ant'], ['iceelf', 'highorc', 'giant', 'ant', 'golem']];
+const BOSS_BY_RANK = [
+  [{ spec:'goblin', base:'kage', name:'Goblin Chieftain', size:1.1 }],
+  [{ spec:'wolf', base:'kage', name:'Alpha of the Pack', size:1.15 }],
+  [{ spec:'lizard', base:'ronin', name:'Lizard King' }, { spec:'undead', base:'ronin', name:'Bone Knight' }],
+  [{ spec:'golem', base:'ogre', name:'Golem Titan' }, { spec:'orc', base:'ogre', name:'Orc Warchief' }],
+  [{ spec:'highorc', base:'asura', name:'High Orc Warlord' }, { spec:'giant', base:'ogre', name:'Giant King', size:1.25 }, { spec:'iceelf', base:'kage', name:'Ice Elf Queen', size:1.1 }],
+  [{ spec:'ant', base:'asura', name:'The Ant King', powers:['swarm'], spd:1.6, crown:true }, { spec:'demonking', base:'asura', name:'The Demon King', powers:['storm'], crown:true }],
+];
+const MONARCHS = [
+  { dom:'Destruction', powers:['destruction', 'storm'], eye:'#FF7A1A', cloth:'#2A0E0A', skin:'#3A1E1A' },
+  { dom:'Frost', powers:['frost', 'storm'], eye:'#7FD3FF', cloth:'#1E2E4A', skin:'#BCD8EC' },
+  { dom:'Fangs', powers:['beasts', 'frost'], eye:'#FFD23F', cloth:'#2A2218', skin:'#5A4A3A' },
+  { dom:'Plagues', powers:['swarm', 'destruction'], eye:'#7FE39F', cloth:'#1A2A1A', skin:'#4A5A3A' },
+  { dom:'Iron', powers:['frost', 'destruction'], eye:'#E8E8F0', cloth:'#2A2A34', skin:'#6E6A72' },
+];
+const MONARCH_NAMES = ['Vharos', 'Ozhren', 'Kaelth', 'Mordrath', 'Ysolde', 'Thrane', 'Azhul', 'Nerezh'];
+const VOICES = {
+  goblin:['Kekeke!', 'Gyah!', 'Kik! Kik!', 'Shiny! Shiny!'], wolf:['Awoooo!', 'Grrrr...', 'Rrraf!'], undead:['...hhhaaah...', '*bones rattle*', 'Ghhhh...'],
+  lizard:['Ssssss!', 'Hsss... meat...', 'Ksss!'], orc:['GRAAAH!', 'Smash!', 'Hrrah!', 'Meat!'], golem:['*stone grinds*', 'RRRMMM...', '*the ground shakes*'], ant:['Kiiiii!', '*clicking*', 'Kchk-kchk!'],
+};
+const BOSS_LINES = {
+  'The Ant King':['Kiiii... the King hungers.', 'Your flesh will make me stronger.', 'My children, feed!'],
+  'The Demon King':['Bow before the King of Demons.', 'Lightning, answer me!', 'This castle is my throne.'],
+  monarch:['Your kind was meant to end.', 'I am the end of worlds.', 'Shadow... so it is you.', 'Kneel, little Monarch.', 'Your gods abandoned this world long ago.'],
+};
+SPECIES.demonking = { base:'asura', name:'Demon King', skin:['#7A1E2A'], cloth:['#1A0A12'], horns:true, eye:'#FFD23F', hairS:'long', hair:['#E8E4DC'], weapons:['great'], smart:true };
+/* a monster of species `spec` from a gate of rank r; opts.boss: a gate's boss */
+function makeBeast(spec, x, r, opts){
+  opts = opts || {}; const S = SPECIES[spec], base = opts.base || S.base, e = makeEnemy(base, x, G.diff, false);
+  e.species = spec; e.beastRank = r; e.alert = true; e.state = 'chase';
+  if (!opts.boss){ e.size = S.size || TYPES[base].size; e.maxHp *= MON_HP[r]*(S.hp || 1); }
+  else { e.size = TYPES[base].size*(opts.size || 1); e.maxHp *= 1 + 0.6*r; e.bossName = opts.name; e.powers = opts.powers || null; e.crown = opts.crown; }
+  e.hp = e.maxHp; e.dmg *= MON_DMG[r]*(S.dmg || 1); e.spd *= (S.spd || 1)*(opts.spd || 1);
+  e.range = TYPES[base].range*e.size/Math.max(1, e.size*0.85);
+  return e;
+}
+function makeMonarch(x){
+  const M = pick(MONARCHS), e = makeBeast('demonking', x, 6, { boss:true, base:'yama', powers:M.powers, crown:true });
+  e.monarch = M; e.bossName = pick(MONARCH_NAMES) + ', Monarch of ' + M.dom; e.spd *= 1.3; return e;
+}
 /* ===== SHADOW LEGION FOES: every one of them is someone. Their own colours, face, hair, weapon and voice; they fight fast;
    and the strongest of them (Slayers: named rogue hunters, gate commanders, dungeon bosses) cut shadows down like grass. ===== */
 const FOE_CLOTH = ['#7A1E2A', '#1F4E7A', '#2E6B45', '#8A6A1E', '#5B2E8A', '#5E636E', '#8A3A1A', '#1E6B6B', '#6B2048', '#3A3A8A'];
@@ -3021,14 +3079,21 @@ const FOE_LINES = {
 };
 const pick = a => a[(Math.random()*a.length)|0];
 function dressFoe(e){
-  const P = G.P, rank = G.dungeon ? G.dungeon.rank : hunterRank(), boss = isBoss(e) || e.dunBoss || e.cmdr;
-  const monster = e.T.zombie || e.T.demon;
+  const P = G.P, rank = e.beastRank ?? (G.dungeon ? G.dungeon.rank : hunterRank()), boss = isBoss(e) || e.dunBoss || e.cmdr;
+  const monster = e.T.zombie || e.T.demon, SP = e.species && SPECIES[e.species];
   e.look = { cloth:e.T.tint || pick(FOE_CLOTH), skin:e.T.zombie ? pick(['#9DB08A', '#7FA06A', '#B8B8A8']) : e.T.demon ? pick(['#9A3B3B', '#7A2A4A', '#5A2A2A']) : pick(FOE_SKIN),
     hair:pick(FOE_HAIR), hairS:pick(['short', 'spiky', 'long', 'topknot', 'mohawk', 'bald', 'short']), eye:e.T.demon ? '#FF3B2F' : pick(FOE_EYE),
     mask:e.T.ninja || e.type === 'assassin' ? 'cloth' : Math.random() < 0.12 ? pick(['cloth', 'oni', 'visor']) : '', scar:Math.random() < 0.25, beard:!monster && Math.random() < 0.25, horns:!!e.T.demon };
+  if (SP){ const L = e.look; L.skin = pick(SP.skin); L.cloth = pick(SP.cloth); L.hair = SP.hair ? pick(SP.hair) : L.hair; L.hairS = SP.hairS || (SP.head ? 'bald' : L.hairS);
+    L.eye = SP.eye || (SP.head ? '#FFD23F' : L.eye); L.head = SP.head || ''; L.ears = SP.ears || ''; L.nose = !!SP.nose; L.tusks = !!SP.tusks; L.horns = !!SP.horns; L.beard = !!SP.beard; L.mask = ''; L.scar = Math.random() < 0.2;
+    e.voice = SP.voice || null; e.lines = SP.lines || null; e.smart = !!SP.smart || (boss && rank >= 2); e.ice = SP.ice;
+    if (e.bossName){ e.foeName = e.bossName; e.T = { ...e.T, name:e.bossName, title:e.monarch ? 'Beyond S-rank' : RANKS[rank] + '-rank calamity' }; e.lines = BOSS_LINES[e.monarch ? 'monarch' : e.bossName] || e.lines; e.voice = e.monarch || BOSS_LINES[e.bossName] ? null : e.voice; L.crown = !!e.crown; }
+    if (e.monarch){ L.eye = e.monarch.eye; L.cloth = e.monarch.cloth; L.skin = e.monarch.skin; L.glow = true; L.hairS = 'long'; L.hair = '#141018'; }
+    if (rank >= 3 && !boss){ e.biteCd = rnd(1, 2.5); } }   // from B-rank up, ordinary monsters break shadows too, now and then
   e.bodyCol = e.look.cloth; e.tint = null;
   // a weapon of their own (not for bows, guns and the dead)
-  if (!e.T.ranged && !e.T.zombie && !e.T.shield){ const wk = e.type === 'brute' || e.type === 'ogre' ? 'great' : e.type === 'assassin' || e.type === 'ninja' ? pick(['dagger', 'twin']) : pick(Object.keys(FOE_WEAPONS));
+  if (SP && SP.fist){ e.foeSword = e.sword = EFIST; e.weapon = 'fists'; }
+  else if (SP ? SP.weapons : !e.T.ranged && !e.T.zombie && !e.T.shield){ const wk = SP ? pick(SP.weapons) : e.type === 'brute' || e.type === 'ogre' ? 'great' : e.type === 'assassin' || e.type === 'ninja' ? pick(['dagger', 'twin']) : pick(Object.keys(FOE_WEAPONS));
     const W = FOE_WEAPONS[wk]; e.weapon = wk; e.foeSword = e.sword = { ...W.sw };
     e.T = { ...e.T, combo:Math.max(e.T.combo || 1, W.combo), unblock:e.T.unblock || W.unblock };
     e.wind *= W.wind; e.range = Math.max(e.range*0.6, W.range*(e.size || 1)); e.dmg *= W.dmg || 1; e.spd *= W.spd; }
@@ -3037,11 +3102,12 @@ function dressFoe(e){
   // the strong ones: named, faster than anything, and death to shadows
   const elite = !boss && Math.random() < 0.06 + 0.04*rank;
   if (boss || elite || e.forceSlayer){ e.slayer = true; e.slayCd = 1; e.stepCd = 2;
-    e.foeName = pick(FOE_NAMES) + ' ' + pick(FOE_TITLES);
+    e.foeName = e.foeName || (SP ? SP.name + ' ' + pick(['Captain', 'Champion', 'Elder', 'Alpha', 'Butcher']) : pick(FOE_NAMES) + ' ' + pick(FOE_TITLES));
     if (!boss){ e.maxHp *= 3 + rank; e.hp = e.maxHp; e.dmg *= 1.5; e.size *= 1.1; }
     e.spd *= boss ? 1.25 : 1.45; e.wind *= boss ? 0.75 : 0.55; e.rec *= 0.55;
     e.T = { ...e.T, block:true, combo:Math.max(e.T.combo || 1, 3) }; e.blockP = Math.max(e.blockP || 0, 0.45);
-    e.look.eye = pick(['#FF3B2F', '#7FD3FF', '#FFD23F', '#C77DFF']); e.look.glow = true;
+    if (!e.monarch) e.look.eye = SP && SP.eye || pick(['#FF3B2F', '#7FD3FF', '#FFD23F', '#C77DFF']); e.look.glow = true;
+    if (rank >= 5 && boss){ e.spd *= 1.25; e.wind *= 0.8; }   // a calamity moves faster than the eye
     if (e.look.hairS === 'bald' && !boss) e.look.hairS = 'long'; }
   e.lastHp = e.hp; e.sayCd = 0;
   if (e.slayer) foeSay(e, 'slayer', true);
@@ -3050,7 +3116,8 @@ function dressFoe(e){
 function foeSay(e, kind, force){
   if (!e.look || (!force && (e.sayCd > 0 || (G.talk || []).filter(t => t.t < t.d).length >= 3))) return;
   G.talk = (G.talk || []).filter(t => t.t < t.d && t.e !== e);
-  G.talk.push({ e, txt:pick(FOE_LINES[kind]), t:0, d:2.6 }); e.sayCd = rnd(4, 8);
+  const list = e.voice ? VOICES[e.voice] : e.lines && (kind === 'meet' || kind === 'slayer' || kind === 'slay' || kind === 'win') ? e.lines : FOE_LINES[kind];   // the dumb ones only snarl
+  G.talk.push({ e, txt:pick(list), t:0, d:2.6, noise:!!e.voice }); e.sayCd = rnd(4, 8);
 }
 function breakShadow(a, by){   // a shadow cut down goes back into the dark; you can call it again
   if (a.fade) return; a.fade = 0.01; a.post = null;
@@ -3073,18 +3140,27 @@ function foesTick(dt){
     if (e.hp < e.maxHp*0.3 && e.lastHp >= e.maxHp*0.3) foeSay(e, 'low', e.slayer);
     e.lastHp = e.hp;
     if (P.monarch && !e.sawMonarch && Math.abs(e.x - P.x) < 520){ e.sawMonarch = true; if (Math.random() < 0.4) foeSay(e, 'fear'); }
-    if (!e.slayer) continue;
+    if (!e.slayer && !e.smart && !(e.biteCd != null)) continue;
+    if (e.powers || e.monarch) bossPower(e, dt);
     const busy = e.webHeld || e.state === 'stun' || e.state === 'hurt' || e.state === 'down' || e.frozenT > 0 || e.freezeT > 0 || !e.onG;
     e.slayCd -= dt; e.stepCd -= dt;
     if (busy) continue;
     // they read your swing: a flash step out of it
     if (newSwing && Math.abs(e.x - P.x) < 150 && Math.random() < 0.35){ const away = sign(e.x - P.x) || 1;
       afterimage(e); e.x = clamp(e.x + away*130, 20, G.worldW - 20); e.evadeUntil = G.time + 0.3; e.atk = null; e.comboLeft = 0; e.face = -away; sfx('swish', 0.01); continue; }
+    if (!e.slayer){   // a smart monster dodges and closes in; a B-rank brute swats a shadow now and then
+      if (e.biteCd != null){ e.biteCd -= dt; const a = G.allies.find(a => !a.fade && (a.rise ?? 0) >= 1 && Math.abs(a.x - e.x) < e.range + 30*(e.size || 1));
+        if (a && e.biteCd <= 0){ e.biteCd = rnd(1.4, 2.6); e.face = sign(a.x - e.x) || 1; breakShadow(a, e); e.state = 'swing'; e.timer = 0.14; e.hitDone = true; sfx('swish'); continue; } }
+      if (!e.smart) continue;
+      if (e.ice && e.slayCd <= 0 && Math.abs(P.x - e.x) > 180 && Math.abs(P.x - e.x) < 520){ e.slayCd = rnd(2.5, 4); e.face = sign(P.x - e.x) || 1; aimShot(e, 'arrow', 760, { g:120, dmg:e.dmg*0.8 }); pop(e.x, e.y - 100*e.size, 'Ice spear', '#7FD3FF'); continue; }
+      const dist = Math.abs(P.x - e.x);
+      if (!P.dead && dist > 320 && e.stepCd <= 0 && e.alert){ e.stepCd = rnd(2, 3.5); afterimage(e); e.x = clamp(e.x + sign(P.x - e.x)*Math.min(260, dist - 120), 20, G.worldW - 20); e.face = sign(P.x - e.x) || 1; }
+      continue; }
     // shadows in reach: one flash of steel and they are gone
     const reach = e.range + 60*(e.size || 1);
     const near = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && Math.abs(a.x - e.x) < reach).sort((p, q) => Math.abs(p.x - e.x) - Math.abs(q.x - e.x));
     if (near.length && e.slayCd <= 0){ const dir = sign(near[0].x - e.x) || 1; e.face = dir; e.slayCd = rnd(0.4, 0.75);
-      const cut = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && (a.x - e.x)*dir > -25 && (a.x - e.x)*dir < reach).slice(0, e.dunBoss || e.cmdr ? 5 : 3);
+      const cut = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && (a.x - e.x)*dir > -25 && (a.x - e.x)*dir < reach).slice(0, e.monarch ? 12 : (e.beastRank || 0) >= 5 && e.dunBoss ? 8 : e.dunBoss || e.cmdr ? 5 : 3);
       for (const a of cut) breakShadow(a, e);
       e.state = 'swing'; e.timer = 0.14; e.hitDone = true; e.atk = null;
       (G.slayFx = G.slayFx || []).push({ x:e.x, y:e.y - 40*(e.size || 1), f:dir, r:reach, t:0, col:e.look.eye });
@@ -3095,13 +3171,37 @@ function foesTick(dt){
       e.x = clamp(e.x + sign(P.x - e.x)*Math.min(320, dist - 110), 20, G.worldW - 20); e.face = sign(P.x - e.x) || 1; sfx('swish', 0.01); }
   }
   for (const f of G.slayFx || []) f.t += dt; G.slayFx = (G.slayFx || []).filter(f => f.t < 0.25);
+  for (const h of G.hazards || []){ h.t += dt;   // marked ground, then the blow lands
+    if (!h.hit && h.t >= h.d){ h.hit = true;
+      const inside = !P.dead && Math.abs(P.x - h.x) < h.w/2 && !(h.kind === 'flame' && P.y < GROUND - 110) && !(P.inv > 0);
+      if (inside) hurtPlayer(h.dmg, 320, { x:h.x, face:sign(P.x - h.x) || 1 }, true);
+      for (const a of G.allies) if (!a.fade && Math.abs(a.x - h.x) < h.w/2) breakShadow(a);
+      if (h.kind === 'bolt'){ bolt(h.x + rnd(-30, 30), GROUND - 520, h.x, GROUND - 10, '#FFE14D'); bolt(h.x, GROUND - 480, h.x + rnd(-20, 20), GROUND - 10, '#FFFFFF'); flash('#FFF7D0', 0.12); }
+      ringFx(h.x, GROUND - 6, h.w*0.7, h.col, true); burst(h.x, GROUND - 20, 18, h.col, 380, 5, true); G.shake = Math.max(G.shake, h.kind === 'flame' ? 12 : 6); sfx('boom', 0.02); } }
+  G.hazards = (G.hazards || []).filter(h => h.t < h.d + 0.45);
   for (const t of G.talk || []) t.t += dt; G.talk = (G.talk || []).filter(t => t.t < t.d);
+}
+function hazard(kind, x, w, d, dmg, col){ (G.hazards = G.hazards || []).push({ kind, x:clamp(x, 20, G.worldW - 20), w, d, dmg, col, t:0, hit:false }); }
+function bossPower(e, dt){   // the calamities and the Monarchs: powers no hunter has
+  const P = G.P; if (e.webHeld || e.frozenT > 0 || e.state === 'stun') return;
+  if (e.monarch){ e.auraT = (e.auraT ?? 2.5) - dt;   // its presence alone breaks shadows
+    if (e.auraT <= 0){ e.auraT = 2.5; let n = 0; for (const a of G.allies) if (!a.fade && Math.abs(a.x - e.x) < 280){ breakShadow(a); n++; } if (n) ringFx(e.x, e.y - 40*e.size, 280, e.monarch.eye, true); } }
+  if (!e.powers) return;
+  e.powT = (e.powT ?? 3) - dt; if (e.powT > 0 || P.dead) return;
+  const pw = e.powers[(e.powI = ((e.powI || 0) + 1) % e.powers.length)], dir = sign(P.x - e.x) || 1, r = e.beastRank || 5, hit = Math.min(e.dmg*(e.monarch ? 1.1 : 0.85), P.maxHp*(e.monarch ? 0.45 : 0.3));   // it hurts badly, but one mark never kills outright
+  if (pw === 'swarm'){ e.powT = 9; for (let i = 0; i < 3; i++){ const m = makeBeast('ant', clamp(e.x + rnd(-90, 90), 40, G.worldW - 40), Math.max(4, r - 1)); m.dun = !!G.dungeon; G.E.push(m); ringFx(m.x, GROUND - 10, 50, '#C77DFF', true); } foeSay(e, 'slayer', true); }
+  if (pw === 'beasts'){ e.powT = 10; for (let i = 0; i < 4; i++){ const m = makeBeast('wolf', clamp(e.x + rnd(-120, 120), 40, G.worldW - 40), Math.max(3, r - 2)); m.dun = !!G.dungeon; G.E.push(m); } pop(e.x, e.y - 130*e.size, 'The pack answers', '#FFD23F'); }
+  if (pw === 'storm'){ e.powT = e.monarch ? 4 : 4.5; for (let i = 0; i < 3; i++) hazard('bolt', P.x + (i - 1)*rnd(110, 160) + (i === 1 ? 0 : 0), 80, 0.85 + i*0.15, hit, '#FFE14D'); pop(e.x, e.y - 130*e.size, 'Lightning!', '#FFE14D'); }
+  if (pw === 'frost'){ e.powT = 5; for (let i = 0; i < 6; i++) hazard('spike', e.x + dir*(90 + i*85), 70, 0.6 + i*0.12, hit*0.8, '#7FD3FF'); }
+  if (pw === 'destruction'){ e.powT = 7; hazard('flame', e.x + dir*360, 640, 1.2, hit*1.5, '#FF7A1A'); pop(e.x, e.y - 140*e.size, 'BREATH OF DESTRUCTION · jump!', '#FF7A1A'); foeSay(e, 'slayer', true); }
 }
 function afterimage(e){ if (FXL() <= 0) return; for (let i = 0; i < 10; i++) G.parts.push({ x:e.x + rnd(-10, 10), y:e.y - rnd(0, 80)*(e.size || 1), vx:0, vy:-rnd(10, 40), life:0.35, max:0.35, col:(e.look && e.look.cloth) || '#444', size:4, real:true }); }
 function drawFoeFace(e, head){
   const L = e.look, s = e.size || 1, f = e.face || 1, hx = head[0], hy = head[1], r = head[6] || 7.5*s;
   ctx.save();
   ctx.fillStyle = L.skin; ctx.beginPath(); ctx.arc(hx, hy, r*0.94, 0, 6.283); ctx.fill();
+  if (L.head){ drawBeastHead(e, L, hx, hy, r, f, s); ctx.restore(); return; }
+  if (L.ears){ ctx.fillStyle = L.skin; ctx.beginPath(); const k = L.ears === 'long' ? 2.1 : 1.3; ctx.moveTo(hx - f*r*0.1, hy - r*0.15); ctx.lineTo(hx - f*r*k, hy - r*(L.ears === 'long' ? 0.9 : 0.7)); ctx.lineTo(hx - f*r*0.35, hy + r*0.35); ctx.fill(); }
   ctx.fillStyle = L.hair;   // hair
   if (L.hairS !== 'bald'){ ctx.beginPath(); ctx.arc(hx - f*0.6*s, hy - 0.4*s, r*1.04, Math.PI*1.02, Math.PI*1.98); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.arc(hx - f*1.2*s, hy, r*1.0, f > 0 ? Math.PI*0.55 : -Math.PI*0.45, f > 0 ? Math.PI*1.5 : Math.PI*0.5); ctx.fill(); }   // the back of the head
@@ -3121,12 +3221,61 @@ function drawFoeFace(e, head){
   // mouth: it moves while they talk
   const talking = (G.talk || []).some(t => t.e === e && t.t < t.d - 0.4), mo = talking ? Math.abs(Math.sin(G.time*16))*r*0.18 : 0;
   ctx.fillStyle = '#2A0E0E'; ctx.beginPath(); ctx.ellipse(hx + f*r*0.62, hy + r*0.42, r*0.18, 0.7*s + mo, 0, 0, 6.283); ctx.fill();
+  if (L.tusks){ ctx.fillStyle = '#F4ECD8'; ctx.beginPath(); ctx.moveTo(hx + f*r*0.45, hy + r*0.5); ctx.lineTo(hx + f*r*0.6, hy - r*0.05); ctx.lineTo(hx + f*r*0.7, hy + r*0.5); ctx.fill(); }
+  if (L.nose){ ctx.fillStyle = L.skin; ctx.beginPath(); ctx.arc(hx + f*r*1.0, hy + r*0.1, r*0.3, 0, 6.283); ctx.fill(); }
+  if (L.crown) drawCrown(e, L, hx, hy, r, f);
   if (L.mask === 'cloth'){ ctx.fillStyle = L.cloth; ctx.beginPath(); ctx.moveTo(hx - f*r*0.3, hy + r*0.1); ctx.lineTo(hx + f*r*1.02, hy + r*0.08); ctx.lineTo(hx + f*r*0.75, hy + r*0.85); ctx.lineTo(hx - f*r*0.4, hy + r*0.95); ctx.fill(); }
   if (L.mask === 'oni'){ ctx.fillStyle = '#B3122E'; ctx.beginPath(); ctx.arc(hx + f*r*0.25, hy, r*0.82, f > 0 ? -1.4 : 1.74, f > 0 ? 1.4 : 4.54); ctx.fill(); ctx.fillStyle = '#FFE7A8'; ctx.fillRect(hx + f*r*0.45 - r*0.18, hy + r*0.35, r*0.36, r*0.12); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(ex, ey, r*0.13, 0, 6.283); ctx.fill(); }
   if (L.mask === 'visor'){ ctx.fillStyle = '#14141C'; ctx.fillRect(hx - f*r*0.1 - (f < 0 ? r*1.1 : 0), ey - r*0.25, r*1.1, r*0.42); ctx.fillStyle = L.eye; ctx.fillRect(hx + f*r*0.2 - (f < 0 ? r*0.6 : 0), ey - r*0.06, r*0.6, r*0.1); }
   ctx.restore();
 }
+function drawCrown(e, L, hx, hy, r, f){   // a king's crown of dark fire
+  ctx.save(); ctx.fillStyle = e.monarch ? '#141018' : '#C9A040'; ctx.beginPath(); ctx.moveTo(hx - r*0.9, hy - r*0.75);
+  for (let i = 0; i <= 4; i++){ const x = hx - r*0.9 + i*r*0.45; ctx.lineTo(x, hy - r*(1.5 + 0.35*Math.sin(G.time*8 + i)*(e.monarch ? 1 : 0.2))); ctx.lineTo(x + r*0.22, hy - r*0.95); }
+  ctx.lineTo(hx + r*0.9, hy - r*0.75); ctx.fill();
+  if (FXL() > 0) glowDot(ctx, hx, hy - r*1.2, 10*(e.size || 1), L.eye, e.monarch ? 0.5 : 0.25); ctx.restore();
+}
+function drawBeastHead(e, L, hx, hy, r, f, s){   // the faces of the things that come out of the gates
+  const ex = hx + f*r*0.4, ey = hy - r*0.2;
+  if (L.head === 'wolf' || L.head === 'lizard'){
+    const wolf = L.head === 'wolf'; ctx.fillStyle = L.skin; ctx.beginPath();   // the muzzle
+    ctx.moveTo(hx + f*r*0.2, hy - r*0.45); ctx.lineTo(hx + f*r*(wolf ? 1.8 : 2.0), hy + r*(wolf ? 0.1 : 0.2)); ctx.lineTo(hx + f*r*(wolf ? 1.65 : 1.9), hy + r*0.5); ctx.lineTo(hx + f*r*0.15, hy + r*0.75); ctx.fill();
+    if (wolf){ ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(hx + f*r*1.78, hy + r*0.12, r*0.17, 0, 6.283); ctx.fill();
+      ctx.fillStyle = L.skin; ctx.beginPath(); ctx.moveTo(hx - f*r*0.05, hy - r*0.6); ctx.lineTo(hx - f*r*0.3, hy - r*1.75); ctx.lineTo(hx - f*r*0.75, hy - r*0.45); ctx.fill();   // the ear
+      ctx.fillStyle = '#F4F0E8'; ctx.beginPath(); ctx.moveTo(hx + f*r*1.2, hy + r*0.45); ctx.lineTo(hx + f*r*1.28, hy + r*0.8); ctx.lineTo(hx + f*r*1.38, hy + r*0.45); ctx.fill(); }
+    else { ctx.fillStyle = shadeHex(L.skin, -0.3); for (let i = 0; i < 3; i++){ ctx.beginPath(); ctx.moveTo(hx - f*r*(0.3 + i*0.25), hy - r*0.8 + i*r*0.4); ctx.lineTo(hx - f*r*(1.2 + i*0.15), hy - r*1.0 + i*r*0.5); ctx.lineTo(hx - f*r*(0.5 + i*0.25), hy - r*0.4 + i*r*0.4); ctx.fill(); } }   // the frill
+    ctx.fillStyle = L.eye; ctx.beginPath(); ctx.ellipse(ex, ey, r*0.2, r*0.15, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.fillRect(ex - r*0.03, ey - r*0.14, r*0.06, r*0.28);
+    if (FXL() > 0) glowDot(ctx, ex, ey, 5*s, L.eye, 0.5); return; }
+  if (L.head === 'skull'){ ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(ex, ey, r*0.3, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#FF3B2F'; ctx.beginPath(); ctx.arc(ex, ey, r*0.08, 0, 6.283); ctx.fill(); if (FXL() > 0) glowDot(ctx, ex, ey, 5*s, '#FF3B2F', 0.6);
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(hx + f*r*0.75, hy + r*0.05); ctx.lineTo(hx + f*r*0.9, hy + r*0.3); ctx.lineTo(hx + f*r*0.65, hy + r*0.3); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(0.8, 0.7*s); ctx.beginPath(); ctx.moveTo(hx + f*r*0.1, hy + r*0.55); ctx.lineTo(hx + f*r*0.85, hy + r*0.55);
+    for (let i = 0; i < 4; i++){ ctx.moveTo(hx + f*r*(0.2 + i*0.2), hy + r*0.42); ctx.lineTo(hx + f*r*(0.2 + i*0.2), hy + r*0.7); } ctx.stroke(); return; }
+  if (L.head === 'golem'){ ctx.strokeStyle = shadeHex(L.skin, -0.4); ctx.lineWidth = Math.max(1, s); ctx.beginPath();   // cracks in the stone
+    ctx.moveTo(hx - r*0.6, hy - r*0.5); ctx.lineTo(hx - r*0.1, hy - r*0.1); ctx.lineTo(hx - r*0.3, hy + r*0.5); ctx.moveTo(hx + r*0.2, hy - r*0.85); ctx.lineTo(hx + r*0.05, hy - r*0.4); ctx.stroke();
+    ctx.fillStyle = '#7FE3FF'; ctx.beginPath(); ctx.arc(ex, ey, r*0.22, 0, 6.283); ctx.fill(); if (FXL() > 0) glowDot(ctx, ex, ey, 9*s, '#7FE3FF', 0.8);
+    ctx.fillStyle = shadeHex(L.skin, -0.45); ctx.fillRect(hx + (f > 0 ? 0 : -r*0.9), hy + r*0.45, r*0.9, r*0.18); return; }
+  if (L.head === 'ant'){ ctx.strokeStyle = L.skin; ctx.lineWidth = Math.max(1.2, 1.2*s); ctx.beginPath();   // antennae
+    ctx.moveTo(hx, hy - r*0.8); ctx.quadraticCurveTo(hx + f*r*0.6, hy - r*2.2, hx + f*r*1.6, hy - r*2.0 + Math.sin(G.time*9)*r*0.2);
+    ctx.moveTo(hx - f*r*0.3, hy - r*0.8); ctx.quadraticCurveTo(hx + f*r*0.2, hy - r*2.4, hx + f*r*1.0, hy - r*2.5 + Math.sin(G.time*8)*r*0.2); ctx.stroke();
+    ctx.strokeStyle = shadeHex(L.skin, 0.55); ctx.lineWidth = Math.max(1.4, 1.6*s); ctx.beginPath();   // mandibles
+    const op = Math.abs(Math.sin(G.time*(e.state === 'windup' ? 20 : 5)))*r*0.3;
+    ctx.moveTo(hx + f*r*0.7, hy + r*0.2); ctx.quadraticCurveTo(hx + f*r*1.5, hy + r*0.1 - op, hx + f*r*1.25, hy + r*0.75);
+    ctx.moveTo(hx + f*r*0.7, hy + r*0.45); ctx.quadraticCurveTo(hx + f*r*1.5, hy + r*0.9 + op, hx + f*r*1.0, hy + r*1.0); ctx.stroke();
+    ctx.fillStyle = L.eye === '#FFD23F' ? '#FF3B2F' : L.eye; ctx.beginPath(); ctx.ellipse(ex, ey, r*0.32, r*0.25, 0, 0, 6.283); ctx.fill();
+    if (FXL() > 0) glowDot(ctx, ex, ey, 7*s, ctx.fillStyle, 0.6); if (L.crown) drawCrown(e, L, hx, hy, r, f); return; }
+}
 function drawFoeTalk(){
+  for (const h of G.hazards || []){ if (h.x < G.camX - h.w || h.x > G.camX + VW + h.w) continue;
+    ctx.save();
+    if (!h.hit){ const k = h.t/h.d; ctx.globalAlpha = 0.25 + 0.35*Math.abs(Math.sin(G.time*14)); ctx.fillStyle = h.col; ctx.fillRect(h.x - h.w/2, GROUND - 4, h.w, 8);   // the warning on the ground
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = h.col; ctx.lineWidth = 2; ctx.strokeRect(h.x - h.w/2*k, GROUND - 3, h.w*k, 6); }
+    else { const k = 1 - (h.t - h.d)/0.45; ctx.globalAlpha = Math.max(0, k); ctx.globalCompositeOperation = 'lighter';
+      if (h.kind === 'flame'){ const g = ctx.createLinearGradient(0, GROUND - 150, 0, GROUND); g.addColorStop(0, 'rgba(255,122,26,0)'); g.addColorStop(0.4, 'rgba(255,90,20,0.8)'); g.addColorStop(1, 'rgba(255,220,120,0.95)'); ctx.fillStyle = g; ctx.fillRect(h.x - h.w/2, GROUND - 150, h.w, 150); }
+      if (h.kind === 'spike'){ ctx.fillStyle = '#BFE4FF'; ctx.beginPath(); for (let i = -1; i <= 1; i++){ ctx.moveTo(h.x + i*18 - 12, GROUND); ctx.lineTo(h.x + i*18, GROUND - (i ? 70 : 110)*Math.min(1, (h.t - h.d)*8)); ctx.lineTo(h.x + i*18 + 12, GROUND); } ctx.fill(); }
+      if (h.kind === 'bolt'){ ctx.fillStyle = 'rgba(255,240,180,0.6)'; ctx.fillRect(h.x - h.w/2, GROUND - 520, h.w, 520); } }
+    ctx.restore(); }
   for (const f of G.slayFx || []){ const k = 1 - f.t/0.25;   // the flash of a Slayer's cut
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = k; ctx.strokeStyle = f.col; ctx.lineWidth = 6*k + 1; ctx.beginPath();
     ctx.arc(f.x, f.y, f.r*0.8, f.f > 0 ? -1.1 : Math.PI - 1.1, f.f > 0 ? 1.1 : Math.PI + 1.1); ctx.stroke(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2*k; ctx.stroke(); ctx.restore(); }
@@ -3143,7 +3292,7 @@ function drawFoeTalk(){
     ctx.fillStyle = 'rgba(250,246,238,0.94)'; ctx.strokeStyle = e.slayer ? e.look.eye : 'rgba(0,0,0,0.5)'; ctx.lineWidth = e.slayer ? 2 : 1;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y - h, w, h, 7) : ctx.rect(x, y - h, w, h); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(e.x - 5, y); ctx.lineTo(e.x + 5, y); ctx.lineTo(e.x + (e.face || 1)*6, y + 7); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#1A1218'; ctx.fillText(t.txt, e.x, y - 6); }
+    ctx.fillStyle = t.noise ? '#6A4A3A' : '#1A1218'; ctx.fillText(t.txt, e.x, y - 6); }
   ctx.restore(); ctx.globalAlpha = 1;
 }
 function startShadow(){
@@ -3254,12 +3403,12 @@ function callShadows(P, side){
    and the gate closes: coins, mana crystals and Hunter experience. Leave a gate too long and it BREAKS: it turns red, and a
    commander leads its army out into the city, and more keep coming until the commander falls.
    You are a Hunter: clearing gates raises your rank, and the gates that open get more dangerous with it. ===== */
-const RANKS = ['E', 'D', 'C', 'B', 'A', 'S'], RANK_COL = ['#9FD3FF', '#7FE39F', '#FFE14D', '#FF9A3D', '#FF5A8A', '#C77DFF'];
-const RANK_XP = [0, 60, 180, 420, 900, 1800], RANK_BOSS = ['kage', 'ronin', 'ogre', 'asura', 'abom', 'yama'];
+const RANKS = ['E', 'D', 'C', 'B', 'A', 'S', 'Monarch'], RANK_COL = ['#9FD3FF', '#7FE39F', '#FFE14D', '#FF9A3D', '#FF5A8A', '#C77DFF', '#FFC94A'];
+const RANK_XP = [0, 60, 180, 420, 900, 1800], RANK_BOSS = ['kage', 'ronin', 'ogre', 'asura', 'abom', 'yama', 'yama'];
 const hunterRank = () => { const xp = SV.hunterXP || 0; let r = 0; for (let i = 0; i < RANK_XP.length; i++) if (xp >= RANK_XP[i]) r = i; return r; };
 function makeGates(){ G.gates = []; G.waves = 0; G.gateT = 3; G.crystalsFx = []; }
 function newGate(){
-  const P = G.P, hr = hunterRank(), rank = clamp(hr + ((Math.random()*4)|0) - 1, 0, 5);
+  const P = G.P, hr = hunterRank(), rank = hr >= 5 && Math.random() < 0.15 ? 6 : clamp(hr + ((Math.random()*4)|0) - 1, 0, 5);   // past S: now and then a Monarch's gate
   let x; for (let i = 0; i < 20; i++){ x = rnd(200, G.worldW - 200); if (Math.abs(x - P.x) > 350 && !G.gates.some(g => Math.abs(g.x - x) < 300)) break; }
   const g = { x, rank, timer:70 + 12*(5 - rank) + rnd(0, 20), red:false, commander:null, spawnT:0 };
   G.gates.push(g); pop(P.x, P.y - 130, RANKS[rank] + '-rank gate opened', RANK_COL[rank]); sfx('shadow');
@@ -3268,6 +3417,11 @@ function gateEnemy(g, type, boost){
   const e = makeEnemy(type, g.x + rnd(-20, 20), G.diff, false);
   const k = 1 + 0.04*G.waves + (boost || 0) + 0.35*(g.rank || 0);   // stronger every wave, and by the gate's rank
   e.maxHp *= k; e.hp = e.maxHp; e.dmg *= 1 + 0.025*G.waves + (boost || 0)*0.6 + 0.2*(g.rank || 0); e.alert = true; e.state = 'chase'; e.fromGate = g;   // out of the gate and straight for you
+  ringFx(g.x, GROUND - 60, 60, g.red ? '#FF3B3B' : '#3FA9FF'); G.E.push(e); return e;
+}
+function gateBeast(g, spec, boost){   // out of a broken gate: that gate's monsters
+  const e = makeBeast(spec, g.x + rnd(-20, 20), g.rank);
+  const k = 1 + 0.04*G.waves + (boost || 0); e.maxHp *= k; e.hp = e.maxHp; e.dmg *= 1 + 0.025*G.waves + (boost || 0)*0.6; e.fromGate = g;
   ringFx(g.x, GROUND - 60, 60, g.red ? '#FF3B3B' : '#3FA9FF'); G.E.push(e); return e;
 }
 function gatesTick(dt, alive){
@@ -3279,10 +3433,10 @@ function gatesTick(dt, alive){
   for (const g of G.gates){
     if (!g.red){ g.timer -= dt;
       if (g.timer <= 0){ g.red = true; g.spawnT = 1;   // DUNGEON BREAK
-        const c = gateEnemy(g, Math.random() < 0.5 ? 'brute' : 'demon', 2.5); c.size *= 1.45; c.maxHp *= 2.5; c.hp = c.maxHp; c.dmg *= 1.4; c.cmdr = true; g.commander = c;
-        for (let i = 0; i < 5; i++){ const m = gateEnemy(g, pool[2 + ((Math.random()*9)|0)], 0.8); m.army = c; }
+        const c = gateBeast(g, SPECIES_BY_RANK[g.rank][1], 2.5); c.size *= 1.3; c.maxHp *= 2.5; c.hp = c.maxHp; c.dmg *= 1.4; c.cmdr = true; g.commander = c;
+        for (let i = 0; i < 5; i++){ const m = gateBeast(g, pick(SPECIES_BY_RANK[g.rank]), 0.8); m.army = c; }
         showBanner('DUNGEON BREAK', RANKS[g.rank] + '-rank gate turned red', 'Its commander leads an army into the city · bring it down', '#FF3B3B'); sfx('boom'); vib(80); } }
-    else { g.spawnT -= dt; if (g.spawnT <= 0 && alive < 22){ g.spawnT = 2.6; for (let i = 0; i < 2; i++){ const m = gateEnemy(g, pool[2 + ((Math.random()*9)|0)], 0.8); m.army = g.commander; } G.waves++; alive += 2; } }
+    else { g.spawnT -= dt; if (g.spawnT <= 0 && alive < 22){ g.spawnT = 2.6; for (let i = 0; i < 2; i++){ const m = gateBeast(g, pick(SPECIES_BY_RANK[g.rank]), 0.8); m.army = g.commander; } G.waves++; alive += 2; } }
   }
   const near = G.gates.find(g => !g.red && Math.abs(g.x - P.x) < 90);
   G.gateNear = near || null;
@@ -3304,9 +3458,9 @@ function enterDungeon(g){
   P.x = 140; P.y = GROUND; P.vx = 0; G.camX = 0;
   for (const a of G.allies){ a.x = P.x + (a.slot || rnd(-60, 60)); a.tgt = null; }
   const traps = []; for (let x = 600; x < 2400; x += rnd(380, 560)) traps.push({ x, w:70, t:rnd(0, 2.5) });
-  G.dungeon = { g, rank:r, kills:0, need:8 + 4*r, boss:null, spawnT:1, done:false, traps };
+  G.dungeon = { g, rank:r, kills:0, need:Math.min(30, 8 + 4*r), boss:null, spawnT:1, done:false, traps };
   G.diff = diffFor(Math.min(30, 4 + 4*r));
-  showBanner(RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', 'Mind the spike traps · collect the mana crystals', RANK_COL[r]); sfx('shadow');
+  showBanner(r >= 6 ? 'MONARCH GATE' : RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', ['Goblins and wolfkin: weak, but many', 'Wolfkin and the risen', 'Lizardmen and orcs: tough hides, they fight in packs', 'Orcs and stone golems', 'High orcs, giants and ice elves: they think, and they talk', 'A calamity waits at the end', 'Beyond S-rank. A Monarch waits at the end'][r], RANK_COL[r]); sfx('shadow');
 }
 function dungeonTick(dt, alive){
   const D = G.dungeon, P = G.P, r = D.rank;
@@ -3316,12 +3470,13 @@ function dungeonTick(dt, alive){
       const n = Math.min(2 + (r > 2 ? 1 : 0), D.need - D.kills - alive);   // they come in packs
       for (let i = 0; i < n; i++){
         const x = clamp(P.x + (Math.random() < 0.8 ? 1 : -1)*(VW*0.55 + rnd(40, 200)), 60, G.worldW - 60);
-        const e = makeEnemy(pool[(Math.random()*Math.min(pool.length, 4 + r))|0], x, G.diff, false);
-        const k = 1 + 0.45*r; e.maxHp *= k; e.hp = e.maxHp; e.dmg *= 1 + 0.25*r; e.alert = true; e.state = 'chase'; e.dun = true; G.E.push(e); } }
+        const e = makeBeast(pick(SPECIES_BY_RANK[r]), x, r); e.dun = true; G.E.push(e);
+        if (SPECIES[e.species].voice === 'goblin' || e.species === 'wolf') for (let j = 0; j < 1 && D.kills + alive + n < D.need; j++){ const m = makeBeast(e.species, clamp(x + rnd(-60, 60), 60, G.worldW - 60), r); m.dun = true; G.E.push(m); alive++; } } }   // the weak come in bigger packs
     if (D.kills >= D.need){   // the boss
-      const b = makeEnemy(RANK_BOSS[r], clamp(P.x + 520, 100, G.worldW - 100), G.diff, false);
-      const k = 1 + 0.6*r; b.maxHp *= k; b.hp = b.maxHp; b.dmg *= 1 + 0.3*r; b.alert = true; b.state = 'chase'; b.dun = true; b.dunBoss = true; G.E.push(b); D.boss = b;
-      showBanner('Dungeon Boss', RANKS[r] + '-rank', 'Bring it down to close the gate', RANK_COL[r]); sfx('boom'); vib(80); } }
+      const bx = clamp(P.x + 520, 100, G.worldW - 100), b = r >= 6 ? makeMonarch(bx) : (o => makeBeast(o.spec, bx, r, { boss:true, ...o }))(pick(BOSS_BY_RANK[r]));
+      b.dun = true; b.dunBoss = true; G.E.push(b); D.boss = b;
+      showBanner(r >= 6 ? 'A MONARCH' : 'Dungeon Boss', b.bossName || RANKS[r] + '-rank', r >= 6 ? 'A primordial king of the dark · your shadows will break before it' : r >= 5 ? 'A calamity · it could wipe out a city' : 'Bring it down to close the gate', RANK_COL[r]); sfx('boom'); vib(r >= 5 ? 140 : 80);
+      if (r >= 5){ flash(r >= 6 ? '#2A1A00' : '#1A0A12', 0.5); G.shake = Math.max(G.shake, 14); } } }
   for (const t of D.traps){ t.t += dt; const up = (t.t % 2.6) < 0.8;   // spike traps: up, down, up
     t.up = up; if (up && P.onG && !P.dead && Math.abs(P.x - t.x) < t.w/2 && !(P.inv > 0)){ hurtPlayer(10 + 6*r, 260, { x:t.x, face:sign(P.x - t.x) || 1 }, true); P.inv = Math.max(P.inv, 0.6); } }
   for (const c of G.crystals || []){ c.t += dt; if (!c.got && Math.abs(c.x - P.x) < 34 && Math.abs(c.y - (P.y - 20)) < 60){ c.got = true;   // mana crystals
@@ -3335,7 +3490,7 @@ function dungeonKill(e){
   D.kills++;
   if (Math.random() < 0.6 || e.dunBoss) (G.crystals = G.crystals || []).push({ x:e.x, y:GROUND - 14, v:e.dunBoss ? 10*(D.rank + 1) : D.rank + 1, t:0 });
   if (e.dunBoss && !D.done){ D.done = true; D.exitT = ARISE_TIME;
-    const coins = 250*(D.rank + 1)*(D.rank + 1), xp = [20, 40, 70, 120, 200, 350][D.rank];
+    const coins = 250*(D.rank + 1)*(D.rank + 1), xp = [20, 40, 70, 120, 200, 350, 700][D.rank];
     SV.coins = (SV.coins || 0) + coins; SV.hunterXP = (SV.hunterXP || 0) + xp; saveSoon();
     const before = D.rankBefore = hunterRank();
     showBanner('Gate cleared', '+' + coins + ' coins · +' + xp + ' Hunter XP', (isTouch ? 'Arise' : 'Alt') + ': take their shadows · ' + ARISE_TIME + ' s before the gate closes · ' + (isTouch ? 'Enter' : 'O') + ': leave now', RANK_COL[D.rank]); }
