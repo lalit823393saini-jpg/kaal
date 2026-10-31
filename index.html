@@ -817,7 +817,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R</b> call your kept shadows back, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>V</b> Monarch form, <b>I</b> Shadow Realm &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>V</b> Monarch form, <b>I</b> Shadow Realm &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -2994,6 +2994,158 @@ function drawMonarch(){
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(P.x, cy, r, 0, 6.283); ctx.fill(); ctx.restore();
     if (FXL() > 0 && Math.random() < 0.7) G.parts.push({ x:P.x + rnd(-24, 24)*s, y:P.y - rnd(0, 80)*s, vx:rnd(-20, 20), vy:-rnd(60, 160), life:0.6, max:0.6, col:Math.random() < 0.6 ? '#2B1D4E' : '#9B6BFF', size:5, real:true }); }
 }
+/* ===== SHADOW LEGION FOES: every one of them is someone. Their own colours, face, hair, weapon and voice; they fight fast;
+   and the strongest of them (Slayers: named rogue hunters, gate commanders, dungeon bosses) cut shadows down like grass. ===== */
+const FOE_CLOTH = ['#7A1E2A', '#1F4E7A', '#2E6B45', '#8A6A1E', '#5B2E8A', '#5E636E', '#8A3A1A', '#1E6B6B', '#6B2048', '#3A3A8A'];
+const FOE_SKIN = ['#E8C4A0', '#C99A72', '#8D5A3C', '#F2D7BE', '#B07850', '#6E4630'];
+const FOE_HAIR = ['#141018', '#141018', '#3A2414', '#E8E4DC', '#B8322A', '#E0B04A', '#2F5FB0', '#6A6A72'];
+const FOE_EYE = ['#3A2414', '#1A1A1A', '#2F5FB0', '#2E6B45'];
+const FOE_NAMES = ['Kael', 'Dorn', 'Hyun', 'Ryo', 'Sera', 'Vex', 'Taro', 'Jae', 'Ora', 'Zeph', 'Kira', 'Bran', 'Yuki', 'Rasa', 'Dae', 'Mira', 'Soren', 'Ito', 'Garr', 'Lune', 'Haru', 'Nyx', 'Oleg', 'Seo'];
+const FOE_TITLES = ['the Swift', 'Bloodfang', 'of the Red Gate', 'Ironjaw', 'the Butcher', 'Twin Fang', 'the Unbroken', 'Shadowbane', 'the Hollow', 'Stormcut', 'Ninth Blade', 'the Silent'];
+const FOE_WEAPONS = {
+  dagger:  { sw:{ len:20, w:2.2, dual:true, edge:'#E8F0FF' }, combo:3, wind:0.6, range:58, spd:1.15 },
+  katana:  { sw:{ len:38, w:2.6, edge:'#FFFFFF' }, combo:2, wind:0.85, range:72, spd:1.05 },
+  twin:    { sw:{ len:31, w:2.4, dual:true, edge:'#DDE6EE' }, combo:4, wind:0.7, range:66, spd:1.1 },
+  great:   { sw:{ len:60, w:3.8, edge:'#D8D0C8' }, combo:1, wind:1.1, range:100, spd:0.95, dmg:1.35, unblock:true },
+  spear:   { sw:{ len:72, w:1.7, edge:'#FFE7A8' }, combo:2, wind:0.9, range:118, spd:1.0 },
+};
+const FOE_LINES = {
+  meet:  ['Another hunter? You will do.', 'Fresh meat.', 'You smell of the grave, hunter.', 'I will take your head to the gate.', 'Run while you can.', 'Your rank means nothing here.', 'Look at you, shaking.', 'This street is ours now.'],
+  slayer:['Shadows? I cut shadows for breakfast.', 'Send your whole army. It will not be enough.', 'I have killed Monarchs before.', 'Your little dolls bore me.', 'Kneel, and I make it quick.'],
+  slay:  ['Next!', 'Smoke and nothing.', 'Is that all of them?', 'Too slow.', 'Paper soldiers.'],
+  hit:   ['Tch!', 'Not bad...', 'That tickled.', 'Lucky.', 'You will pay for that!', 'Grr...'],
+  low:   ['Impossible...', 'Who ARE you?', 'I will not kneel!', 'Stay back!', 'This cannot be...'],
+  die:   ['The shadow... king...', 'Ugh...', 'Tell my guild...', 'So this... is the end...', 'Mother...', 'Not... like this...'],
+  fear:  ['W-what is that?!', 'A Monarch?!', 'No... no no no!', 'That is no hunter!'],
+  win:   ['Pathetic.', 'Rise again, if you can.', 'Another one for the gate.', 'Too easy.'],
+};
+const pick = a => a[(Math.random()*a.length)|0];
+function dressFoe(e){
+  const P = G.P, rank = G.dungeon ? G.dungeon.rank : hunterRank(), boss = isBoss(e) || e.dunBoss || e.cmdr;
+  const monster = e.T.zombie || e.T.demon;
+  e.look = { cloth:e.T.tint || pick(FOE_CLOTH), skin:e.T.zombie ? pick(['#9DB08A', '#7FA06A', '#B8B8A8']) : e.T.demon ? pick(['#9A3B3B', '#7A2A4A', '#5A2A2A']) : pick(FOE_SKIN),
+    hair:pick(FOE_HAIR), hairS:pick(['short', 'spiky', 'long', 'topknot', 'mohawk', 'bald', 'short']), eye:e.T.demon ? '#FF3B2F' : pick(FOE_EYE),
+    mask:e.T.ninja || e.type === 'assassin' ? 'cloth' : Math.random() < 0.12 ? pick(['cloth', 'oni', 'visor']) : '', scar:Math.random() < 0.25, beard:!monster && Math.random() < 0.25, horns:!!e.T.demon };
+  e.bodyCol = e.look.cloth; e.tint = null;
+  // a weapon of their own (not for bows, guns and the dead)
+  if (!e.T.ranged && !e.T.zombie && !e.T.shield){ const wk = e.type === 'brute' || e.type === 'ogre' ? 'great' : e.type === 'assassin' || e.type === 'ninja' ? pick(['dagger', 'twin']) : pick(Object.keys(FOE_WEAPONS));
+    const W = FOE_WEAPONS[wk]; e.weapon = wk; e.foeSword = e.sword = { ...W.sw };
+    e.T = { ...e.T, combo:Math.max(e.T.combo || 1, W.combo), unblock:e.T.unblock || W.unblock };
+    e.wind *= W.wind; e.range = Math.max(e.range*0.6, W.range*(e.size || 1)); e.dmg *= W.dmg || 1; e.spd *= W.spd; }
+  // everybody fights fast here
+  e.spd *= 1.15; e.wind *= 0.85; e.rec *= 0.8;
+  // the strong ones: named, faster than anything, and death to shadows
+  const elite = !boss && Math.random() < 0.06 + 0.04*rank;
+  if (boss || elite || e.forceSlayer){ e.slayer = true; e.slayCd = 1; e.stepCd = 2;
+    e.foeName = pick(FOE_NAMES) + ' ' + pick(FOE_TITLES);
+    if (!boss){ e.maxHp *= 3 + rank; e.hp = e.maxHp; e.dmg *= 1.5; e.size *= 1.1; }
+    e.spd *= boss ? 1.25 : 1.45; e.wind *= boss ? 0.75 : 0.55; e.rec *= 0.55;
+    e.T = { ...e.T, block:true, combo:Math.max(e.T.combo || 1, 3) }; e.blockP = Math.max(e.blockP || 0, 0.45);
+    e.look.eye = pick(['#FF3B2F', '#7FD3FF', '#FFD23F', '#C77DFF']); e.look.glow = true;
+    if (e.look.hairS === 'bald' && !boss) e.look.hairS = 'long'; }
+  e.lastHp = e.hp; e.sayCd = 0;
+  if (e.slayer) foeSay(e, 'slayer', true);
+  else if (P && Math.random() < 0.3) foeSay(e, 'meet');
+}
+function foeSay(e, kind, force){
+  if (!e.look || (!force && (e.sayCd > 0 || (G.talk || []).filter(t => t.t < t.d).length >= 3))) return;
+  G.talk = (G.talk || []).filter(t => t.t < t.d && t.e !== e);
+  G.talk.push({ e, txt:pick(FOE_LINES[kind]), t:0, d:2.6 }); e.sayCd = rnd(4, 8);
+}
+function breakShadow(a, by){   // a shadow cut down goes back into the dark; you can call it again
+  if (a.fade) return; a.fade = 0.01; a.post = null;
+  burst(a.x, a.y - 40*(a.size || 1), 14, '#2B1D4E', 300, 4, true); sparks(a.x, a.y - 40*(a.size || 1));
+  pop(a.x, a.y - 100*(a.size || 1), 'Broken', '#9B6BFF');
+}
+function foesTick(dt){
+  const P = G.P; if (!P) return;
+  for (const e of G.E) if (!e.look && !e.remote && !e.shadow && !e.dead) dressFoe(e);
+  G.rogueT = (G.rogueT ?? rnd(40, 60)) - dt;   // now and then a rogue hunter walks into the city
+  if (!G.dungeon && G.rogueT <= 0 && G.E.filter(e => !e.dead).length < 24){ G.rogueT = rnd(55, 85);
+    const side = Math.random() < 0.5 ? -1 : 1, x = clamp(P.x + side*(VW*0.6), 60, G.worldW - 60);
+    const e = makeEnemy(pick(['fencer', 'ninja', 'assassin', 'grunt']), x, G.diff, false); e.forceSlayer = true; e.alert = true; e.state = 'chase'; G.E.push(e); dressFoe(e);
+    e.maxHp *= 1 + 0.5*hunterRank(); e.hp = e.maxHp;
+    showBanner('Rogue Hunter', e.foeName, 'It hunts hunters · your shadows will not hold it long', '#FF5A6A'); sfx('boom', 0.02); }
+  const newSwing = P.atk && P.atk !== G._foeAtkSeen; if (newSwing) G._foeAtkSeen = P.atk;
+  for (const e of G.E){ if (!e.look || e.dead || e.remote) continue;
+    e.sayCd -= dt;
+    if (e.hp < e.lastHp - e.maxHp*0.12 && Math.random() < 0.35) foeSay(e, 'hit');
+    if (e.hp < e.maxHp*0.3 && e.lastHp >= e.maxHp*0.3) foeSay(e, 'low', e.slayer);
+    e.lastHp = e.hp;
+    if (P.monarch && !e.sawMonarch && Math.abs(e.x - P.x) < 520){ e.sawMonarch = true; if (Math.random() < 0.4) foeSay(e, 'fear'); }
+    if (!e.slayer) continue;
+    const busy = e.webHeld || e.state === 'stun' || e.state === 'hurt' || e.state === 'down' || e.frozenT > 0 || e.freezeT > 0 || !e.onG;
+    e.slayCd -= dt; e.stepCd -= dt;
+    if (busy) continue;
+    // they read your swing: a flash step out of it
+    if (newSwing && Math.abs(e.x - P.x) < 150 && Math.random() < 0.35){ const away = sign(e.x - P.x) || 1;
+      afterimage(e); e.x = clamp(e.x + away*130, 20, G.worldW - 20); e.evadeUntil = G.time + 0.3; e.atk = null; e.comboLeft = 0; e.face = -away; sfx('swish', 0.01); continue; }
+    // shadows in reach: one flash of steel and they are gone
+    const reach = e.range + 60*(e.size || 1);
+    const near = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && Math.abs(a.x - e.x) < reach).sort((p, q) => Math.abs(p.x - e.x) - Math.abs(q.x - e.x));
+    if (near.length && e.slayCd <= 0){ const dir = sign(near[0].x - e.x) || 1; e.face = dir; e.slayCd = rnd(0.4, 0.75);
+      const cut = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && (a.x - e.x)*dir > -25 && (a.x - e.x)*dir < reach).slice(0, e.dunBoss || e.cmdr ? 5 : 3);
+      for (const a of cut) breakShadow(a, e);
+      e.state = 'swing'; e.timer = 0.14; e.hitDone = true; e.atk = null;
+      (G.slayFx = G.slayFx || []).push({ x:e.x, y:e.y - 40*(e.size || 1), f:dir, r:reach, t:0, col:e.look.eye });
+      sfx('swish'); G.shake = Math.max(G.shake, 3); if (Math.random() < 0.25) foeSay(e, 'slay'); continue; }
+    // far from you and nothing in the way: a flash step closes the gap
+    const dist = Math.abs(P.x - e.x);
+    if (!P.dead && dist > 300 && e.stepCd <= 0 && e.alert){ e.stepCd = rnd(1.4, 2.6); afterimage(e);
+      e.x = clamp(e.x + sign(P.x - e.x)*Math.min(320, dist - 110), 20, G.worldW - 20); e.face = sign(P.x - e.x) || 1; sfx('swish', 0.01); }
+  }
+  for (const f of G.slayFx || []) f.t += dt; G.slayFx = (G.slayFx || []).filter(f => f.t < 0.25);
+  for (const t of G.talk || []) t.t += dt; G.talk = (G.talk || []).filter(t => t.t < t.d);
+}
+function afterimage(e){ if (FXL() <= 0) return; for (let i = 0; i < 10; i++) G.parts.push({ x:e.x + rnd(-10, 10), y:e.y - rnd(0, 80)*(e.size || 1), vx:0, vy:-rnd(10, 40), life:0.35, max:0.35, col:(e.look && e.look.cloth) || '#444', size:4, real:true }); }
+function drawFoeFace(e, head){
+  const L = e.look, s = e.size || 1, f = e.face || 1, hx = head[0], hy = head[1], r = head[6] || 7.5*s;
+  ctx.save();
+  ctx.fillStyle = L.skin; ctx.beginPath(); ctx.arc(hx, hy, r*0.94, 0, 6.283); ctx.fill();
+  ctx.fillStyle = L.hair;   // hair
+  if (L.hairS !== 'bald'){ ctx.beginPath(); ctx.arc(hx - f*0.6*s, hy - 0.4*s, r*1.04, Math.PI*1.02, Math.PI*1.98); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx - f*1.2*s, hy, r*1.0, f > 0 ? Math.PI*0.55 : -Math.PI*0.45, f > 0 ? Math.PI*1.5 : Math.PI*0.5); ctx.fill(); }   // the back of the head
+  if (L.hairS === 'spiky'){ ctx.beginPath(); for (let i = 0; i < 4; i++){ const a = -0.4 - i*0.5; ctx.moveTo(hx + Math.cos(Math.PI + a*f)*r*0.6*-f, hy - r*0.5); ctx.lineTo(hx - f*(4 + i*3)*s, hy - r*(1.3 + 0.2*(i % 2))); ctx.lineTo(hx - f*(i*3)*s, hy - r*0.7); } ctx.fill(); }
+  if (L.hairS === 'long'){ ctx.beginPath(); ctx.moveTo(hx - f*r*0.2, hy - r); ctx.quadraticCurveTo(hx - f*r*1.6, hy - r*0.2, hx - f*r*1.3 + Math.sin(G.time*3)*s, hy + r*2.2); ctx.lineTo(hx - f*r*0.5, hy + r*0.6); ctx.fill(); }
+  if (L.hairS === 'topknot'){ ctx.beginPath(); ctx.arc(hx - f*r*0.5, hy - r*1.15, r*0.38, 0, 6.283); ctx.fill(); }
+  if (L.hairS === 'mohawk'){ ctx.beginPath(); for (let i = 0; i < 5; i++){ const x = hx + f*r*0.5 - f*i*r*0.38; ctx.moveTo(x, hy - r*0.8); ctx.lineTo(x - f*r*0.2, hy - r*1.5); ctx.lineTo(x - f*r*0.38, hy - r*0.8); } ctx.fill(); }
+  if (L.horns){ ctx.fillStyle = '#E8DCC8'; ctx.beginPath(); ctx.moveTo(hx, hy - r*0.8); ctx.quadraticCurveTo(hx + f*r*0.3, hy - r*1.9, hx + f*r*0.9, hy - r*1.8); ctx.lineTo(hx + f*r*0.35, hy - r*0.7); ctx.fill(); }
+  const ex = hx + f*r*0.42, ey = hy - r*0.12;
+  if (L.beard){ ctx.fillStyle = L.hair; ctx.beginPath(); ctx.moveTo(hx - f*r*0.2, hy + r*0.25); ctx.quadraticCurveTo(hx + f*r*0.6, hy + r*1.35, hx + f*r*0.95, hy + r*0.35); ctx.lineTo(hx + f*r*0.3, hy + r*0.4); ctx.fill(); }
+  // eye: white, then the iris; the strong ones' eyes burn
+  if (L.mask !== 'visor'){ ctx.fillStyle = '#F4F0E8'; ctx.beginPath(); ctx.ellipse(ex, ey, r*0.22, r*0.15, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = L.eye; ctx.beginPath(); ctx.arc(ex + f*r*0.06, ey, r*0.11, 0, 6.283); ctx.fill();
+    if (L.glow && FXL() > 0) glowDot(ctx, ex + f*r*0.06, ey, 6*s, L.eye, 0.8);
+    ctx.strokeStyle = L.hair === '#E8E4DC' ? '#8A8478' : L.hair; ctx.lineWidth = Math.max(1, 1.1*s); ctx.beginPath(); ctx.moveTo(ex - f*r*0.3, ey - r*0.3); ctx.lineTo(ex + f*r*0.28, ey - r*(e.state === 'windup' || e.state === 'swing' ? 0.15 : 0.24)); ctx.stroke(); }   // the brow drops when they strike
+  if (L.scar){ ctx.strokeStyle = 'rgba(255,220,210,0.75)'; ctx.lineWidth = Math.max(0.8, 0.8*s); ctx.beginPath(); ctx.moveTo(ex - f*r*0.15, ey - r*0.45); ctx.lineTo(ex + f*r*0.2, ey + r*0.45); ctx.stroke(); }
+  // mouth: it moves while they talk
+  const talking = (G.talk || []).some(t => t.e === e && t.t < t.d - 0.4), mo = talking ? Math.abs(Math.sin(G.time*16))*r*0.18 : 0;
+  ctx.fillStyle = '#2A0E0E'; ctx.beginPath(); ctx.ellipse(hx + f*r*0.62, hy + r*0.42, r*0.18, 0.7*s + mo, 0, 0, 6.283); ctx.fill();
+  if (L.mask === 'cloth'){ ctx.fillStyle = L.cloth; ctx.beginPath(); ctx.moveTo(hx - f*r*0.3, hy + r*0.1); ctx.lineTo(hx + f*r*1.02, hy + r*0.08); ctx.lineTo(hx + f*r*0.75, hy + r*0.85); ctx.lineTo(hx - f*r*0.4, hy + r*0.95); ctx.fill(); }
+  if (L.mask === 'oni'){ ctx.fillStyle = '#B3122E'; ctx.beginPath(); ctx.arc(hx + f*r*0.25, hy, r*0.82, f > 0 ? -1.4 : 1.74, f > 0 ? 1.4 : 4.54); ctx.fill(); ctx.fillStyle = '#FFE7A8'; ctx.fillRect(hx + f*r*0.45 - r*0.18, hy + r*0.35, r*0.36, r*0.12); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(ex, ey, r*0.13, 0, 6.283); ctx.fill(); }
+  if (L.mask === 'visor'){ ctx.fillStyle = '#14141C'; ctx.fillRect(hx - f*r*0.1 - (f < 0 ? r*1.1 : 0), ey - r*0.25, r*1.1, r*0.42); ctx.fillStyle = L.eye; ctx.fillRect(hx + f*r*0.2 - (f < 0 ? r*0.6 : 0), ey - r*0.06, r*0.6, r*0.1); }
+  ctx.restore();
+}
+function drawFoeTalk(){
+  for (const f of G.slayFx || []){ const k = 1 - f.t/0.25;   // the flash of a Slayer's cut
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = k; ctx.strokeStyle = f.col; ctx.lineWidth = 6*k + 1; ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r*0.8, f.f > 0 ? -1.1 : Math.PI - 1.1, f.f > 0 ? 1.1 : Math.PI + 1.1); ctx.stroke(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2*k; ctx.stroke(); ctx.restore(); }
+  ctx.save(); ctx.textAlign = 'center';
+  for (const e of G.E){ if (!e.foeName || e.dead || e.x < G.camX - 100 || e.x > G.camX + VW + 100) continue;   // the names of the strong
+    ctx.font = '600 14px Teko, sans-serif'; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(e.foeName, e.x + 1, e.y - 104*(e.size || 1) + 1);
+    ctx.fillStyle = e.look.eye; ctx.fillText(e.foeName, e.x, e.y - 104*(e.size || 1)); }
+  const placed = [];   // bubbles that would cover each other stack upwards
+  for (const t of (G.talk || []).slice().sort((p, q) => p.e.y - q.e.y)){ const e = t.e; if (e.x < G.camX - 200 || e.x > G.camX + VW + 200) continue;
+    const a = Math.min(1, t.t*6, (t.d - t.t)*3); ctx.globalAlpha = a; ctx.font = '600 15px Teko, sans-serif';
+    const w = ctx.measureText(t.txt).width + 16, h = 22, x = e.x - w/2; let y = e.y - 128*(e.size || 1) - (e.foeName ? 6 : 0);
+    for (let k = 0; k < 6 && placed.some(b => x < b.x + b.w && b.x < x + w && y - h < b.y && b.y - h < y); k++) y = Math.min(...placed.filter(b => x < b.x + b.w && b.x < x + w).map(b => b.y - h - 4));
+    placed.push({ x, y, w });
+    ctx.fillStyle = 'rgba(250,246,238,0.94)'; ctx.strokeStyle = e.slayer ? e.look.eye : 'rgba(0,0,0,0.5)'; ctx.lineWidth = e.slayer ? 2 : 1;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y - h, w, h, 7) : ctx.rect(x, y - h, w, h); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(e.x - 5, y); ctx.lineTo(e.x + 5, y); ctx.lineTo(e.x + (e.face || 1)*6, y + 7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#1A1218'; ctx.fillText(t.txt, e.x, y - 6); }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function startShadow(){
   G.mode = 'shadow'; G.level = 0; G.diff = diffFor(3);
   G.shadowTheme = ((G.shadowTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.shadowTheme];
@@ -3011,7 +3163,7 @@ function startShadow(){
   toast(G.stored.length ? G.stored.length + ' shadows wait for you · R: call them' : 'Shadow Legion', 1.8);
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
     isTouch ? 'Kill · Arise: the fallen rise as shadows · Return: send them back · Call: bring them back, strongest first'
-            : 'Alt: ARISE · R: call back · B: send back · Tab: attack/guard · X: exchange · C hold: Ruler · V: Monarch · I: Realm', '#9B6BFF'); }, 900);
+            : 'Alt: ARISE · R+A: call behind · R+D: call in front · Q: go · B: send back · Tab · X · C · V · I', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -3020,6 +3172,7 @@ function shadowTick(dt, alive){
   const k = G.kills;
   if (k > (SV.shadowBest || 0)){ SV.shadowBest = k; saveSoon(); }
   gatesTick(dt, alive);
+  foesTick(dt);
   S.syncT -= dt; if (S.syncT <= 0){ S.syncT = 1; syncLegion(); }
   legionStats(P);
   const legion = G.allies.filter(a => !a.fade).length;
@@ -3038,9 +3191,13 @@ function shadowTick(dt, alive){
     if (FXL() > 0) for (const c of G.corpses) for (let i = 0; i < 6; i++) G.parts.push({ x:c.x + rnd(-20, 20), y:GROUND - rnd(0, 16), vx:0, vy:-rnd(80, 180), life:0.5, max:0.5, col:Math.random() < 0.5 ? '#2B1D4E' : '#9B6BFF', size:4, real:true });
     if (G.corpses.length) raiseAll(P); else pop(P.x, P.y - 110, 'No fallen to raise', 'rgba(201,168,255,0.8)'); }
   // R: the shadows you sent back come out again behind you, strongest first
-  if (pressed.clone && !P.dead){ P.raiseFx = 0.55;
-    if ((G.stored || []).length) callShadows(P);
-    else pop(P.x, P.y - 110, G.corpses.length ? 'No kept shadows · Alt: raise the fallen' : 'No kept shadows', 'rgba(201,168,255,0.8)'); }
+  if (pressed.clone && !P.dead && (G.stored || []).length){ G.callWait = 0.3; P.raiseFace = P.face; }   // R: A or D within a moment picks the side
+  if (G.callWait > 0){ G.callWait -= dt;
+    if (G.callSide || G.callWait <= 0){ G.callWait = 0; P.raiseFx = 0.55; callShadows(P, G.callSide || 'back'); G.callSide = null; } }
+  else G.callSide = null;
+  if (pressed.legionGo && !P.dead) legionGo(P);
+  if (pressed.clone && !P.dead && !(G.stored || []).length){ P.raiseFx = 0.55;
+    pop(P.x, P.y - 110, G.corpses.length ? 'No kept shadows · Alt: raise the fallen' : 'No kept shadows', 'rgba(201,168,255,0.8)'); }
   P.raiseFx = Math.max(0, (P.raiseFx || 0) - dt);
   P.raise = P.raiseFx > 0 ? { t:0.55 - P.raiseFx } : null;
   if (pressed.webAll && G.allies.some(a => !a.fade)){ for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Return to the dark', '#9B6BFF'); sfx('shadow'); }   // B: all of them back inside
@@ -3070,20 +3227,27 @@ function raiseAll(P){
   else if (refused) pop(P.x, P.y - 125, 'They refuse you', '#FF8A9A');
   sfx('shadow'); vib(refused && !rose ? 90 : 50);
 }
-function callShadows(P){
+function legionGo(P){   // Q: the standing shadows are free to fight
+  const waiting = G.allies.filter(a => !a.fade && a.post != null);
+  if (!waiting.length){ pop(P.x, P.y - 110, 'No shadows are standing by', 'rgba(201,168,255,0.8)'); return; }
+  for (const a of waiting){ a.post = null; a.tgt = null; }
+  G.legionMode = 'attack'; pop(P.x, P.y - 125, 'Go! ×' + waiting.length, '#C9A8FF'); sfx('shadow'); vib(30);
+}
+function callShadows(P, side){
   const n = Math.min(G.stored.length, Math.floor(P.mana/CALL_COST));
   if (!n){ pop(P.x, P.y - 110, 'Not enough mana (' + CALL_COST + ' each)', '#9B6BFF'); return; }
   G.stored.sort((a, b) => (b.pow || 0) - (a.pow || 0));   // the strongest come out first and stand closest
-  const back = G.stored.splice(0, n), dir = -(P.face || 1);
-  G.legionBack = dir; G.legionFaceT = 0;
+  const face = P.raiseFace || P.face || 1, back = G.stored.splice(0, n), dir = side === 'front' ? face : -face;
+  G.legionBack = -face; G.legionFaceT = 0;
   let off = 50;
   back.forEach((d, i) => {   // they rise in a line behind you, one after another
     const x = clamp(P.x + dir*off, 20, G.worldW - 20); off += i < 8 ? 30*(d.size || 1) : 12;
     const a = makeEnemy(d.type, x, G.diff, false);
     a.shadow = true; a.size = d.size; a.dmg = d.dmg; a.pow = d.pow || 0; a.tier = d.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -0.12*i; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
+    a.post = x; a.postFace = face;   // it stands right here and does nothing until you press Q
     G.allies.push(a); ringFx(x, GROUND - 10, 60, '#9B6BFF', true); });
   P.mana -= n*CALL_COST; G.legionMode = 'guard';
-  pop(P.x, P.y - 125, n + (G.stored.length ? ' rise · ' + G.stored.length + ' wait' : ' rise'), '#C9A8FF'); sfx('shadow'); vib(40);
+  pop(P.x, P.y - 125, n + (side === 'front' ? ' rise in front' : ' rise behind') + (G.stored.length ? ' · ' + G.stored.length + ' wait' : '') + ' · Q: go', '#C9A8FF'); sfx('shadow'); vib(40);
 }
 /* ===== GATES & DUNGEONS. Gates open in the city without warning; each leads to a dungeon of a given rank (E, D, C, B, A, S).
    Walk up to a blue gate and press O to go in: monsters and magical creatures, spike traps, and a boss at the end. Kill the boss
@@ -3232,7 +3396,7 @@ function raiseShadow(P, c, many){
 }
 /* the shadows' own little minds: find the nearest enemy, close in, strike; nothing to fight, keep at your back */
 function alliesTick(dt){
-  const P = G.P, live = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1), guard = G.legionMode !== 'attack';
+  const P = G.P, live = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && a.post == null), guard = G.legionMode !== 'attack';
   // formation: a line behind you, strongest closest. The direction only turns once you have faced a way for a moment
   if (G.legionFaceLast !== P.face){ G.legionFaceLast = P.face; G.legionFaceT = 0; } else G.legionFaceT = (G.legionFaceT || 0) + dt;
   if (G.legionBack == null || G.legionFaceT > 0.6) G.legionBack = -(P.face || 1);
@@ -3251,6 +3415,11 @@ function alliesTick(dt){
     a.rise = Math.min(1, (a.rise ?? 0) + dt*2.5);
     if (a.rise < 1) continue;
     const spd = (a.T.spd || 120)*1.25*(G.diff.spd || 1);
+    if (a.post != null){   // standing by: not one step, not one blow, until Q
+      const dx = a.post - a.x; a.tgt = null;
+      if (Math.abs(dx) > 6){ a.vx = sign(dx)*Math.min(spd, Math.abs(dx)*5); a.state = 'chase'; a.face = sign(dx); }
+      else { a.vx = 0; a.state = 'idle'; a.atk = null; a.face = a.postFace || 1; }
+      a.x = clamp(a.x + a.vx*dt, 20, G.worldW - 20); a.walk = (a.walk || 0) + dt*Math.abs(a.vx)*0.045/(a.size || 1); continue; }
     let tgt = null;
     if (a.role === 'attack'){   // Tab: hunt the nearest enemy
       tgt = a.tgt && !a.tgt.dead && Math.abs(a.tgt.x - a.x) < 900 ? a.tgt : null;
@@ -4265,7 +4434,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
-const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm' };   // Shadow Legion only: the Monarch's powers
+const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo' };   // Shadow Legion only: the Monarch's powers
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -4275,6 +4444,8 @@ addEventListener('keydown', ev => {
   const a = keyFor(ev.key.toLowerCase()); if (!a) return;
   if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA' || ev.target.isContentEditable)) return;
   ev.preventDefault();
+  if (G_ref && G_ref.mode === 'shadow' && (a === 'left' || a === 'right') && (held.clone || G_ref.callWait > 0)){ G_ref.callSide = a === 'left' ? 'back' : 'front'; return; }   // R + A: behind you, R + D: in front of you
+  if (G_ref && G_ref.mode === 'shadow' && a === 'clone' && !ev.repeat && (held.left || held.right)) G_ref.callSide = held.left ? 'back' : 'front';
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
@@ -4694,7 +4865,7 @@ function nextSurvWave(){
 function resetCommon(){
   { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
-  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false;   // leaving Shadow Legion (or starting it again): the legion is written first
+  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -5124,6 +5295,7 @@ function damageEnemy(e, dmg, o){
     dmg *= 2.4; o = Object.assign({}, o, { kb:(o.kb || 120)*1.8, heavy:true, breakArmor:Math.max(o.breakArmor || 0, 2) });
     impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 2.5); }
   if (e.dead) return false;
+  if (e.slayer && o.src === 'shadow'){ if (Math.random() < 0.6){ if (Math.random() < 0.3) sparks(e.x, e.y - 40*(e.size || 1)); return false; } dmg *= 0.35; }   // a Slayer turns most shadow blades aside
   if (!sameLayer(e)) return false;
   if (e.puppet){ coopSendHit(e, dmg, o); return true; }
   if (e.remote) return G.mode === 'coop' ? false : remoteHit(e, dmg, o);
@@ -5292,7 +5464,8 @@ function killEnemy(e){
   e.dead = true; G.kills++;
   if (G.mode === 'shadow' && e.cmdr) gateCommanderFell(e);
   if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
-  if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ const big = isBoss(e) || e.cmdr || e.dunBoss, elite = !big && e.dun && G.dungeon && G.dungeon.rank >= 3;
+  if (G.mode === 'shadow' && e.look && (e.slayer || Math.random() < 0.35)) foeSay(e, 'die', true);
+  if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ const big = isBoss(e) || e.cmdr || e.dunBoss || e.slayer, elite = !big && e.dun && G.dungeon && G.dungeon.rank >= 3;
     G.corpses.push({ x:e.x, type:e.type, size:e.size || 1, dmg:e.dmg, pow:(e.maxHp || 100)*(e.dmg || 10)*(big ? 4 : 1), tier:big ? 'boss' : elite ? 'elite' : '', tries:0, t:0, life:big ? 14 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
   if (G.mode === 'hammer' && G.P){ const lv = hammerLevel(); SV.hammerXP = (SV.hammerXP || 0) + (isBoss(e) ? 5 : 1); saveSoon(); if (hammerLevel() > lv){ pop(G.P.x, G.P.y - 120, 'Hammer Lv ' + hammerLevel() + '!', '#7FE3FF'); sfx('clang'); } }
   const s = e.size, f = G.P ? G.P.face : 1;
@@ -6669,7 +6842,7 @@ function updateEnemy(e, dt){
   if (!e.isPlayer && !e.remote && !e.puppet){   // swap blade <-> fists with the player
     const B = brawler(e);
     if (B && e.sword !== EFIST){ e.sword = EFIST; if (e.state === 'windup') brawlPick(e); }
-    else if (!B && e.sword === EFIST){ e.sword = undefined; e.bmove = null; }
+    else if (!B && e.sword === EFIST){ e.sword = e.foeSword; e.bmove = null; }
   }
   e.timer -= dt; e.cd -= dt; e.flash -= dt; e.alertFlash -= dt; e.hurtBar -= dt; e.armorBrokenT -= dt; e.special -= dt; e.lastHitT += dt;
   // demons slowly heal while nobody is hitting them
@@ -7255,6 +7428,7 @@ function playerDie(){
   for (const sg of stickSegments(P)) G.debris.push({ x:(sg[0]+sg[2])/2, y:(sg[1]+sg[3])/2, len:Math.hypot(sg[2]-sg[0],sg[3]-sg[1]), ang:Math.atan2(sg[3]-sg[1],sg[2]-sg[0]), vx:rnd(-250,250), vy:rnd(-500,-150), va:rnd(-10,10), w:sg[4]||4, col:sg[5]||'#000', life:6, r:sg[6]||0 });
   burst(P.x, P.y-36, 30, '#C8102E', 480, 4);
   if (G.mode === 'shadow'){ for (const a of G.allies || []){ if (!a.fade) a.fade = 0.01; if (!a.kept){ a.kept = true; (G.stored = G.stored || []).push(legionEntry(a)); } } G.corpses = []; syncLegion(true);
+    { const w = G.E.filter(o => !o.dead && o.look).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x))[0]; if (w) foeSay(w, 'win', true); }
     showBanner('Fallen', G.kills + ' slain', 'Your shadows wait in the dark · R to call them back', '#9B6BFF');
     setTimeout(() => { if (G.mode === 'shadow' && G.running) startShadow(); }, 2600); return; }
   if (G.mode === 'spider' && G.spider){ const S = G.spider; S.over = true;
@@ -9748,7 +9922,7 @@ function drawStick(e, alpha, tint){
   const segs = stickSegments(e), pose = getPose(e);
   ctx.globalAlpha = alpha; ctx.lineCap='round'; ctx.lineJoin='round';
   const hero = e.isPlayer && !e.isClone;
-  const body = tint || (e.flash>0 ? '#fff' : hero ? '#0B0E1A' : '#000');
+  const body = tint || (e.flash>0 ? '#fff' : hero ? '#0B0E1A' : e.bodyCol || '#000');
   let head = null;
   const rim = !tint && (hero ? (e.remote ? ENEMY_AURA : auraCol()) : (THEMES[G.theme] || {}).rim);
   const LW = 1.35;   // limbs a little thicker than a stick: reads as a body, not a drawing
@@ -9805,6 +9979,7 @@ function drawStick(e, alpha, tint){
       ctx.fillStyle = shadeHex(ac, 0.75); ctx.beginPath(); ctx.ellipse(ex, ey, 2.4*s, 1.2*s, -f*0.15, 0, 6.283); ctx.fill();
       if (FXL() > 0 && Math.random() < 0.35) G.parts.push({ x:ex - f*2, y:ey, vx:-f*rnd(40,90) + (e.vx||0)*0.3, vy:rnd(-20,10), life:0.3, max:0.3, col:ac, size:1.6, real:true, g:0 });   // a trail of light from the eye
     }
+    else if (e.look){ drawFoeFace(e, head); drawEnemyExtras(e, head); }   // Shadow Legion: a face of their own
     else {
       ctx.fillStyle = (e.state==='windup'||e.state==='swing') ? '#FF3B2F' : '#B3122E';
       ctx.beginPath(); ctx.arc(head[0]+f*3*s, head[1]-1*s, 1.8*s, 0, Math.PI*2); ctx.fill();
@@ -11186,6 +11361,7 @@ function renderScene(){
     drawDashFx(); drawImpacts(); drawLines();
     drawProj(); drawAstraFlight(); drawBolts(); drawRings();
     if (G.ring > 0){ ctx.strokeStyle=`rgba(255,231,168,${G.ring})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y-40,(1-G.ring)*160+20,0,Math.PI*2); ctx.stroke(); }
+    if (G.mode === 'shadow') drawFoeTalk();
     // floating texts
     ctx.textAlign='center';
     for (const p of G.pops){
