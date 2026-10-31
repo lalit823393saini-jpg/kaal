@@ -2976,6 +2976,7 @@ function monarchTick(dt){
   if (Math.abs(P.size - sz) < 0.01) P.size = sz;
   // I: Shadow Realm
   if (pressed.realm) toggleRealm();
+  if (pressed.armyView){ G.armyView = G.armyView === false; pop(P.x, P.y - 130, G.armyView ? 'Army view: whole legion' : 'Army view: off', '#C9A8FF'); }
   if (G.realmOpen){ G.realmT = (G.realmT || 0) - dt; if (G.realmT <= 0){ G.realmT = 0.5; drawRealm(); } }
 }
 function shadowExchange(P){
@@ -3010,25 +3011,27 @@ function toggleRealm(){
   G.realmOpen = !G.realmOpen; let el = document.getElementById('realmPanel');
   if (!G.realmOpen){ if (el) el.remove(); return; }
   if (!el){ el = document.createElement('div'); el.id = 'realmPanel';
-    el.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(440px,92vw);max-height:70vh;overflow:auto;background:rgba(12,6,26,0.94);border:1px solid #5B3FA8;border-radius:10px;padding:14px 18px;color:#E6DCFF;font:15px/1.4 Teko,sans-serif;letter-spacing:0.5px;z-index:50;pointer-events:none;box-shadow:0 0 40px rgba(155,107,255,0.35)';
+    el.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(440px,92vw);max-height:72vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;background:rgba(12,6,26,0.94);border:1px solid #5B3FA8;border-radius:10px;padding:14px 18px;color:#E6DCFF;font:15px/1.4 Teko,sans-serif;letter-spacing:0.5px;z-index:50;pointer-events:auto;box-shadow:0 0 40px rgba(155,107,255,0.35)';
+    for (const ev of ['wheel', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation(), { passive:true });   // the game must not swallow the scroll
     document.body.appendChild(el); }
   G.realmT = 0; drawRealm();
 }
 function drawRealm(){
-  const el = document.getElementById('realmPanel'); if (!el) return;
+  const el = document.getElementById('realmPanel'); if (!el) return; const keep = el.scrollTop;
   const all = legionList(), field = (G.allies || []).filter(a => !a.fade).length, by = {};
   for (const d of all){ const k = d.spec && SPECIES[d.spec] ? SPECIES[d.spec].name : d.type; (by[k] = by[k] || { n:0, boss:0, elite:0 }).n++; if (d.tier === 'boss') by[k].boss++; else if (d.tier === 'elite') by[k].elite++; }
   const rows = Object.entries(by).sort((a, b) => b[1].boss - a[1].boss || b[1].n - a[1].n).map(([k, v]) =>
     `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(155,107,255,0.18);padding:3px 0"><span>${k.charAt(0).toUpperCase() + k.slice(1)}${v.boss ? ` <span style="color:#FFD27F">· ${v.boss} boss</span>` : ''}${v.elite ? ` <span style="color:#7FD3FF">· ${v.elite} elite</span>` : ''}</span><b>${v.n.toLocaleString()}</b></div>`).join('');
   const byG = GRADES.map(() => 0); for (const d of all) byG[normalizeShadow(d).grade]++;
   const gradeRow = `<div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;margin:0 0 8px">${GRADES.map((g, i) => `<span style="color:${GRADE_COL[i]}">${g} <b>${byG[i]}</b></span>`).join('')}</div>`;
-  const named = all.filter(d => d.sname).sort((a, b) => b.grade - a.grade || b.xp - a.xp).slice(0, 40).map(d =>
+  const named = all.filter(d => d.sname).sort((a, b) => b.grade - a.grade || b.xp - a.xp).map(d =>
     `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:${GRADE_COL[d.grade]}">${d.sname}</span><span style="color:#B8A8E0">${GRADES[d.grade]} · ${ROLE_NAME[d.srole] || 'Blade'} · ${d.spec && SPECIES[d.spec] ? SPECIES[d.spec].name : d.type}</span></div>`).join('');
   el.innerHTML = `<div style="font-size:24px;color:#C9A8FF;text-align:center">Shadow Realm</div>
     <div style="text-align:center;margin:2px 0 10px;color:#B8A8E0">${all.length.toLocaleString()} soldiers · ${field} on the field · ${(all.length - field).toLocaleString()} in the dark · power +${Math.round(legionBonus()*100)}%</div>
     ${gradeRow}${named ? `<div style="color:#C9A8FF;margin:6px 0 2px">Named shadows · grades rise with kills, up to ${GRADES[maxGrade()]} at your rank</div>${named}<div style="color:#C9A8FF;margin:10px 0 2px">By kind</div>` : ''}
     ${rows || '<div style="text-align:center;color:#8A7AB8">The realm is empty. Raise the fallen with Alt.</div>'}
-    <div style="text-align:center;margin-top:10px;color:#8A7AB8">There is no limit to how many the realm holds · ${isTouch ? 'tap Realm' : 'I'} to close</div>`;
+    <div style="text-align:center;margin-top:10px;color:#8A7AB8">There is no limit to how many the realm holds · scroll for more · ${isTouch ? 'tap Realm' : 'I'} to close</div>`;
+  el.scrollTop = keep;
 }
 function drawMonarch(){
   const P = G.P; if (!P) return;
@@ -3354,7 +3357,7 @@ function drawFoeTalk(){
 function startShadow(){
   G.mode = 'shadow'; G.level = 0; G.diff = diffFor(3);
   G.shadowTheme = ((G.shadowTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.shadowTheme];
-  G.worldW = 3200; resetCommon();
+  G.worldW = 6400; resetCommon();
   G.allies = []; G.corpses = []; G.shadowS = { spawnT:2, syncT:1 }; G.stored = []; for (const d of SV.legion || []) G.stored.push(normalizeShadow({ ...d }));   /* one by one, so no two named shadows share a name */ G.legionB = legionBonusOf(G.stored); G.legionMode = 'guard'; makeGates(); G.dungeon = null; G.city = null; G.crystals = [];
   setTimeout(() => { if (G.mode === 'shadow' && G.gates && !G.gates.length) newGate(); }, 1500);   // the first gate opens soon after you arrive   // shadows that sank are kept here, ready to be called back
   { const box = $('extraBtns'); if (box && !document.getElementById('riseBtn')){ const b = document.createElement('button'); b.id = 'riseBtn'; b.className = 'tb sm'; b.dataset.k = 'arise'; b.textContent = 'Arise'; b.style.setProperty('--sc', '#9B6BFF'); b.setAttribute('aria-label', 'Raise the shadows of every fallen body'); box.appendChild(b); bindTouch(b);
@@ -3368,7 +3371,7 @@ function startShadow(){
   toast(G.stored.length ? G.stored.length + ' shadows wait for you · R: call them' : 'Shadow Legion', 1.8);
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
     isTouch ? 'Kill · Arise: the fallen rise as shadows · Return: send them back · Call: bring them back, strongest first'
-            : 'Alt: ARISE · R+A: call behind · R+D: call in front · Q: go · B: send back · Tab · X · C · V · I', '#9B6BFF'); }, 900);
+            : 'Alt: ARISE · R+A / R+D: call · Q: go · B: send back · Tab · X · C · V · I: realm · Z: army view', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -3413,6 +3416,7 @@ function shadowTick(dt, alive){
   alliesTick(dt);
 }
 const CALL_COST = 10;
+const legionGap = (i, size) => i < 8 ? 30*(size || 1) : i < 40 ? 14 : 7;   // a big legion stands shoulder to shoulder
 const MAX_TRIES = 3;
 /* how likely a body is to refuse you: the weak always kneel, the strong may not (less often as your Hunter rank grows) */
 function refuseChance(c){ return c.tier === 'boss' ? 0.01 : 0; }   // the weak always kneel; a strong soul refuses one time in a hundred
@@ -3449,7 +3453,7 @@ function callShadows(P, side){
   G.legionBack = -face; G.legionFaceT = 0;
   let off = 50;
   back.forEach((d, i) => {   // they rise in a line behind you, one after another
-    const x = clamp(P.x + dir*off, 20, G.worldW - 20); off += i < 8 ? 30*(d.size || 1) : 12;
+    const x = clamp(P.x + dir*off, 20, G.worldW - 20); off += legionGap(i, d.size);
     const a = makeEnemy(d.type, x, G.diff, false);
     a.shadow = true; a.species = d.spec || ''; a.size = d.size; a.dmg = d.dmg; a.pow = d.pow || 0; a.tier = d.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -0.12*i; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
     a.grade = d.grade; a.xp = d.xp; a.sname = d.sname; a.srole = d.srole; applyGrade(a);
@@ -3515,10 +3519,10 @@ const DUNGEON_CALM = 8;   // seconds of quiet after you step through a gate: cal
 function enterDungeon(g){
   const P = G.P, r = g.rank;
   G.city = { E:G.E, corpses:G.corpses, x:P.x, theme:G.theme, worldW:G.worldW };
-  G.E = []; G.corpses = []; G.eproj = []; G.worldW = 2800; G.theme = 'temple';
+  G.E = []; G.corpses = []; G.eproj = []; G.worldW = 5200; G.theme = 'temple';
   P.x = 140; P.y = GROUND; P.vx = 0; G.camX = 0;
   for (const a of G.allies){ a.x = P.x + (a.slot || rnd(-60, 60)); a.tgt = null; if (a.post != null) a.post = a.x; }
-  const traps = []; for (let x = 600; x < 2400; x += rnd(380, 560)) traps.push({ x, w:70, t:rnd(0, 2.5) });
+  const traps = []; for (let x = 600; x < G.worldW - 400; x += rnd(420, 640)) traps.push({ x, w:70, t:rnd(0, 2.5) });
   G.dungeon = { g, rank:r, kills:0, need:Math.min(30, 8 + 4*r), boss:null, spawnT:DUNGEON_CALM, calm:DUNGEON_CALM, done:false, traps };
   G.diff = diffFor(Math.min(30, 4 + 4*r));
   showBanner(r >= 6 ? 'MONARCH GATE' : RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', ['Goblins and wolfkin: weak, but many', 'Wolfkin and the risen', 'Lizardmen and orcs: tough hides, they fight in packs', 'Orcs and stone golems', 'High orcs, giants and ice elves: they think, and they talk', 'A calamity waits at the end', 'Beyond S-rank. A Monarch waits at the end'][r], RANK_COL[r]); sfx('shadow');
@@ -3646,7 +3650,7 @@ function alliesTick(dt){
   const byPow = live.slice().sort((a, b) => (b.pow || 0) - (a.pow || 0));
   const guards = guard ? byPow.slice(0, 4) : [];   // the four strongest step out to meet anything that comes for you
   guards.forEach(a => { a.role = 'guard'; }); live.forEach(a => { if (!guards.includes(a)) a.role = guard ? 'reserve' : 'attack'; });
-  { let off = 50; byPow.forEach((a, i) => { a.slot = G.legionBack*off; off += i < 8 ? 30*(a.size || 1) : 12; }); }
+  { let off = 50; byPow.forEach((a, i) => { a.slot = G.legionBack*off; off += legionGap(i, a.size); }); }
   // threats: enemies that come close to you; a guard goes out to meet them, kills them, and comes back
   const threats = guard ? G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 230 && Math.abs(e.y - P.y) < 160) : [];
   for (const a of guards){ if (a.tgt && (a.tgt.dead || Math.abs(a.tgt.x - P.x) > 340)) a.tgt = null; }
@@ -4685,7 +4689,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
-const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo' };   // Shadow Legion only: the Monarch's powers
+const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView' };   // Shadow Legion only: the Monarch's powers
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -11359,7 +11363,11 @@ function viewTargets(P){
   const Xd = G.camX + VW*0.5;                         // centre of the gameplay camera
   const mode = (G.introT > 0) ? 'default' : VIEW.mode; // boss intros keep their own framing
   let tz = 1, tx = Xd, vy = null, rate = 5;
-  if (mode === 'default' && G.mode === 'world' && P.inH){ tz = clamp(VW/(P.inH.w + 330), 1, 1.7); tx = P.inH.x + P.inH.w/2; vy = 'char'; rate = 4; }   // a room fills the screen
+  if (mode === 'default' && G.mode === 'shadow' && G.armyView !== false && G.allies && G.allies.length > 3){
+    let lo = P.x, hi = P.x; for (const a of G.allies){ if (a.fade) continue; lo = Math.min(lo, a.x); hi = Math.max(hi, a.x); }
+    const span = hi - lo + 320;
+    if (span > VW){ tz = clamp(VW/span, 0.32, 1); tx = (lo + hi)/2; rate = 2.5; } }   // Shadow Legion: the whole army in view
+  else if (mode === 'default' && G.mode === 'world' && P.inH){ tz = clamp(VW/(P.inH.w + 330), 1, 1.7); tx = P.inH.x + P.inH.w/2; vy = 'char'; rate = 4; }   // a room fills the screen
   else if (mode === 'close'){ tz = 2.1; tx = P.x + P.face*12; vy = 'char'; rate = 6; }
   else if (mode === 'wide'){ tz = 0.6; tx = Xd; }
   else if (mode === 'follow'){ tz = 1; tx = P.x + P.face*VW*0.06 + clamp(P.vx, -600, 600)*0.12; vy = 'follow'; rate = 4.5; }
