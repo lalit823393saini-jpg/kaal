@@ -3558,7 +3558,7 @@ function drawSolids(){
    while you aim; let go and you flash along that line, cutting through every gunman on it and every bullet in the air.
    Up to three dashes before you touch the ground again. Keyboard: hold V to aim at the nearest enemy, let go to dash.
    Touch: hold Ghost. A short click is still a normal cut. Every fifth wave a bandit leader comes. ===== */
-const GW_CHARGES = 3;
+const GW_CHARGES = 3, GW_FALL_GLIDE = 90, GW_FALL_AIM = 18;   // how fast you sink after a dash, and while aiming (px per second)
 function gwState(){ return G.gw = G.gw || { aim:false, src:null, sx:0, sy:0, cx:0, cy:0, charges:GW_CHARGES, cd:0, dash:null, trails:[] }; }
 function gwDown(x, y, src){ const W = gwState(), P = G.P; if (!P || P.dead || W.dash || G.armoryOpen) return; W.aim = true; W.src = src; W.sx = W.cx = x; W.sy = W.cy = y; W.t0 = performance.now(); }
 function gwMove(x, y){ const W = G.gw; if (W && W.aim && W.src === 'mouse'){ W.cx = x; W.cy = y; } }
@@ -3592,9 +3592,12 @@ function gwTick(dt){
   if (held.ghostAim && !W.aim && !W.dash) gwDown(0, 0, 'key');
   if (W.aim && W.src === 'key' && !held.ghostAim) gwUp();
   if (W.aim && P.dead) W.aim = false;
-  if (!W.dash && !P.onG && (W.aim || W.hangT > 0)){   // aiming in the air: you hang there instead of falling
-    if (W.hoverY == null) W.hoverY = P.y; P.y = W.hoverY; P.vy = 0; P.vx *= 0.8; W.hangT -= dt; }
-  else { W.hoverY = null; W.hangT = Math.max(0, (W.hangT || 0) - dt); }
+  if (P.onG && !W.dash) W.glide = false;
+  if (!W.dash && !P.onG && (W.aim || W.glide)){   // in the air after a dash you drift down slowly; while you aim, slower still
+    const v = W.aim ? GW_FALL_AIM : GW_FALL_GLIDE;
+    if (W.airY == null) W.airY = P.y;
+    W.airY = Math.min(GROUND, W.airY + v*dt); P.y = W.airY; P.vy = v; P.vx *= W.aim ? 0.7 : 0.97; }
+  else W.airY = null;
   const D = W.dash; if (!D) return;
   D.t += dt; let k = Math.min(1, D.t/D.dur), nx = D.x0 + (D.x1 - D.x0)*k, ny = D.y0 + (D.y1 - D.y0)*k;
   { const feet = ny + 40*(P.size || 1); for (const s of G.gwSolids || []){ if (!gwBlocks(s)) continue;   // a wall in the way: the dash ends against it
@@ -3609,7 +3612,7 @@ function gwTick(dt){
   W.trails.push({ x0:D.px, y0:D.py, x1:nx, y1:ny, t:0 });
   D.px = nx; D.py = ny;
   P.x = nx; P.y = ny + 40*(P.size || 1); P.vx = 0; P.vy = 0; P.inv = Math.max(P.inv || 0, 0.18);
-  if (k >= 1){ W.dash = null; W.cd = 0.1; W.hoverY = null; if (P.y < GROUND - 2){ P.onG = false; P.vy = 0; W.hangT = 0.5; }
+  if (k >= 1){ W.dash = null; W.cd = 0.1; W.airY = null; if (P.y < GROUND - 2){ P.onG = false; P.vy = 0; W.glide = true; }
     if (D.hit.size >= 2) pop(P.x, P.y - 130, D.hit.size + ' in one cut', '#FFFFFF'); }
 }
 function drawGhost(){
