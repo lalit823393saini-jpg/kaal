@@ -800,9 +800,6 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <button class="mode new" id="goArena" style="--mc:#FF7A1A"><span class="mn">Duelist Arena</span><span class="md">One on one in a cage. Thick-limbed stickmen, ragdoll physics: kick them into the wall, launch them and keep them in the air. Best of three.</span><span class="mb">New</span></button>
     <button class="mode new" id="goWorld3D" style="--mc:#7FD1FF"><span class="mn">KAAL: Open World</span><span class="md">The story in 3D. See the night Hinode burned, then roam a whole valley: ride your horse, follow the map, clear bandit camps, walk into any house.</span><span class="mb" id="mbWorld3D"></span></button>
     <button class="mode" id="goSurv" style="--mc:#9FD3F0"><span class="mn">Survival</span><span class="md">Endless waves, a boss every fifth. Score goes to the shared leaderboard.</span><span class="mb" id="mbSurv"></span></button>
-    <button class="mode new" id="goRush" hidden style="--mc:#FF5A3D"><span class="mn">Boss Rush</span><span class="md">Iron Ronin, Kage, Gorath and Asura back to back. Beat the clock.</span><span class="mb" id="mbRush"></span></button>
-    <button class="mode new" id="goBlitz" hidden style="--mc:#FFE14D"><span class="mn">Blitz</span><span class="md">90 seconds. Enemies never stop. Every kill adds 1 s, every combo adds score.</span><span class="mb" id="mbBlitz"></span></button>
-    <button class="mode new" id="goZomb" hidden style="--mc:#8FE38A"><span class="mn">Zombie Outbreak</span><span class="md">Six areas of the walking dead, wave by wave. Ride a bike or a car and run them down.</span><span class="mb" id="mbZomb"></span></button>
     <button class="mode new" id="goGuns" style="--mc:#C9B27A"><span class="mn">Warzone · Armory</span><span class="md">Every real gun: pistols, SMGs, assault rifles, shotguns, snipers, machine guns, launchers. The enemies are armed too. Earn cash, unlock and buy guns here, and only here.</span><span class="mb" id="mbGuns">New</span></button>
     <button class="mode new" id="goShadow" style="--mc:#9B6BFF"><span class="mn">Shadow Legion · Hunter</span><span class="md">Gates open in the city: go in, clear the dungeon and its boss before the gate breaks, collect mana crystals, rise through the Hunter ranks. Kill them, then raise their shadows out of the ground to fight for you. Raise as many as you like; they stand as long as your mana lasts.</span><span class="mb">New</span></button>
     <button class="mode new" id="goHammer" style="--mc:#7FE3FF"><span class="mn">Hammer mode</span><span class="md">A war hammer of storm-iron. Smash with it, throw it with Z and it flies head first through everything in its path; Z again calls it back. Only you can lift it, and the more you fight with it the farther it flies.</span><span class="mb">New</span></button>
@@ -16280,11 +16277,8 @@ function spendZ(n){ if (SV.coins < n){ toast(`Need ${n - SV.coins} more coins`, 
 function renderModes(){
   $('modesCoins').textContent = SV.coins;
   $('mbSurv').textContent = SV.surv.best ? `Best ${SV.surv.best} (wave ${SV.surv.wave})` : 'No run yet';
-  $('mbRush').textContent = SV.rush.best ? `Best time ${SV.rush.best.toFixed(1)} s` : 'Not cleared yet';
-  $('mbBlitz').textContent = SV.blitz.best ? `Best ${SV.blitz.best} (${SV.blitz.kills} kills)` : 'No run yet';
   $('mbFree').textContent = SV.free.best ? `Best score ${SV.free.best}` : 'Sandbox';
   $('mbWorld3D').textContent = !SV.w3s || !SV.w3s.stage ? 'Start the story' : SV.w3s.stage >= 8 ? ((SV.w3s.gens || []).length >= 3 ? 'Act 2 complete' : `Act 2: generals ${(SV.w3s.gens || []).length}/3`) : `Act 1, part ${SV.w3s.stage} of 7`;
-  $('mbZomb').textContent = SV.zomb.cleared >= ZAREAS.length ? 'All areas cleared' : `${SV.zomb.cleared} / ${ZAREAS.length} areas cleared`;
 }
 function buildGrid(){
   const grid = $('grid'); grid.innerHTML='';
@@ -17378,9 +17372,6 @@ $('arPickBack').onclick = () => setScreen('modes');
 $('goModes').onclick = () => setScreen('modes');
 $('modesBack').onclick = () => setScreen('menu');
 $('goSurv').onclick = startSurvival;
-$('goRush').onclick = startRush;
-$('goBlitz').onclick = startBlitz;
-$('goZomb').onclick = () => setScreen('zomb');
 $('goWorld3D').onclick = startWorld3D;
 $('wmBack').onclick = closeWorldMap;
 $('wmap').onclick = () => openWorldMap();
