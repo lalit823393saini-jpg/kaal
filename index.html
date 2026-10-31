@@ -3693,6 +3693,7 @@ function leaveDungeon(){
   const r = hunterRank(); if (r > (D.rankBefore ?? r)) showBanner('RANK UP', 'You are now a ' + RANKS[r] + '-rank Hunter', 'More dangerous gates will open', RANK_COL[r]);
 }
 function drawGates(){
+  if (!G.P) return;   // back on the menu: there is no hunter to measure the gates from
   if (G.dungeon){   // spike traps and crystals
     for (const t of G.dungeon.traps){ if (t.x < G.camX - 100 || t.x > G.camX + VW + 100) continue;
       ctx.save(); ctx.fillStyle = '#2a2230'; ctx.fillRect(t.x - t.w/2, GROUND - 4, t.w, 6);
