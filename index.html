@@ -1151,6 +1151,10 @@ const SWORDS = {
   shadow:   { name:'Shadow Fang',    price:1200, unlock:14, desc:'Short black blade with a fast 3-hit combo. Hits from behind deal double damage.', dmg:1.05, spd:1.30, reach:0.85, len:30, backstab:2, blade:'#15121c', edge:'#B8B4CC', glow:'#5a4a8a' },
   scythe:   { name:"Reaper's Scythe", price:2200, unlock:16, desc:'A huge curved blade on a long haft. Slow, very wide, and every swing cuts through 4 enemies. Enemies under 25% health take double damage from it.', dmg:1.45, spd:0.78, reach:1.4, len:60, w:3.4, curve:true, wide:true, cleave:4, kb:1.4, reap:true, blade:'#1a1d22', edge:'#B9FFD9', glow:'#2FE08A' },
   thunder:  { name:'Storm Fang',     price:2600, unlock:18, desc:'A blade that hums with lightning. Fast swings, and 35% of your hits throw a bolt to the nearest other enemy for half damage.', dmg:1.2, spd:1.18, reach:1.0, len:40, chain:0.35, blade:'#2a2a10', edge:'#FFF6B0', glow:'#FFE14D' },
+  venomfang:  { name:'Venom Fang',      price:0, loot:'Drop: the boss of a C-rank gate', desc:'Twin daggers taken from a great serpent. Every cut poisons, and 15% of hits paralyse for a moment.', dmg:1.15, spd:1.3, reach:0.8, len:24, dual:true, bleed:8, para:0.15, blade:'#14301E', edge:'#7FE39F', glow:'#2EE59D' },
+  knightkiller:{ name:'Knight Killer',  price:2500, desc:'A System Shop dagger pair made for armour: +60% damage to armoured, shielded and boss enemies, and heavy hits break armour.', dmg:1.1, spd:1.25, reach:0.8, len:24, dual:true, armorBane:1.6, blade:'#2A2A34', edge:'#E8E8F0' },
+  frostfang:  { name:'Frost Elf Dagger',price:0, loot:'Drop: the Ice Elf Assassin, boss of a Red Gate', desc:'The ice elf assassin\'s dagger. Very fast, very sharp: 12% of hits freeze the target solid.', dmg:1.3, spd:1.45, reach:0.82, len:26, dual:true, frost:0.12, blade:'#1E3A5A', edge:'#BFE4FF', glow:'#7FD3FF' },
+  demonfang:  { name:"Demon King's Dagger", price:0, loot:'Drop: the Demon King, S-rank calamity', desc:'The Demon King\'s own blade. Strong, fast, and 40% of hits throw lightning to the nearest other enemy.', dmg:1.6, spd:1.35, reach:0.85, len:28, dual:true, chain:0.4, blade:'#2A0A14', edge:'#FFE14D', glow:'#FFD23F' },
   fists:    { name:'Iron Fists',     price:350,  fist:true, desc:'Hand-to-hand, with its own move list. Press H (or the Fist button) to switch any time. Punch and kick are separate buttons, and the direction you hold picks the move: straights, backfists, low body blows, push kicks, axe kicks, sweeps, dive kicks, plus Dragon Rush and Earthshaker. Launch an enemy and juggle them in the air. See Controls > Fist moves.', dmg:0.80, spd:1.35, reach:0.70, len:0, edge:'#FFD9B0' },
   vajra:      { name:'Vajra',           astra:'vajra',      price:550000,  desc:'Drawn from the case on your back and thrown: it bursts on the first enemy and the lightning leaps from one to the next, nearest to nearest, killing up to 250 of strength 5 or less. Then it vanishes for 30 s.', lore:'Forged from the bones of a sage who gave them freely, it is said to be harder than diamond.', dmg:2.2, spd:1.2, reach:1.05, len:44, w:3, edge:'#FFF3B0', glow:'#7FCBFF' },
   gada:       { name:'Gada',            astra:'gada',       price:600000,  desc:'Raise your hand and it falls from the sky into it. Leap with it over your head and bring it down on the earth: the ground rolls away both ways in a wave that crushes up to 300 enemies.', lore:'The weapon of the strongest of the strong. Only a steady heart can lift it.', dmg:2.6, spd:0.82, reach:1.2, len:52, w:3.4, cleave:3, kb:2.2, edge:'#FFE9A8', glow:'#FF9A2A' },
@@ -2885,7 +2889,7 @@ const SHADOW_NAMES = ['Kargath', 'Velis', 'Draven', 'Moroth', 'Ashka', 'Ruun', '
 const ROLE_OF = { golem:'tank', giant:'tank', brute:'tank', shield:'tank', bloater:'tank', orc:'tank', abom:'tank', ogre:'tank',
   iceelf:'mage', highorc:'mage', demonking:'mage', archer:'mage', gunner:'mage',
   ant:'swift', wolf:'swift', ninja:'swift', assassin:'swift', runner:'swift', kage:'swift' };
-const ROLE_NAME = { tank:'Guardian', mage:'Mage', swift:'Swift', blade:'Blade' };
+const ROLE_NAME = { tank:'Guardian', mage:'Mage', swift:'Swift', blade:'Blade', healer:'Healer' };
 const COMMAND_LINES = ['My liege.', 'By your will, my king.', 'None shall touch my king!', 'For the Monarch!', 'Your enemies are ours to end.', 'We march.'];
 const maxGrade = () => Math.min(6, hunterRank() + 1);   // shadows grow with their Monarch
 function gradeOfCorpse(c){
@@ -2918,6 +2922,107 @@ function promote(a){
   if (a.grade >= 4) allySay(a, 'I have grown, my liege.');
 }
 function allySay(a, txt){ G.talk = (G.talk || []).filter(t => t.t < t.d && t.e !== a); G.talk.push({ e:a, txt, t:0, d:2.4, ally:true }); }
+/* ===== THE SYSTEM (Shadow Legion): you are the only Player. Kills give experience; every level gives 5 points for
+   Strength (damage), Agility (speed), Sense (Vital Strikes), Vitality (health) and Intelligence (mana), and refills you.
+   A Daily Quest every day: 100 kills, 100 jumps, 100 dashes, 10 km of running. Leave it unfinished and the next day
+   begins in the Penalty Zone. Skills: F Bloodlust, 1 Stealth; Tenacity and Vital Strike work on their own. N opens the window. ===== */
+const STAT_INFO = { str:['Strength', '+3% damage'], agi:['Agility', '+1.5% speed'], sen:['Sense', '+1% Vital Strike chance (double damage)'], vit:['Vitality', '+4% health'], int:['Intelligence', '+4% mana'] };
+const DAILY_GOALS = { kills:100, jumps:100, dashes:100, dist:10000 };
+function sysData(){ const d = SV.sys = SV.sys || {}; d.lv = d.lv || 1; d.xp = d.xp || 0; d.pts = d.pts || 0; for (const k in STAT_INFO) d[k] = d[k] || 0; return d; }
+const sysNeed = lv => Math.round(60*Math.pow(lv, 1.6));
+const sysStat = k => G.mode === 'shadow' ? sysData()[k] : 0;
+const sysCrit = () => Math.min(0.5, 0.01*sysStat('sen'));
+const sysAgi = () => G.mode === 'shadow' ? 1 + Math.min(0.6, 0.015*sysStat('agi')) : 1;
+function sysDaily(){ const d = sysData(), k = dailyKey(); if (!d.daily || d.daily.date !== k) d.daily = { date:k, kills:0, jumps:0, dashes:0, dist:0, done:false }; return d.daily; }
+function sysGainXP(n){
+  const d = sysData(), P = G.P; d.xp += n;
+  while (d.xp >= sysNeed(d.lv)){ d.xp -= sysNeed(d.lv); d.lv++; d.pts += 5;
+    if (P && !P.dead){ legionStats(P); P.hp = P.maxHp; P.mana = P.manaMax; }
+    showBanner('LEVEL UP', 'Level ' + d.lv, '+5 stat points · health and mana restored · N: the System', '#7FD3FF'); sfx('win'); vib(60);
+    if (P) ringFx(P.x, P.y - 40, 160, '#7FD3FF', true); }
+  saveSoon(); if (G.sysOpen) drawSystem();
+}
+function sysTick(dt){
+  const P = G.P, d = sysData(), q = sysDaily();
+  // the Daily Quest counts
+  if (G.kills > (G._sysKills ?? G.kills)){ q.kills += G.kills - G._sysKills; } G._sysKills = G.kills;
+  if (pressed.jump && (P.onG || G._sysOnG)) q.jumps++; G._sysOnG = P.onG;
+  if (pressed.dash) q.dashes++;
+  if (G._sysX != null && !P.dead){ const dx = Math.abs(P.x - G._sysX); if (dx < 60) q.dist += dx/10; } G._sysX = P.x;
+  if (!q.done && q.kills >= DAILY_GOALS.kills && q.jumps >= DAILY_GOALS.jumps && q.dashes >= DAILY_GOALS.dashes && q.dist >= DAILY_GOALS.dist){
+    q.done = true; d.pts += 3; SV.coins = (SV.coins || 0) + 2000; P.hp = P.maxHp; P.mana = P.manaMax;
+    showBanner('DAILY QUEST COMPLETE', 'Preparing to become powerful', '+3 stat points · +2000 coins · full recovery', '#7FD3FF'); sfx('win'); saveSoon(); }
+  // the Penalty Zone, for yesterday's unfinished quest
+  if (G.penaltyDue > 0 && !G.dungeon){ G.penaltyDue -= dt; if (G.penaltyDue <= 0) enterPenalty(); }
+  // skills
+  P.blCd = Math.max(0, (P.blCd || 0) - dt); P.stCd = Math.max(0, (P.stCd || 0) - dt);
+  if (pressed.bloodlust && !P.dead){
+    if (P.blCd > 0) pop(P.x, P.y - 110, 'Bloodlust · ' + Math.ceil(P.blCd) + ' s', '#FF8A9A');
+    else if (P.mana < 40) pop(P.x, P.y - 110, 'Not enough mana (40)', '#9B6BFF');
+    else { P.mana -= 40; P.blCd = 12; let n = 0, hr = hunterRank();
+      for (const e of G.E){ if (e.dead || e.remote || Math.abs(e.x - P.x) > 460) continue;
+        const weaker = !isBoss(e) && !e.slayer && (e.beastRank ?? 0) <= hr;
+        if (weaker){ e.state = 'stun'; e.timer = 2.6; e.atk = null; e.comboLeft = 0; e.vx = 0; n++; }   // frozen by fear
+        else { e.cd = Math.max(e.cd || 0, 1); } }
+      flash('#3A0010', 0.3); ringFx(P.x, P.y - 40, 460, '#FF3B3B', true); pop(P.x, P.y - 140, 'BLOODLUST' + (n ? ' · ' + n + ' frozen by fear' : ''), '#FF3B3B'); sfx('boom', 0.02); vib(50); } }
+  if (pressed.stealth && !P.dead){
+    if (P.stCd > 0) pop(P.x, P.y - 110, 'Stealth · ' + Math.ceil(P.stCd) + ' s', '#9FD3FF');
+    else if (P.mana < 30) pop(P.x, P.y - 110, 'Not enough mana (30)', '#9B6BFF');
+    else { P.mana -= 30; P.stCd = 15; P.hiddenT = Math.max(P.hiddenT || 0, 6); P.ambush = 1; smoke(P.x, P.y - 30, 14); pop(P.x, P.y - 130, 'Stealth · your next cut lands double', '#9FD3FF'); sfx('swish'); } }
+  if (pressed.system) toggleSystem();
+  if (G.sysOpen){ G.sysT = (G.sysT || 0) - dt; if (G.sysT <= 0){ G.sysT = 0.5; drawSystem(); } }
+}
+function sysCheckPenalty(){   // on the first start of a new day: was yesterday's quest left undone?
+  const d = sysData(), q = d.daily;
+  if (q && q.date !== dailyKey() && !q.done && (q.kills + q.jumps + q.dashes + q.dist) > 0){ G.penaltyDue = 3; d.daily = null; showBanner('PENALTY', 'Yesterday\u2019s Daily Quest was not finished', 'You will be moved to the Penalty Zone', '#FF3B3B'); }
+  sysDaily(); saveSoon();
+}
+function enterPenalty(){
+  const P = G.P, g = { x:P.x, rank:2, timer:999, red:false, spawnT:0, penalty:true };
+  enterDungeon(g); const D = G.dungeon; G.theme = 'dojo';
+  D.penalty = true; D.surviveT = 60; D.need = 99999; D.pool = ['centipede']; D.calm = 2; D.spawnT = 2;
+  showBanner('PENALTY ZONE', 'Survive for 60 seconds', 'Giant centipedes · there is no way out', '#FF3B3B'); sfx('boom');
+}
+function dropLoot(id, e){
+  if (!SWORDS[id] || id in SV.swords) return;
+  SV.swords[id] = 0; save();
+  showBanner('ITEM ACQUIRED', SWORDS[id].name, 'Equip it in the shop · ' + SWORDS[id].desc.split('.')[0], '#FFD23F'); sfx('win');
+  if (e) ringFx(e.x, GROUND - 20, 120, '#FFD23F', true);
+}
+function toggleSystem(){
+  G.sysOpen = !G.sysOpen; let el = document.getElementById('sysPanel');
+  if (!G.sysOpen){ if (el) el.remove(); return; }
+  if (G.realmOpen) toggleRealm();
+  if (!el){ el = document.createElement('div'); el.id = 'sysPanel';
+    el.style.cssText = 'position:fixed;left:50%;top:10%;transform:translateX(-50%);width:min(460px,94vw);max-height:76vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:rgba(6,14,30,0.95);border:1px solid #3F8FD8;border-radius:10px;padding:14px 18px;color:#DCEBFF;font:15px/1.45 Teko,sans-serif;letter-spacing:0.5px;z-index:51;pointer-events:auto;box-shadow:0 0 40px rgba(63,169,255,0.35)';
+    for (const ev of ['wheel', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation(), { passive:true });
+    el.addEventListener('click', ev => { const b = ev.target.closest('button[data-stat]'); if (!b) return; const d = sysData(); if (d.pts > 0){ d.pts--; d[b.dataset.stat]++; saveSoon(); if (G.P) legionStats(G.P); drawSystem(); } });
+    document.body.appendChild(el); }
+  G.sysT = 0; drawSystem();
+}
+function drawSystem(){
+  const el = document.getElementById('sysPanel'); if (!el) return; const keep = el.scrollTop, d = sysData(), q = sysDaily(), P = G.P;
+  const bar = (v, m, c) => `<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;margin:2px 0 6px"><div style="height:100%;width:${Math.min(100, v/m*100)}%;background:${c};border-radius:3px"></div></div>`;
+  const stat = k => `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(63,169,255,0.15)"><span>${STAT_INFO[k][0]} <b style="color:#FFFFFF">${d[k]}</b> <span style="color:#7F9FC8;font-size:13px">${STAT_INFO[k][1]}</span></span>${d.pts ? `<button data-stat="${k}" style="font:inherit;background:#1F4E7A;color:#fff;border:1px solid #3FA9FF;border-radius:5px;padding:0 10px;cursor:pointer">+</button>` : ''}</div>`;
+  const qrow = (nm, v, m, unit) => `<div style="display:flex;justify-content:space-between"><span>${nm}</span><span style="color:${v >= m ? '#7FE39F' : '#DCEBFF'}">${Math.floor(Math.min(v, m)).toLocaleString()} / ${m.toLocaleString()}${unit || ''}</span></div>`;
+  const cd = v => v > 0 ? `<span style="color:#FF8A9A">${Math.ceil(v)} s</span>` : '<span style="color:#7FE39F">ready</span>';
+  el.innerHTML = `<div style="font-size:24px;color:#7FD3FF;text-align:center;letter-spacing:2px">[ SYSTEM ]</div>
+    <div style="display:flex;justify-content:space-between"><span>Player · Level <b style="color:#fff">${d.lv}</b></span><span>Hunter ${RANKS[hunterRank()]}-rank</span></div>
+    <div style="color:#7F9FC8;font-size:13px">Experience ${Math.floor(d.xp).toLocaleString()} / ${sysNeed(d.lv).toLocaleString()}</div>${bar(d.xp, sysNeed(d.lv), '#3FA9FF')}
+    ${P ? `<div style="color:#7F9FC8;font-size:13px">HP ${Math.round(P.hp)} / ${Math.round(P.maxHp)} · MP ${Math.round(P.mana || 0).toLocaleString()} / ${Math.round(P.manaMax || 0).toLocaleString()}</div>` : ''}
+    <div style="margin:8px 0 2px;color:#7FD3FF">Stats ${d.pts ? `· <b style="color:#FFD23F">${d.pts} points to spend</b>` : ''}</div>
+    ${Object.keys(STAT_INFO).map(stat).join('')}
+    <div style="margin:10px 0 2px;color:#7FD3FF">Daily Quest: Preparing to become powerful ${q.done ? '<span style="color:#7FE39F">· complete</span>' : ''}</div>
+    ${qrow('Kills', q.kills, DAILY_GOALS.kills)}${qrow('Jumps', q.jumps, DAILY_GOALS.jumps)}${qrow('Dashes', q.dashes, DAILY_GOALS.dashes)}${qrow('Running', q.dist/1000, DAILY_GOALS.dist/1000, ' km')}
+    <div style="color:#FF8A9A;font-size:13px">Leave it unfinished and tomorrow begins in the Penalty Zone.</div>
+    <div style="margin:10px 0 2px;color:#7FD3FF">Skills</div>
+    <div>Bloodlust (F) · weaker enemies near you freeze in fear · 40 MP · ${cd(P ? P.blCd : 0)}</div>
+    <div>Stealth (1) · unseen for 6 s, next cut double · 30 MP · ${cd(P ? P.stCd : 0)}</div>
+    <div>Vital Strike (passive) · ${Math.round(sysCrit()*100)}% chance of double damage</div>
+    <div>Tenacity (passive) · under 30% health, damage taken −40%</div>
+    <div style="text-align:center;margin-top:10px;color:#5F7FA8">${isTouch ? 'tap System' : 'N'} to close</div>`;
+  el.scrollTop = keep;
+}
 /* ===== YOUR LEGION IS KEPT: every shadow you own (standing or resting in the dark) is written to the save, so it is still
    yours when you come back tomorrow. And the bigger and stronger the legion, the stronger you are. ===== */
 const legionEntry = a => ({ type:a.type, spec:a.species || '', size:a.size || 1, dmg:a.dmg, pow:a.pow || 0, tier:a.tier || '', grade:a.grade || 0, xp:Math.round(a.xp || 0), sname:a.sname || '', srole:a.srole || '' });
@@ -2933,8 +3038,8 @@ const legionBonus = () => G.mode === 'shadow' ? (G.legionB ?? legionBonusOf(SV.l
 function legionStats(P){   // your health and mana grow with the legion; the ratio of what you have left stays the same
   if (!P) return; const b = legionBonus();
   if (P.baseHp == null) P.baseHp = P.maxHp;
-  const hp = Math.round(P.baseHp*(1 + b)); if (hp !== P.maxHp){ P.hp = P.hp*hp/P.maxHp; P.maxHp = hp; }
-  const mm = Math.round(manaMaxFor()*(1 + b)); if (mm !== P.manaMax){ if (P.manaMax) P.mana = Math.min(mm, P.mana*mm/P.manaMax); P.manaMax = mm; }
+  const hp = Math.round(P.baseHp*(1 + b)*(1 + 0.04*sysStat('vit'))); if (hp !== P.maxHp){ P.hp = P.hp*hp/P.maxHp; P.maxHp = hp; }
+  const mm = Math.round(manaMaxFor()*(1 + b)*(1 + 0.04*sysStat('int'))); if (mm !== P.manaMax){ if (P.manaMax) P.mana = Math.min(mm, P.mana*mm/P.manaMax); P.manaMax = mm; }
 }
 addEventListener('pagehide', () => { if (G_ref && G_ref.mode === 'shadow') syncLegion(true); });
 addEventListener('visibilitychange', () => { if (document.hidden && G_ref && G_ref.mode === 'shadow') syncLegion(true); });
@@ -3070,7 +3175,7 @@ const BOSS_BY_RANK = [
   [{ spec:'lizard', base:'ronin', name:'Lizard King' }, { spec:'undead', base:'ronin', name:'Bone Knight' }],
   [{ spec:'golem', base:'ogre', name:'Golem Titan' }, { spec:'orc', base:'ogre', name:'Orc Warchief' }],
   [{ spec:'highorc', base:'asura', name:'High Orc Warlord' }, { spec:'giant', base:'ogre', name:'Giant King', size:1.25 }, { spec:'iceelf', base:'kage', name:'Ice Elf Queen', size:1.1 }],
-  [{ spec:'ant', base:'asura', name:'The Ant King', powers:['swarm'], spd:1.6, crown:true }, { spec:'demonking', base:'asura', name:'The Demon King', powers:['storm'], crown:true }],
+  [{ spec:'ant', base:'asura', name:'The Ant King', powers:['swarm'], spd:1.6, crown:true, healer:true }, { spec:'demonking', base:'asura', name:'The Demon King', powers:['storm'], crown:true, loot:'demonfang' }],
 ];
 const MONARCHS = [
   { dom:'Destruction', powers:['destruction', 'storm'], eye:'#FF7A1A', cloth:'#2A0E0A', skin:'#3A1E1A' },
@@ -3089,13 +3194,16 @@ const BOSS_LINES = {
   'The Demon King':['Bow before the King of Demons.', 'Lightning, answer me!', 'This castle is my throne.'],
   monarch:['Your kind was meant to end.', 'I am the end of worlds.', 'Shadow... so it is you.', 'Kneel, little Monarch.', 'Your gods abandoned this world long ago.'],
 };
+SPECIES.icebear = { base:'brute', name:'Ice Bear', size:1.6, hp:2.2, dmg:1.4, spd:1.05, skin:['#E8EEF4', '#D8E2EC'], cloth:['#C8D6E4', '#B8C8D8'], head:'bear', fist:true, voice:'bear' };
+SPECIES.centipede = { base:'runner', name:'Giant Centipede', size:1.25, hp:1.4, dmg:1.3, spd:1.3, skin:['#8A5A2A', '#6A3A1A'], cloth:['#5A3414', '#4A2A10'], head:'ant', eye:'#FF3B2F', weapons:['twin'], voice:'ant' };
+VOICES.bear = ['GRRRAAAH!', '*huff* *huff*', 'RRRRR...'];
 SPECIES.demonking = { base:'asura', name:'Demon King', skin:['#7A1E2A'], cloth:['#1A0A12'], horns:true, eye:'#FFD23F', hairS:'long', hair:['#E8E4DC'], weapons:['great'], smart:true };
 /* a monster of species `spec` from a gate of rank r; opts.boss: a gate's boss */
 function makeBeast(spec, x, r, opts){
   opts = opts || {}; const S = SPECIES[spec], base = opts.base || S.base, e = makeEnemy(base, x, G.diff, false);
   e.species = spec; e.beastRank = r; e.alert = true; e.state = 'chase';
   if (!opts.boss){ e.size = S.size || TYPES[base].size; e.maxHp *= MON_HP[r]*(S.hp || 1); }
-  else { e.size = TYPES[base].size*(opts.size || 1); e.maxHp *= 1 + 0.6*r; e.bossName = opts.name; e.powers = opts.powers || null; e.crown = opts.crown; }
+  else { e.size = TYPES[base].size*(opts.size || 1); e.maxHp *= 1 + 0.6*r; e.bossName = opts.name; e.powers = opts.powers || null; e.crown = opts.crown; e.loot = opts.loot || (r === 2 ? 'venomfang' : null); e.healer = !!opts.healer; }
   e.hp = e.maxHp; e.dmg *= MON_DMG[r]*(S.dmg || 1); e.spd *= (S.spd || 1)*(opts.spd || 1);
   e.range = TYPES[base].range*e.size/Math.max(1, e.size*0.85);
   return e;
@@ -3301,6 +3409,9 @@ function drawBeastHead(e, L, hx, hy, r, f, s){   // the faces of the things that
     ctx.fillStyle = L.eye; ctx.beginPath(); ctx.ellipse(ex, ey, r*0.2, r*0.15, 0, 0, 6.283); ctx.fill();
     ctx.fillStyle = '#111'; ctx.fillRect(ex - r*0.03, ey - r*0.14, r*0.06, r*0.28);
     if (FXL() > 0) glowDot(ctx, ex, ey, 5*s, L.eye, 0.5); return; }
+  if (L.head === 'bear'){ ctx.fillStyle = L.skin; ctx.beginPath(); ctx.moveTo(hx + f*r*0.3, hy - r*0.2); ctx.lineTo(hx + f*r*1.35, hy + r*0.15); ctx.lineTo(hx + f*r*1.25, hy + r*0.6); ctx.lineTo(hx + f*r*0.2, hy + r*0.7); ctx.fill();   // a short muzzle and round ears
+    ctx.beginPath(); ctx.arc(hx - f*r*0.35, hy - r*0.85, r*0.38, 0, 6.283); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(hx + f*r*1.3, hy + r*0.22, r*0.16, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex, ey, r*0.12, 0, 6.283); ctx.fill(); return; }
   if (L.head === 'skull'){ ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(ex, ey, r*0.3, 0, 6.283); ctx.fill();
     ctx.fillStyle = '#FF3B2F'; ctx.beginPath(); ctx.arc(ex, ey, r*0.08, 0, 6.283); ctx.fill(); if (FXL() > 0) glowDot(ctx, ex, ey, 5*s, '#FF3B2F', 0.6);
     ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(hx + f*r*0.75, hy + r*0.05); ctx.lineTo(hx + f*r*0.9, hy + r*0.3); ctx.lineTo(hx + f*r*0.65, hy + r*0.3); ctx.fill();
@@ -3365,13 +3476,14 @@ function startShadow(){
     const en = document.createElement('button'); en.id = 'enterBtn'; en.className = 'tb sm'; en.dataset.k = 'interact'; en.textContent = 'Enter'; en.style.setProperty('--sc', '#3FA9FF'); en.setAttribute('aria-label', 'Enter the gate you stand at'); box.appendChild(en); bindTouch(en);
     const at = document.createElement('button'); at.id = 'cmdBtn'; at.className = 'tb sm'; at.dataset.k = 'legionCmd'; at.textContent = 'Attack'; at.style.setProperty('--sc', '#FF8A8A'); at.setAttribute('aria-label', 'Shadows: attack or guard'); box.appendChild(at); bindTouch(at);
     const r = document.createElement('button'); r.id = 'returnBtn'; r.className = 'tb sm'; r.dataset.k = 'webAll'; r.textContent = 'Return'; r.style.setProperty('--sc', '#9B6BFF'); r.setAttribute('aria-label', 'Send every shadow back into the dark'); box.appendChild(r); bindTouch(r);
-    for (const [id, k, txt, col, aria] of [['exBtn', 'exchange', 'Swap', '#B78CFF', 'Shadow Exchange: teleport to your furthest shadow'], ['rulerBtn', 'ruler', 'Ruler', '#7FD3FF', "Ruler's Authority: hold to lift enemies, let go to slam them"], ['monBtn', 'monarch', 'Monarch', '#E0C8FF', 'Monarch form on or off'], ['realmBtn', 'realm', 'Realm', '#9B6BFF', 'Shadow Realm: see your whole army']]){
+    for (const [id, k, txt, col, aria] of [['exBtn', 'exchange', 'Swap', '#B78CFF', 'Shadow Exchange: teleport to your furthest shadow'], ['rulerBtn', 'ruler', 'Ruler', '#7FD3FF', "Ruler's Authority: hold to lift enemies, let go to slam them"], ['monBtn', 'monarch', 'Monarch', '#E0C8FF', 'Monarch form on or off'], ['realmBtn', 'realm', 'Realm', '#9B6BFF', 'Shadow Realm: see your whole army'], ['sysBtn', 'system', 'System', '#7FD3FF', 'The System: level, stats, daily quest'], ['blBtn', 'bloodlust', 'Fear', '#FF3B3B', 'Bloodlust: weaker enemies freeze in fear'], ['stBtn', 'stealth', 'Hide', '#9FD3FF', 'Stealth: unseen for 6 seconds']]){
       const q = document.createElement('button'); q.id = id; q.className = 'tb sm'; q.dataset.k = k; q.textContent = txt; q.style.setProperty('--sc', col); q.setAttribute('aria-label', aria); box.appendChild(q); bindTouch(q); } } }
   G.P.manaMax = manaMaxFor(); legionStats(G.P); G.P.mana = G.P.manaMax; G.P.hp = G.P.maxHp;
   toast(G.stored.length ? G.stored.length + ' shadows wait for you · R: call them' : 'Shadow Legion', 1.8);
+  G._sysKills = G.kills; G._sysX = null; sysCheckPenalty();
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
     isTouch ? 'Kill · Arise: the fallen rise as shadows · Return: send them back · Call: bring them back, strongest first'
-            : 'Alt: ARISE · R+A / R+D: call · Q: go · B: send back · Tab · X · C · V · I: realm · Z: army view', '#9B6BFF'); }, 900);
+            : 'Alt: ARISE · R+A/R+D: call · Q: go · B: back · Tab · X · C · V · I: realm · Z · N: System · F: Bloodlust · 1: Stealth', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -3381,6 +3493,7 @@ function shadowTick(dt, alive){
   if (k > (SV.shadowBest || 0)){ SV.shadowBest = k; saveSoon(); }
   gatesTick(dt, alive);
   foesTick(dt);
+  sysTick(dt);
   S.syncT -= dt; if (S.syncT <= 0){ S.syncT = 1; syncLegion(); }
   legionStats(P);
   const legion = G.allies.filter(a => !a.fade).length;
@@ -3480,8 +3593,8 @@ function makeGates(){ G.gates = []; G.waves = 0; G.gateT = 3; G.crystalsFx = [];
 function newGate(){
   const P = G.P, hr = hunterRank(), rank = hr >= 5 && Math.random() < 0.15 ? 6 : clamp(hr + ((Math.random()*4)|0) - 1, 0, 5);   // past S: now and then a Monarch's gate
   let x; for (let i = 0; i < 20; i++){ x = rnd(200, G.worldW - 200); if (Math.abs(x - P.x) > 350 && !G.gates.some(g => Math.abs(g.x - x) < 300)) break; }
-  const g = { x, rank, timer:70 + 12*(5 - rank) + rnd(0, 20), red:false, commander:null, spawnT:0 };
-  G.gates.push(g); pop(P.x, P.y - 130, RANKS[rank] + '-rank gate opened', RANK_COL[rank]); sfx('shadow');
+  const g = { x, rank, timer:70 + 12*(5 - Math.min(5, rank)) + rnd(0, 20), red:false, commander:null, spawnT:0, redGate:rank >= 2 && rank <= 5 && Math.random() < 0.18 };   // a Red Gate: no way out until its boss falls
+  G.gates.push(g); pop(P.x, P.y - 130, g.redGate ? 'A RED GATE opened (' + RANKS[rank] + '-rank)' : RANKS[rank] + '-rank gate opened', g.redGate ? '#FF2A2A' : RANK_COL[rank]); sfx('shadow');
 }
 function gateEnemy(g, type, boost){
   const e = makeEnemy(type, g.x + rnd(-20, 20), G.diff, false);
@@ -3529,23 +3642,26 @@ function enterDungeon(g){
   P.x = 140; P.y = GROUND; P.vx = 0; G.camX = 0;
   for (const a of G.allies){ a.x = P.x + (a.slot || rnd(-60, 60)); a.tgt = null; if (a.post != null) a.post = a.x; }
   const traps = []; for (let x = 600; x < G.worldW - 400; x += rnd(420, 640)) traps.push({ x, w:70, t:rnd(0, 2.5) });
+  if (g.redGate) showBanner('RED GATE', 'A world of ice · the gate has shut behind you', 'No way out until the boss falls · ice elves and ice bears', '#FF2A2A');
   G.dungeon = { g, rank:r, kills:0, need:Math.min(30, 8 + 4*r), boss:null, spawnT:DUNGEON_CALM, calm:DUNGEON_CALM, done:false, traps };
   G.diff = diffFor(Math.min(30, 4 + 4*r));
-  showBanner(r >= 6 ? 'MONARCH GATE' : RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', ['Goblins and wolfkin: weak, but many', 'Wolfkin and the risen', 'Lizardmen and orcs: tough hides, they fight in packs', 'Orcs and stone golems', 'High orcs, giants and ice elves: they think, and they talk', 'A calamity waits at the end', 'Beyond S-rank. A Monarch waits at the end'][r], RANK_COL[r]); sfx('shadow');
+  if (g.redGate){ G.theme = 'snow'; G.dungeon.pool = ['iceelf', 'icebear', 'icebear']; G.dungeon.bossDef = { spec:'iceelf', base:'kage', name:'Ice Elf Assassin', size:1.15, spd:1.5, loot:'frostfang' }; G.dungeon.red = true; }
+  if (!g.redGate) showBanner(r >= 6 ? 'MONARCH GATE' : RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', ['Goblins and wolfkin: weak, but many', 'Wolfkin and the risen', 'Lizardmen and orcs: tough hides, they fight in packs', 'Orcs and stone golems', 'High orcs, giants and ice elves: they think, and they talk', 'A calamity waits at the end', 'Beyond S-rank. A Monarch waits at the end'][r], RANK_COL[r]); sfx('shadow');
 }
 function dungeonTick(dt, alive){
   const D = G.dungeon, P = G.P, r = D.rank;
   if (D.calm > 0){ D.calm -= dt; if (D.calm <= 0) pop(P.x, P.y - 140, 'They are awake', '#FF8A9A'); }
+  if (D.penalty && !D.done){ D.surviveT -= dt; if (D.surviveT <= 0){ D.done = true; D.exitT = 3; for (const e of G.E) e.hp = 0; showBanner('PENALTY COMPLETE', 'You survived', 'Returning to the city', '#7FE39F'); } }
   const pool = ['grunt', 'fencer', 'assassin', 'brute', 'ninja', 'demon', 'zombie', 'bloater', 'runner', 'shield'];
   if (!D.boss && !D.done){ D.spawnT -= dt;
     if (D.spawnT <= 0 && alive < 6 + r && D.kills + alive < D.need){ D.spawnT = Math.max(0.8, 1.6 - 0.12*r);
       const n = Math.min(2 + (r > 2 ? 1 : 0), D.need - D.kills - alive);   // they come in packs
       for (let i = 0; i < n; i++){
         const x = clamp(P.x + (Math.random() < 0.8 ? 1 : -1)*(VW*0.55 + rnd(40, 200)), 60, G.worldW - 60);
-        const e = makeBeast(pick(SPECIES_BY_RANK[r]), x, r); e.dun = true; G.E.push(e);
+        const e = makeBeast(pick(D.pool || SPECIES_BY_RANK[r]), x, r); e.dun = true; G.E.push(e);
         if (SPECIES[e.species].voice === 'goblin' || e.species === 'wolf') for (let j = 0; j < 1 && D.kills + alive + n < D.need; j++){ const m = makeBeast(e.species, clamp(x + rnd(-60, 60), 60, G.worldW - 60), r); m.dun = true; G.E.push(m); alive++; } } }   // the weak come in bigger packs
     if (D.kills >= D.need){   // the boss
-      const bx = clamp(P.x + 520, 100, G.worldW - 100), b = r >= 6 ? makeMonarch(bx) : (o => makeBeast(o.spec, bx, r, { boss:true, ...o }))(pick(BOSS_BY_RANK[r]));
+      const bx = clamp(P.x + 520, 100, G.worldW - 100), b = r >= 6 ? makeMonarch(bx) : (o => makeBeast(o.spec, bx, r, { boss:true, ...o }))(D.bossDef || pick(BOSS_BY_RANK[r]));
       b.dun = true; b.dunBoss = true; G.E.push(b); D.boss = b;
       showBanner(r >= 6 ? 'A MONARCH' : 'Dungeon Boss', b.bossName || RANKS[r] + '-rank', r >= 6 ? 'A primordial king of the dark · your shadows will break before it' : r >= 5 ? 'A calamity · it could wipe out a city' : 'Bring it down to close the gate', RANK_COL[r]); sfx('boom'); vib(r >= 5 ? 140 : 80);
       if (r >= 5){ flash(r >= 6 ? '#2A1A00' : '#1A0A12', 0.5); G.shake = Math.max(G.shake, 14); } } }
@@ -3561,6 +3677,7 @@ function dungeonKill(e){
   const D = G.dungeon; if (!D || !e.dun) return;
   D.kills++;
   if (Math.random() < 0.6 || e.dunBoss) (G.crystals = G.crystals || []).push({ x:e.x, y:GROUND - 14, v:e.dunBoss ? 10*(D.rank + 1) : D.rank + 1, t:0 });
+  if (e.dunBoss && e.loot) dropLoot(e.loot, e);
   if (e.dunBoss && !D.done){ D.done = true; D.exitT = ARISE_TIME;
     const coins = 250*(D.rank + 1)*(D.rank + 1), xp = [20, 40, 70, 120, 200, 350, 700][D.rank];
     SV.coins = (SV.coins || 0) + coins; SV.hunterXP = (SV.hunterXP || 0) + xp; saveSoon();
@@ -3569,7 +3686,7 @@ function dungeonKill(e){
 }
 function leaveDungeon(){
   const D = G.dungeon, P = G.P, C = G.city; if (!D || !C) return;
-  const g = D.g; G.gates.splice(G.gates.indexOf(g), 1);   // the gate closes behind you
+  const g = D.g; if (G.gates.includes(g)) G.gates.splice(G.gates.indexOf(g), 1);   // the gate closes behind you
   G.E = C.E; G.corpses = C.corpses; G.eproj = []; G.worldW = C.worldW; G.theme = C.theme; G.crystals = [];
   P.x = g.x; P.y = GROUND; P.vx = 0; for (const a of G.allies){ a.x = P.x + (a.slot || 0); a.tgt = null; if (a.post != null) a.post = a.x; }
   G.dungeon = null; G.city = null;
@@ -3585,6 +3702,7 @@ function drawGates(){
     for (const c of G.crystals || []){ const y = c.y - 4*Math.sin(G.time*4 + c.x);
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(127,227,255,0.35)'; ctx.beginPath(); ctx.arc(c.x, y, 14, 0, 6.283); ctx.fill(); ctx.restore();
       ctx.save(); ctx.fillStyle = '#7FE3FF'; ctx.strokeStyle = '#E8FBFF'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.x, y - 11); ctx.lineTo(c.x + 6, y); ctx.lineTo(c.x, y + 9); ctx.lineTo(c.x - 6, y); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
+    if (G.dungeon.penalty && !G.dungeon.done && G.P){ ctx.save(); ctx.textAlign = 'center'; ctx.font = '600 20px Teko, sans-serif'; ctx.fillStyle = '#FF5A5A'; ctx.fillText('PENALTY ZONE · survive ' + Math.ceil(G.dungeon.surviveT) + ' s', G.P.x, G.P.y - 175); ctx.restore(); }
     if (G.dungeon.calm > 0 && G.P){ ctx.save(); ctx.textAlign = 'center'; ctx.font = '600 18px Teko, sans-serif'; ctx.fillStyle = '#9FD3FF';
       ctx.fillText('The dungeon sleeps · ' + Math.ceil(G.dungeon.calm) + ' s', G.P.x, G.P.y - 175);
       ctx.font = '600 13px Teko, sans-serif'; ctx.fillStyle = '#DCD0FF'; ctx.fillText((isTouch ? 'Call' : 'R + A / R + D') + ': bring out your shadows now', G.P.x, G.P.y - 158); ctx.restore(); }
@@ -3595,11 +3713,11 @@ function drawGates(){
       ctx.fillText((isTouch ? 'Arise' : 'Alt') + ': take their shadows · ' + (isTouch ? 'Enter' : 'O') + ': leave now', G.P.x, G.P.y - 158); ctx.restore(); }
     return; }
   for (const g of G.gates || []){ if (g.x >= G.camX - 60 && g.x <= G.camX + VW + 60) continue;   // off screen: a marker at the edge pointing to it
-    const left = g.x < G.camX, ex = left ? G.camX + 18 : G.camX + VW - 18, ey = GROUND - 150, c = g.red ? '#FF3B3B' : RANK_COL[g.rank];
+    const left = g.x < G.camX, ex = left ? G.camX + 18 : G.camX + VW - 18, ey = GROUND - 150, c = g.red || g.redGate ? '#FF3B3B' : RANK_COL[g.rank];
     ctx.save(); ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(ex + (left ? -10 : 10), ey); ctx.lineTo(ex + (left ? 6 : -6), ey - 10); ctx.lineTo(ex + (left ? 6 : -6), ey + 10); ctx.fill();
-    ctx.font = '600 13px Teko, sans-serif'; ctx.textAlign = left ? 'left' : 'right'; ctx.fillText(RANKS[g.rank] + (g.red ? ' BREAK ' : ' gate ') + Math.round(Math.abs(g.x - G.P.x)/10) + ' m', ex + (left ? 10 : -10), ey + 24); ctx.restore(); }
+    ctx.font = '600 13px Teko, sans-serif'; ctx.textAlign = left ? 'left' : 'right'; ctx.fillText(RANKS[g.rank] + (g.red ? ' BREAK ' : g.redGate ? ' RED GATE ' : ' gate ') + Math.round(Math.abs(g.x - G.P.x)/10) + ' m', ex + (left ? 10 : -10), ey + 24); ctx.restore(); }
   for (const g of G.gates || []){ if (g.x < G.camX - 200 || g.x > G.camX + VW + 200) continue;
-    const col = g.red ? [255, 59, 59] : [63, 169, 255], c = `rgb(${col})`, cx = g.x, cy = GROUND - 95, t = G.time;
+    const col = g.red ? [255, 59, 59] : g.redGate ? [200, 20, 30] : [63, 169, 255], c = `rgb(${col})`, cx = g.x, cy = GROUND - 95, t = G.time;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     const gr = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120); gr.addColorStop(0, `rgba(${col},0.55)`); gr.addColorStop(1, `rgba(${col},0)`);
     ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(cx, cy, 70, 110, 0, 0, 6.283); ctx.fill();
@@ -3607,7 +3725,7 @@ function drawGates(){
     ctx.restore();
     ctx.save(); ctx.fillStyle = 'rgba(8,4,16,0.75)'; ctx.beginPath(); ctx.ellipse(cx, cy, 34, 70, 0, 0, 6.283); ctx.fill(); ctx.restore();
     ctx.save(); ctx.textAlign = 'center'; ctx.font = '600 16px Teko, sans-serif'; ctx.fillStyle = RANK_COL[g.rank];
-    ctx.fillText(RANKS[g.rank] + '-RANK ' + (g.red ? 'DUNGEON BREAK' : 'GATE'), cx, cy - 128);
+    ctx.fillText(RANKS[g.rank] + '-RANK ' + (g.red ? 'DUNGEON BREAK' : g.redGate ? 'RED GATE' : 'GATE'), cx, cy - 128);
     ctx.font = '600 13px Teko, sans-serif'; ctx.fillStyle = g.red ? '#FF8A8A' : '#DCEBFF';
     if (!g.red){ const s = Math.max(0, Math.ceil(g.timer)); ctx.fillText('breaks in ' + Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0'), cx, cy - 112);
       if (G.gateNear === g) ctx.fillText(isTouch ? 'tap Enter' : 'O: enter the dungeon', cx, cy + 128); }
@@ -3619,7 +3737,7 @@ function drawGates(){
 function raiseShadow(P, c, many){
   c.taken = true; P.mana -= SHADOW_COST;
   const a = makeEnemy(c.type, c.x, G.diff, false);
-  a.shadow = true; a.species = c.spec || ''; a.size = c.size; a.dmg = c.dmg*1.25; a.grade = gradeOfCorpse(c); a.xp = 0; a.pow = c.pow || 0; a.tier = c.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = 0; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
+  a.shadow = true; a.species = c.spec || ''; a.size = c.size; a.dmg = c.dmg*1.25; a.grade = gradeOfCorpse(c); a.xp = 0; if (c.healer) a.srole = 'healer'; a.pow = c.pow || 0; a.tier = c.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = 0; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
   applyGrade(a); G.allies.push(a);
   if (a.grade >= 2) pop(c.x, GROUND - 140*c.size, a.sname + ' · ' + GRADES[a.grade], GRADE_COL[a.grade]);
   if (a.grade >= 4) allySay(a, pick(COMMAND_LINES));
@@ -3629,6 +3747,9 @@ function raiseShadow(P, c, many){
 /* the shadows' own little minds: find the nearest enemy, close in, strike; nothing to fight, keep at your back */
 function shadowSkill(a, dt){   // Knight grade and up: mages cast, guardians taunt
   if ((a.grade || 0) < 2) return;
+  if (a.srole === 'healer'){ a.spellT -= dt; const P = G.P; if (a.spellT <= 0 && P && !P.dead){ a.spellT = 3;   // it learned to heal from what it ate
+    const h = P.maxHp*0.03*(1 + 0.2*a.grade); if (P.hp < P.maxHp){ P.hp = Math.min(P.maxHp, P.hp + h); pop(P.x, P.y - 100, '+' + Math.round(h), '#7FE39F'); }
+    for (const o of G.allies) if (!o.fade && Math.abs(o.x - a.x) < 300 && o.endure != null) o.endure = Math.max(o.endure, GRADE_ENDURE[o.grade || 0]); } return; }
   if (a.srole === 'mage'){ a.spellT -= dt; if (a.spellT <= 0){
     const foes = G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - a.x) < 520); if (!foes.length){ a.spellT = 1; return; }
     let best = foes[0], bn = 0; for (const e of foes){ const n = foes.filter(o => Math.abs(o.x - e.x) < 120).length; if (n > bn){ bn = n; best = e; } }   // where they stand thickest
@@ -4714,7 +4835,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
-const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView' };   // Shadow Legion only: the Monarch's powers
+const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth' };   // Shadow Legion only: the Monarch's powers
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -5143,9 +5264,9 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
-  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
+  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -5633,7 +5754,8 @@ function damageEnemy(e, dmg, o){
     if (G.cuts) G.cuts.push({ x:e.x + rnd(-10, 10), y:e.y - 32*e.size + rnd(-14, 14), s:e.size, life:3, col:'#FFFFFF', frozen:true });
     return true; }
   // style passives
-  if (G.mode === 'shadow' && o.src !== 'shadow') dmg *= (1 + legionBonus())*(P && P.monarch ? 2.5 : 1);   // the legion's strength is yours
+  if (G.mode === 'shadow' && o.src !== 'shadow') dmg *= (1 + legionBonus())*(P && P.monarch ? 2.5 : 1)*(1 + 0.03*sysStat('str'));
+  if (G.mode === 'shadow' && o.src !== 'shadow' && o.src !== 'ruler' && Math.random() < sysCrit()){ dmg *= 2; if (!o.quiet) pop(e.x, e.y - 120*(e.size || 1), 'Vital Strike', '#FFD23F'); }   // the legion's strength is yours
   const pv = G.ST.passive, pk = pv === 'kaal';
   if ((pv === 'shadow' || pk) && o.src === 'slash' && o.dir !== undefined && sign(o.dir) === e.face && !isBoss(e)) dmg *= 1.25;
   if ((pv === 'ember' || pk) && o.heavy && !o.burn) o.burn = 6;
@@ -5744,9 +5866,10 @@ function killEnemy(e){
   e.dead = true; G.kills++;
   if (G.mode === 'shadow' && e.cmdr) gateCommanderFell(e);
   if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
+  if (G.mode === 'shadow' && !e.shadow && !e.remote) sysGainXP(3 + 6*(e.beastRank ?? hunterRank()) + (e.slayer ? 30 : 0) + (e.dunBoss ? 150*((e.beastRank || 0) + 1) : 0));
   if (G.mode === 'shadow' && e.look && (e.slayer || Math.random() < 0.35)) foeSay(e, 'die', true);
   if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ const big = isBoss(e) || e.cmdr || e.dunBoss || e.slayer, elite = !big && e.dun && G.dungeon && G.dungeon.rank >= 3;
-    G.corpses.push({ x:e.x, type:e.type, spec:e.species || '', rank:e.beastRank ?? (G.dungeon ? G.dungeon.rank : hunterRank()), monarch:!!e.monarch, size:e.size || 1, dmg:e.dmg, pow:(e.maxHp || 100)*(e.dmg || 10)*(big ? 4 : 1), tier:big ? 'boss' : elite ? 'elite' : '', tries:0, t:0, life:big ? 14 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
+    G.corpses.push({ x:e.x, type:e.type, spec:e.species || '', healer:!!e.healer, rank:e.beastRank ?? (G.dungeon ? G.dungeon.rank : hunterRank()), monarch:!!e.monarch, size:e.size || 1, dmg:e.dmg, pow:(e.maxHp || 100)*(e.dmg || 10)*(big ? 4 : 1), tier:big ? 'boss' : elite ? 'elite' : '', tries:0, t:0, life:big ? 14 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
   if (G.mode === 'hammer' && G.P){ const lv = hammerLevel(); SV.hammerXP = (SV.hammerXP || 0) + (isBoss(e) ? 5 : 1); saveSoon(); if (hammerLevel() > lv){ pop(G.P.x, G.P.y - 120, 'Hammer Lv ' + hammerLevel() + '!', '#7FE3FF'); sfx('clang'); } }
   const s = e.size, f = G.P ? G.P.face : 1;
   const far = G.massKill && (e.x < G.camX - 150 || e.x > G.camX + VW + 150);
@@ -5936,7 +6059,7 @@ function updatePlayer(dt){
     const blocking = held.block && !shBusy && P.onG && !P.atk && P.hurtT < 0.15;
     if (blocking){ if (P.blockT < 0) P.blkKey = (P.blkKey || 0) + 1; P.blockT = P.blockT < 0 ? 0 : P.blockT + dt; mv = 0; } else P.blockT = -1;
     if (P.crouching) mv = 0;
-    const target = mv * 290 * ST.spd * (P.atk ? 0.3 : 1) * ((hasAbil('lastStand') && P.hp/P.maxHp < 0.35) ? 1.15 : 1);
+    const target = mv * 290 * ST.spd * sysAgi() * (P.atk ? 0.3 : 1) * ((hasAbil('lastStand') && P.hp/P.maxHp < 0.35) ? 1.15 : 1);
     const vx0 = P.vx;
     if (P.wg && P.wg.st === 'swing'){ /* the web line drives the body */ }
     else if (P.webFly > 0 && !P.onG){ P.vx = clamp(P.vx + mv*520*dt, -1500, 1500); }
@@ -6258,6 +6381,7 @@ function slashHits(who, A, mult){
       }
       const ironNow = !who.isClone && G.P && G.P.ironT > 0;
       if (sw.backstab && sign(who.x - e.x) !== e.face && !isBoss(e)){ dmg *= sw.backstab; tag = 'Backstab'; }
+      if (sw.armorBane && (e.T.armor || e.T.shield || isBoss(e))){ dmg *= sw.armorBane; tag = tag || 'Armour bane'; }
       if (sw.fist && e.state === 'stun'){ dmg *= 1.5; tag = 'Crush'; }
       if (sw.reap && !isBoss(e) && e.hp/e.maxHp < 0.25){ dmg *= 2; tag = 'Reap'; }
       if (!who.isClone && hasAbil('lastStand') && G.P.hp/G.P.maxHp < 0.35) dmg *= 1.35;
@@ -6270,7 +6394,7 @@ function slashHits(who, A, mult){
       const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4*swK : d.kb*swK, lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
         burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
-        launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0), breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0), poison: poisonHit });
+        launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0) || (sw.para && Math.random() < sw.para ? 0.9 : 0), freeze: sw.frost && Math.random() < sw.frost ? 0.7 : 0, breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0) || (sw.armorBane && d.heavy ? 2 : 0), poison: poisonHit });
       if (ok && !who.isClone) trainHit(d, sw);
       if (ok && sw.fist){
         hitReact(e, d);
@@ -7675,6 +7799,7 @@ function hurtPlayer(dmg, kb, e, full){
   if (P.atk) P.lastAtkT = G.time;
   if (autoDodge(P, e)) return;
   if (G.mode === 'shadow' && P.monarch){ dmg *= 0.4; kb *= 0.2; full = false; P.flash = 0.1; }   // the Monarch hardly feels it
+  if (G.mode === 'shadow' && P.hp < P.maxHp*0.3) dmg *= 0.6;   // Tenacity
   const iron = P.ironT > 0;
   if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0) && G.mode !== 'shadow'){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
   if (iron) dmg *= 0.5;
@@ -15765,7 +15890,7 @@ function updateHUD(alive){
     info.innerHTML = G.mode==='levels'
       ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>${(() => { const c = chalState(); return c ? ` &nbsp; <b style="color:${c.fail ? '#FF6A5A' : c.ok ? '#8FE38A' : '#FFB347'}">⚑ ${c.txt}</b>` : ''; })()}`
       : G.mode==='train' ? `Training &nbsp; step <span>${G.train ? Math.min(G.train.i + 1, TRAIN.length) : 0}</span>/${TRAIN.length}`
-      : G.mode==='shadow' ? (G.dungeon ? `${RANKS[G.dungeon.rank]}-rank Dungeon &nbsp; kills <span>${G.dungeon.kills}/${G.dungeon.need}</span> &nbsp; ${G.dungeon.boss ? (G.dungeon.done ? 'boss <span>down</span>' : 'boss <span>here</span>') : ''} &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; crystals <span>${SV.crystals || 0}</span>` : `Hunter <span style="color:${RANK_COL[hunterRank()]}">${RANKS[hunterRank()]}-rank</span> &nbsp; gates <span>${(G.gates || []).map(g => RANKS[g.rank] + (g.red ? '!' : ' ' + Math.max(0, Math.ceil(g.timer)) + 's')).join(' · ') || 'none'}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length} (${G.legionMode === 'attack' ? 'attacking' : 'guarding'})</span> &nbsp; legion <span>${(SV.legion || []).length}</span> &nbsp; power <span>+${Math.round(legionBonus()*100)}%</span> &nbsp; crystals <span>${SV.crystals || 0}</span>`)
+      : G.mode==='shadow' ? (G.dungeon ? `${G.dungeon.penalty ? 'PENALTY ZONE' : G.dungeon.red ? RANKS[G.dungeon.rank] + '-rank RED GATE' : RANKS[G.dungeon.rank] + '-rank Dungeon'} &nbsp; Lv <span>${sysData().lv}</span> &nbsp; kills <span>${G.dungeon.kills}/${G.dungeon.need}</span> &nbsp; ${G.dungeon.boss ? (G.dungeon.done ? 'boss <span>down</span>' : 'boss <span>here</span>') : ''} &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; crystals <span>${SV.crystals || 0}</span>` : `Hunter <span style="color:${RANK_COL[hunterRank()]}">${RANKS[hunterRank()]}-rank</span> &nbsp; Lv <span>${sysData().lv}</span>${sysData().pts ? ' <span style="color:#FFD23F">(+' + sysData().pts + ' · N)</span>' : ''} &nbsp; gates <span>${(G.gates || []).map(g => RANKS[g.rank] + (g.red ? '!' : ' ' + Math.max(0, Math.ceil(g.timer)) + 's')).join(' · ') || 'none'}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length} (${G.legionMode === 'attack' ? 'attacking' : 'guarding'})</span> &nbsp; legion <span>${(SV.legion || []).length}</span> &nbsp; power <span>+${Math.round(legionBonus()*100)}%</span> &nbsp; crystals <span>${SV.crystals || 0}</span>`)
       : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
       : G.mode==='spider' ? `Spider Chase &nbsp; distance <span>${(G.spider && G.spider.dist) || 0} m</span> &nbsp; best <span>${SV.spiderBest || 0} m</span> &nbsp; trapped <span>${(G.spider && G.spider.trapped) || 0}</span> &nbsp; chasing <span>${G.E.filter(e => e.flyChase && !e.dead).length}</span>`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
@@ -16716,6 +16841,7 @@ function renderTabs(){
 const pct = v => Math.round(v*100);
 function cmpSpan(label, v, cur, fmt){ const c = v>cur?'up':v<cur?'dn':''; return `<span>${label} <b class="${c}">${fmt(v)}</b>${v!==cur?` <span style="opacity:.6">(now ${fmt(cur)})</span>`:''}</span>`; }
 function lockReason(o){
+  if (o.loot) return o.loot;
   if (o.needCoins && SV.coins < o.needCoins) return `Reach ${o.needCoins.toLocaleString()} coins to unlock (you have ${SV.coins.toLocaleString()})`;
   if (o.needBeat && SV.beat < o.needBeat) return `Beat level ${o.needBeat} to unlock`;
   if (o.unlock && SV.unlocked < o.unlock) return `Unlocks at level ${o.unlock}`;
