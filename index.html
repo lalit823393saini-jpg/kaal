@@ -817,7 +817,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R</b> call your kept shadows back, <b>B</b> send them into the dark &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R</b> call your kept shadows back, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>V</b> Monarch form, <b>I</b> Shadow Realm &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -2894,6 +2894,106 @@ function legionStats(P){   // your health and mana grow with the legion; the rat
 }
 addEventListener('pagehide', () => { if (G_ref && G_ref.mode === 'shadow') syncLegion(true); });
 addEventListener('visibilitychange', () => { if (document.hidden && G_ref && G_ref.mode === 'shadow') syncLegion(true); });
+/* ===== THE SHADOW MONARCH'S POWERS (Shadow Legion only)
+   X  Shadow Exchange: you and your furthest shadow trade places, any distance.
+   C  Ruler's Authority: hold to lift the enemies in front of you into the air and carry them; let go to slam them down.
+   V  Monarch form: you grow into a giant of black shadow: far stronger blows, longer reach, blows barely move you. Drains mana.
+   I  Shadow Realm: the whole army, by kind, wherever it is.
+   And always: no stun, no net, no hook drag can hold you. ===== */
+const EXCHANGE_COST = 8, RULER_COST = 15, RULER_DRAIN = 10, MONARCH_DRAIN = 12;
+function monarchTick(dt){
+  const P = G.P; if (!P) return;
+  // Immunity: nothing can hold the Monarch
+  if (P.stunT > 0 || P.netT > 0 || P.pullT > 0){ if (G.time - (P.immT || -9) > 1) pop(P.x, P.y - 110, 'Immune', '#C9A8FF'); P.immT = G.time; P.stunT = 0; P.netT = 0; P.pullT = 0; }
+  // X: Shadow Exchange
+  P.exCd = Math.max(0, (P.exCd || 0) - dt);
+  if (pressed.exchange && !P.dead && P.exCd <= 0) shadowExchange(P);
+  // C: Ruler's Authority
+  if (pressed.ruler && !P.dead && !G.ruler) rulerGrab(P);
+  if (G.ruler){ const R = G.ruler; R.t += dt; P.mana -= RULER_DRAIN*dt;
+    R.list = R.list.filter(e => !e.dead && e.hp > 0 || (e.webHeld = false));
+    R.list.forEach((e, i) => {   // they hang in front of you and go where you go
+      const tx = clamp(P.x + P.face*(130 + 70*i), 30, G.worldW - 30), ty = GROUND - 150 - 22*(i % 3) + 8*Math.sin(G.time*3 + i);
+      e.x += (tx - e.x)*Math.min(1, dt*6); e.y += (ty - e.y)*Math.min(1, dt*6); e.face = -P.face; });
+    if (!held.ruler || R.t > 4 || P.mana <= 0 || P.dead || !R.list.length) rulerSlam(P); }
+  for (const e of G.E){ if (!e.rulerSlam) continue;   // the slam lands
+    if (e.dead){ e.rulerSlam = false; continue; }
+    if (e.onG || G.time - e.rulerSlam > 1.5){ const hit = 60 + Math.min(e.maxHp*0.15, 900); e.rulerSlam = false;
+      damageEnemy(e, hit, { src:'ruler', kb:120, dir:sign(e.x - P.x) || 1, heavy:true, stun:0.8, noStop:true });
+      ringFx(e.x, GROUND - 6, 90*(e.size || 1), '#9B6BFF', true); burst(e.x, GROUND - 10, 16, '#2B1D4E', 320, 4, true); G.shake = Math.max(G.shake, 7); sfx('boom', 0.02); } }
+  // V: Monarch form
+  if (pressed.monarch && !P.dead){
+    if (P.monarch){ P.monarch = false; pop(P.x, P.y - 160, 'Monarch form ends', '#C9A8FF'); sfx('shadow'); }
+    else if (P.mana < 30) pop(P.x, P.y - 110, 'Not enough mana (30)', '#9B6BFF');
+    else { P.monarch = true; flash('#1A0B33', 0.35); ringFx(P.x, P.y - 40, 220, '#9B6BFF', true); burst(P.x, P.y - 40, 40, '#2B1D4E', 520, 6, true);
+      G.shake = Math.max(G.shake, 10); sfx('boom'); sfx('shadow', 0.03); vib(90); showBanner('MONARCH', 'The shadow rises', 'Your blows crush · V to return', '#C9A8FF'); } }
+  if (P.monarch){ P.mana -= MONARCH_DRAIN*dt; if (P.mana <= 0 || P.dead){ P.monarch = false; pop(P.x, P.y - 160, 'Out of mana', '#9B6BFF'); } }
+  const sz = P.monarch ? 1.9 : 1; P.size = (P.size || 1) + (sz - (P.size || 1))*Math.min(1, dt*6);
+  if (Math.abs(P.size - sz) < 0.01) P.size = sz;
+  // I: Shadow Realm
+  if (pressed.realm) toggleRealm();
+  if (G.realmOpen){ G.realmT = (G.realmT || 0) - dt; if (G.realmT <= 0){ G.realmT = 0.5; drawRealm(); } }
+}
+function shadowExchange(P){
+  const live = G.allies.filter(a => !a.fade && (a.rise ?? 0) >= 1 && Math.abs(a.x - P.x) > 50);
+  if (!live.length){ pop(P.x, P.y - 110, 'No shadow to trade places with', 'rgba(201,168,255,0.8)'); return; }
+  if (P.mana < EXCHANGE_COST){ pop(P.x, P.y - 110, 'Not enough mana (' + EXCHANGE_COST + ')', '#9B6BFF'); return; }
+  const front = live.filter(a => (a.x - P.x)*P.face > 0);
+  const t = (front.length ? front : live).reduce((b, a) => Math.abs(a.x - P.x) > Math.abs(b.x - P.x) ? a : b);   // the furthest one ahead of you, or else the furthest of all
+  const ox = P.x; P.mana -= EXCHANGE_COST; P.exCd = 0.45;
+  burst(ox, P.y - 40, 24, '#2B1D4E', 340, 5, true); ringFx(ox, GROUND - 10, 70, '#9B6BFF', true);
+  P.x = t.x; P.y = GROUND; P.vx = 0; P.vy = 0; P.onG = true; P.inv = Math.max(P.inv || 0, 0.35);
+  t.x = ox; t.tgt = null; t.state = 'idle';
+  burst(P.x, P.y - 40, 24, '#9B6BFF', 340, 5, true); ringFx(P.x, GROUND - 10, 90, '#C9A8FF', true);
+  pop(P.x, P.y - 130, 'Exchange', '#C9A8FF'); sfx('shadow'); vib(30);
+}
+function rulerGrab(P){
+  if (P.mana < RULER_COST){ pop(P.x, P.y - 110, 'Not enough mana (' + RULER_COST + ')', '#9B6BFF'); return; }
+  const list = G.E.filter(e => !e.dead && !e.remote && !e.shadow && !e.webHeld && (e.x - P.x)*P.face > -30 && Math.abs(e.x - P.x) < 520)
+    .sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x)).slice(0, 6);
+  if (!list.length){ pop(P.x, P.y - 110, 'Nothing in front of you', 'rgba(201,168,255,0.8)'); return; }
+  P.mana -= RULER_COST;
+  for (const e of list){ e.webHeld = true; e.ruler = true; e.atk = null; e.comboLeft = 0; e.alert = true; ringFx(e.x, e.y - 30*(e.size || 1), 50, '#7FD3FF', true); }
+  G.ruler = { t:0, list }; pop(P.x, P.y - 130, "Ruler's Authority", '#7FD3FF'); sfx('shadow'); vib(40);
+}
+function rulerSlam(P){
+  const R = G.ruler; G.ruler = null; if (!R) return;
+  for (const e of R.list){ e.webHeld = false; e.ruler = false; if (e.dead) continue;
+    e.state = 'hurt'; e.timer = 0.8; e.vx = 0; e.vy = 1600; e.onG = false; e.rulerSlam = G.time; }
+  if (R.list.length) pop(P.x, P.y - 130, 'Down!', '#7FD3FF');
+}
+function toggleRealm(){
+  G.realmOpen = !G.realmOpen; let el = document.getElementById('realmPanel');
+  if (!G.realmOpen){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'realmPanel';
+    el.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(440px,92vw);max-height:70vh;overflow:auto;background:rgba(12,6,26,0.94);border:1px solid #5B3FA8;border-radius:10px;padding:14px 18px;color:#E6DCFF;font:15px/1.4 Teko,sans-serif;letter-spacing:0.5px;z-index:50;pointer-events:none;box-shadow:0 0 40px rgba(155,107,255,0.35)';
+    document.body.appendChild(el); }
+  G.realmT = 0; drawRealm();
+}
+function drawRealm(){
+  const el = document.getElementById('realmPanel'); if (!el) return;
+  const all = legionList(), field = (G.allies || []).filter(a => !a.fade).length, by = {};
+  for (const d of all){ const k = d.type; (by[k] = by[k] || { n:0, boss:0, elite:0 }).n++; if (d.tier === 'boss') by[k].boss++; else if (d.tier === 'elite') by[k].elite++; }
+  const rows = Object.entries(by).sort((a, b) => b[1].boss - a[1].boss || b[1].n - a[1].n).map(([k, v]) =>
+    `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(155,107,255,0.18);padding:3px 0"><span>${k.charAt(0).toUpperCase() + k.slice(1)}${v.boss ? ` <span style="color:#FFD27F">· ${v.boss} boss</span>` : ''}${v.elite ? ` <span style="color:#7FD3FF">· ${v.elite} elite</span>` : ''}</span><b>${v.n.toLocaleString()}</b></div>`).join('');
+  el.innerHTML = `<div style="font-size:24px;color:#C9A8FF;text-align:center">Shadow Realm</div>
+    <div style="text-align:center;margin:2px 0 10px;color:#B8A8E0">${all.length.toLocaleString()} soldiers · ${field} on the field · ${(all.length - field).toLocaleString()} in the dark · power +${Math.round(legionBonus()*100)}%</div>
+    ${rows || '<div style="text-align:center;color:#8A7AB8">The realm is empty. Raise the fallen with Alt.</div>'}
+    <div style="text-align:center;margin-top:10px;color:#8A7AB8">There is no limit to how many the realm holds · ${isTouch ? 'tap Realm' : 'I'} to close</div>`;
+}
+function drawMonarch(){
+  const P = G.P; if (!P) return;
+  if (G.ruler) for (const e of G.ruler.list){   // the unseen hand: a pale thread from your palm to each of them
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(127,211,255,0.35)'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(P.x + P.face*20*(P.size || 1), P.y - 60*(P.size || 1)); ctx.quadraticCurveTo((P.x + e.x)/2, Math.min(P.y, e.y) - 90, e.x, e.y - 40*(e.size || 1)); ctx.stroke();
+    const g = ctx.createRadialGradient(e.x, e.y - 36*(e.size || 1), 4, e.x, e.y - 36*(e.size || 1), 60*(e.size || 1)); g.addColorStop(0, 'rgba(127,211,255,0.35)'); g.addColorStop(1, 'rgba(127,211,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(e.x, e.y - 36*(e.size || 1), 60*(e.size || 1), 0, 6.283); ctx.fill(); ctx.restore(); }
+  if (P.size > 1.02){   // the Monarch: black flame around a giant
+    const s = P.size, cy = P.y - 40*s, r = 75*s*(1 + 0.05*Math.sin(G.time*7));
+    ctx.save(); const g = ctx.createRadialGradient(P.x, cy, 6, P.x, cy, r); g.addColorStop(0, 'rgba(20,8,40,0.55)'); g.addColorStop(0.6, 'rgba(60,30,120,0.25)'); g.addColorStop(1, 'rgba(155,107,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(P.x, cy, r, 0, 6.283); ctx.fill(); ctx.restore();
+    if (FXL() > 0 && Math.random() < 0.7) G.parts.push({ x:P.x + rnd(-24, 24)*s, y:P.y - rnd(0, 80)*s, vx:rnd(-20, 20), vy:-rnd(60, 160), life:0.6, max:0.6, col:Math.random() < 0.6 ? '#2B1D4E' : '#9B6BFF', size:5, real:true }); }
+}
 function startShadow(){
   G.mode = 'shadow'; G.level = 0; G.diff = diffFor(3);
   G.shadowTheme = ((G.shadowTheme ?? -1) + 1) % 4; G.theme = THEME_ORDER[G.shadowTheme];
@@ -2904,12 +3004,14 @@ function startShadow(){
     const cl = document.createElement('button'); cl.id = 'callBtn'; cl.className = 'tb sm'; cl.dataset.k = 'clone'; cl.textContent = 'Call'; cl.style.setProperty('--sc', '#C9A8FF'); cl.setAttribute('aria-label', 'Call your kept shadows back, strongest first'); box.appendChild(cl); bindTouch(cl);
     const en = document.createElement('button'); en.id = 'enterBtn'; en.className = 'tb sm'; en.dataset.k = 'interact'; en.textContent = 'Enter'; en.style.setProperty('--sc', '#3FA9FF'); en.setAttribute('aria-label', 'Enter the gate you stand at'); box.appendChild(en); bindTouch(en);
     const at = document.createElement('button'); at.id = 'cmdBtn'; at.className = 'tb sm'; at.dataset.k = 'legionCmd'; at.textContent = 'Attack'; at.style.setProperty('--sc', '#FF8A8A'); at.setAttribute('aria-label', 'Shadows: attack or guard'); box.appendChild(at); bindTouch(at);
-    const r = document.createElement('button'); r.id = 'returnBtn'; r.className = 'tb sm'; r.dataset.k = 'webAll'; r.textContent = 'Return'; r.style.setProperty('--sc', '#9B6BFF'); r.setAttribute('aria-label', 'Send every shadow back into the dark'); box.appendChild(r); bindTouch(r); } }
+    const r = document.createElement('button'); r.id = 'returnBtn'; r.className = 'tb sm'; r.dataset.k = 'webAll'; r.textContent = 'Return'; r.style.setProperty('--sc', '#9B6BFF'); r.setAttribute('aria-label', 'Send every shadow back into the dark'); box.appendChild(r); bindTouch(r);
+    for (const [id, k, txt, col, aria] of [['exBtn', 'exchange', 'Swap', '#B78CFF', 'Shadow Exchange: teleport to your furthest shadow'], ['rulerBtn', 'ruler', 'Ruler', '#7FD3FF', "Ruler's Authority: hold to lift enemies, let go to slam them"], ['monBtn', 'monarch', 'Monarch', '#E0C8FF', 'Monarch form on or off'], ['realmBtn', 'realm', 'Realm', '#9B6BFF', 'Shadow Realm: see your whole army']]){
+      const q = document.createElement('button'); q.id = id; q.className = 'tb sm'; q.dataset.k = k; q.textContent = txt; q.style.setProperty('--sc', col); q.setAttribute('aria-label', aria); box.appendChild(q); bindTouch(q); } } }
   G.P.manaMax = manaMaxFor(); legionStats(G.P); G.P.mana = G.P.manaMax; G.P.hp = G.P.maxHp;
   toast(G.stored.length ? G.stored.length + ' shadows wait for you · R: call them' : 'Shadow Legion', 1.8);
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
     isTouch ? 'Kill · Arise: the fallen rise as shadows · Return: send them back · Call: bring them back, strongest first'
-            : 'O at a gate: enter its dungeon · Alt: ARISE (raise the fallen) · B: send back · R: call back · Tab: attack / guard', '#9B6BFF'); }, 900);
+            : 'Alt: ARISE · R: call back · B: send back · Tab: attack/guard · X: exchange · C hold: Ruler · V: Monarch · I: Realm', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -2942,6 +3044,7 @@ function shadowTick(dt, alive){
   P.raiseFx = Math.max(0, (P.raiseFx || 0) - dt);
   P.raise = P.raiseFx > 0 ? { t:0.55 - P.raiseFx } : null;
   if (pressed.webAll && G.allies.some(a => !a.fade)){ for (const a of G.allies) if (!a.fade) a.fade = 0.01; pop(P.x, P.y - 120, 'Return to the dark', '#9B6BFF'); sfx('shadow'); }   // B: all of them back inside
+  monarchTick(dt);
   alliesTick(dt);
 }
 const CALL_COST = 10;
@@ -3172,6 +3275,7 @@ function alliesTick(dt){
 }
 function drawShadowLegion(){
   if (!G.allies) return;
+  drawMonarch();
   for (const c of G.corpses){ const k = 1 - c.t/c.life;   // a fading body: a dark stain and wisps, until it is gone
     ctx.save(); ctx.globalAlpha = 0.65*k; ctx.fillStyle = '#1A1030'; ctx.beginPath(); ctx.ellipse(c.x, GROUND - 2, 34*c.size, 8*c.size, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 0.5*k; ctx.fillStyle = '#9B6BFF'; for (let i = 0; i < 3; i++){ const y = GROUND - ((G.time*40 + i*20) % 50)*c.size; ctx.beginPath(); ctx.arc(c.x + (i - 1)*12*c.size, y, 3, 0, 6.283); ctx.fill(); }
@@ -4161,18 +4265,20 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
+const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm' };   // Shadow Legion only: the Monarch's powers
+const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
   if (W3.on || W3.loading) return;
   if (screens.dojo.classList.contains('on') && ev.key === 'Escape'){ $('dojoBack').click(); return; }
   if (screens.worldMap.classList.contains('on') && (ev.key === 'Escape' || ev.key.toLowerCase() === 'm')){ ev.preventDefault(); closeWorldMap(); return; }
-  const a = keyMap[ev.key.toLowerCase()]; if (!a) return;
+  const a = keyFor(ev.key.toLowerCase()); if (!a) return;
   if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA' || ev.target.isContentEditable)) return;
   ev.preventDefault();
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
-addEventListener('keyup', ev => { const a = keyMap[ev.key.toLowerCase()]; if (a) held[a] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
+addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
 cv.addEventListener('mousedown', ev => { if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
 addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; });
 cv.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -4586,8 +4692,9 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
-  if (G.stored){ syncLegion(true); G.stored = null; }   // leaving Shadow Legion (or starting it again): the legion is written first
+  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  if (G.stored){ syncLegion(true); G.stored = null; }
+  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -5074,7 +5181,7 @@ function damageEnemy(e, dmg, o){
     if (G.cuts) G.cuts.push({ x:e.x + rnd(-10, 10), y:e.y - 32*e.size + rnd(-14, 14), s:e.size, life:3, col:'#FFFFFF', frozen:true });
     return true; }
   // style passives
-  if (G.mode === 'shadow' && o.src !== 'shadow') dmg *= 1 + legionBonus();   // the legion's strength is yours
+  if (G.mode === 'shadow' && o.src !== 'shadow') dmg *= (1 + legionBonus())*(P && P.monarch ? 2.5 : 1);   // the legion's strength is yours
   const pv = G.ST.passive, pk = pv === 'kaal';
   if ((pv === 'shadow' || pk) && o.src === 'slash' && o.dir !== undefined && sign(o.dir) === e.face && !isBoss(e)) dmg *= 1.25;
   if ((pv === 'ember' || pk) && o.heavy && !o.burn) o.burn = 6;
@@ -5677,8 +5784,9 @@ function slashHits(who, A, mult){
     if (e.dead || A.hit.has(e)) continue;
     if (e.remote && A.clashed) continue;   // duel: this cut was turned aside by the rival's blade
     const dx = (e.x - who.x) * who.face;
-    const reach = d.range + 12*e.size;
-    const vtol = 46 + 20*e.size + (sw.wide ? 25 : 0) + (e.onG ? 0 : 95);
+    const big = who.isPlayer && who.monarch ? who.size || 1 : 1;   // the Monarch reaches as far as he is tall
+    const reach = d.range*big + 12*e.size;
+    const vtol = (46 + 20*e.size + (sw.wide ? 25 : 0) + (e.onG ? 0 : 95))*big;
     if (dx > -18 && dx < reach && Math.abs((e.y - 30*e.size) - (who.y - 34)) < vtol){
       if (sw.fist && !d.rush && !d.grab && !fistContact(who, d, e)) continue;   // the blow has not reached the body yet
       A.hit.add(e);
@@ -6930,6 +7038,7 @@ function projHitPlayer(q){
   if (q.dodged) return;
   if ((q.kind === 'net' || q.kind === 'hook') && !(q.kind !== 'meteor' && arrowDodgeCheck(P, { x:q.x - sign(q.vx)*20, y:q.y, vx:q.vx }))){
     q.life = 0; if (P.dead || P.inv > 0) return;
+    if (G.mode === 'shadow'){ if (q.kind === 'hook') hurtPlayer(q.dmg, 0, q.owner || { x:q.x, face:sign(q.vx) || 1 }, false); pop(P.x, P.y - 110, 'Immune', '#C9A8FF'); return; }   // nothing holds the Monarch
     if (q.kind === 'net'){ P.netT = 1.3; pop(P.x, P.y - 110, 'Netted!', '#E8E0C8'); sfx('swish'); }   // pinned where you stand
     else { const o = q.owner, d = o ? (sign(o.x - P.x) || 1) : -sign(q.vx); P.pullT = 0.28; P.pullV = d*760; P.onG = false; P.vy = -160;   // dragged in on the chain
       hurtPlayer(q.dmg, 0, o || { x:q.x, face:sign(q.vx) || 1 }, false); if (o && !o.dead){ o.state = 'windup'; o.timer = o.wind*0.4; } pop(P.x, P.y - 110, 'Hooked!', '#C9C9D6'); sfx('clang'); }
@@ -7112,8 +7221,9 @@ function hurtPlayer(dmg, kb, e, full){
   // mid-attack (a swing or a form) the hero slips the blow and keeps cutting; it needs a moment before it works again
   if (P.atk) P.lastAtkT = G.time;
   if (autoDodge(P, e)) return;
+  if (G.mode === 'shadow' && P.monarch){ dmg *= 0.4; kb *= 0.2; full = false; P.flash = 0.1; }   // the Monarch hardly feels it
   const iron = P.ironT > 0;
-  if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0)){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
+  if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0) && G.mode !== 'shadow'){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
   if (iron) dmg *= 0.5;
   if (iron && e && e.T && !e.dead && !e.remote && Math.abs(e.x - P.x) < 150 && G.ST.style === 'stone')   // Granite Skin: striking stone hurts
     damageEnemy(e, 12*FM(), { kb:220, dir:sign(e.x - P.x) || 1, stun:0.7, src:'form', noStop:true });
@@ -11055,7 +11165,7 @@ function renderScene(){
       const blink = P.inv > 0 && P.dashT<=0 && !P.form && Math.floor(G.time*20)%2===0;
       if (FXL() > 0 && !P.ride && Math.random() < (P.form ? 0.3 : P.atk ? 0.6 : 0.4)){ const ac = auraCol(); G.parts.push({ x:P.x + rnd(-13,13), y:P.y - rnd(4,62), vx:rnd(-12,12) - P.vx*0.15, vy:rnd(-90,-40), life:rnd(0.35,0.7), max:0.7, col:Math.random() < 0.5 ? ac : shadeHex(ac, 0.45), size:rnd(1.5,3.2), real:true, g:-0.05 }); }
       if (P.form && !P.form.wait && !P.dead) drawFormAura(P);   // the breathing style's aura burns round you while a form is on
-      drawStick(P, blink?0.45:1);
+      drawStick(P, blink?0.45:1, P.monarch && P.size > 1.3 ? '#140A28' : undefined);   // the Monarch is all shadow
       if (P.ironT > 0 && !P.dead) drawGranite(P);   // stone plates over the body
       drawBloodForms(P);
       drawHammer(P);
