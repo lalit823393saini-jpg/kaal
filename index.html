@@ -800,9 +800,10 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <button class="mode new" id="goArena" style="--mc:#FF7A1A"><span class="mn">Duelist Arena</span><span class="md">One on one in a cage. Thick-limbed stickmen, ragdoll physics: kick them into the wall, launch them and keep them in the air. Best of three.</span><span class="mb">New</span></button>
     <button class="mode new" id="goWorld3D" style="--mc:#7FD1FF"><span class="mn">KAAL: Open World</span><span class="md">The story in 3D. See the night Hinode burned, then roam a whole valley: ride your horse, follow the map, clear bandit camps, walk into any house.</span><span class="mb" id="mbWorld3D"></span></button>
     <button class="mode" id="goSurv" style="--mc:#9FD3F0"><span class="mn">Survival</span><span class="md">Endless waves, a boss every fifth. Score goes to the shared leaderboard.</span><span class="mb" id="mbSurv"></span></button>
-    <button class="mode new" id="goRush" style="--mc:#FF5A3D"><span class="mn">Boss Rush</span><span class="md">Iron Ronin, Kage, Gorath and Asura back to back. Beat the clock.</span><span class="mb" id="mbRush"></span></button>
-    <button class="mode new" id="goBlitz" style="--mc:#FFE14D"><span class="mn">Blitz</span><span class="md">90 seconds. Enemies never stop. Every kill adds 1 s, every combo adds score.</span><span class="mb" id="mbBlitz"></span></button>
-    <button class="mode new" id="goZomb" style="--mc:#8FE38A"><span class="mn">Zombie Outbreak</span><span class="md">Six areas of the walking dead, wave by wave. Ride a bike or a car and run them down.</span><span class="mb" id="mbZomb"></span></button>
+    <button class="mode new" id="goRush" hidden style="--mc:#FF5A3D"><span class="mn">Boss Rush</span><span class="md">Iron Ronin, Kage, Gorath and Asura back to back. Beat the clock.</span><span class="mb" id="mbRush"></span></button>
+    <button class="mode new" id="goBlitz" hidden style="--mc:#FFE14D"><span class="mn">Blitz</span><span class="md">90 seconds. Enemies never stop. Every kill adds 1 s, every combo adds score.</span><span class="mb" id="mbBlitz"></span></button>
+    <button class="mode new" id="goZomb" hidden style="--mc:#8FE38A"><span class="mn">Zombie Outbreak</span><span class="md">Six areas of the walking dead, wave by wave. Ride a bike or a car and run them down.</span><span class="mb" id="mbZomb"></span></button>
+    <button class="mode new" id="goGuns" style="--mc:#C9B27A"><span class="mn">Warzone · Armory</span><span class="md">Every real gun: pistols, SMGs, assault rifles, shotguns, snipers, machine guns, launchers. The enemies are armed too. Earn cash, unlock and buy guns here, and only here.</span><span class="mb" id="mbGuns">New</span></button>
     <button class="mode new" id="goShadow" style="--mc:#9B6BFF"><span class="mn">Shadow Legion · Hunter</span><span class="md">Gates open in the city: go in, clear the dungeon and its boss before the gate breaks, collect mana crystals, rise through the Hunter ranks. Kill them, then raise their shadows out of the ground to fight for you. Raise as many as you like; they stand as long as your mana lasts.</span><span class="mb">New</span></button>
     <button class="mode new" id="goHammer" style="--mc:#7FE3FF"><span class="mn">Hammer mode</span><span class="md">A war hammer of storm-iron. Smash with it, throw it with Z and it flies head first through everything in its path; Z again calls it back. Only you can lift it, and the more you fight with it the farther it flies.</span><span class="mb">New</span></button>
     <button class="mode new" id="goSpider" style="--mc:#E8202A"><span class="mn">Spider Chase</span><span class="md">Run and swing through an endless city while they come flying after you. Leave web traps behind you to stop them. How far can you get?</span><span class="mb">New</span></button>
@@ -1176,8 +1177,9 @@ const GUNS = {
 const GUN_TIER_MAX = 3;
 const gunTierCost = (id, t) => Math.max(120, Math.round((GUNS[id].price * 0.45 * (t+1)) / 10) * 10);
 const noPowersMode = () => !!(G_ref && (G_ref.mode === 'spider' || G_ref.mode === 'hammer' || G_ref.mode === 'shadow'));   // Spider and Hammer modes: no Divya Astras, no breathing styles
-const hasAstra = () => !noPowersMode() && !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
-const hasGun = () => !(G_ref && G_ref.mode === 'spider') && !!(SV.eq.gun && GUNS[SV.eq.gun] && (SV.eq.gun in SV.guns));   // Spider mode: no gun, G fires web pellets
+const hasAstra = () => false && !noPowersMode() && !!(SV.eq.astra && SWORDS[SV.eq.astra] && SWORDS[SV.eq.astra].astra && (SV.eq.astra in SV.swords));
+const gunId = () => G_ref && G_ref.mode === 'guns' && SV.gm ? SV.gm.slots[SV.gm.cur] : null;   // the gun in your hand: only in the Warzone
+const hasGun = () => !!(gunId() && GUNS[gunId()]);   // Spider mode: no gun, G fires web pellets
 const isFistId = id => !!(SWORDS[id] && SWORDS[id].fist);
 const hasFists = () => 'fists' in SV.swords || !!(G_ref && ((G_ref.dojo && G_ref.mode === 'levels') || G_ref.mode === 'train' || G_ref.mode === 'spider' || G_ref.mode === 'hammer'));   // the dojo lends you fists   // the dojo lends you fists
 const SWORD_TIER_MAX = 3;
@@ -3340,6 +3342,159 @@ function makeMonarch(x){
   const M = pick(MONARCHS), e = makeBeast('demonking', x, 6, { boss:true, base:'yama', powers:M.powers, crown:true });
   e.monarch = M; e.bossName = pick(MONARCH_NAMES) + ', Monarch of ' + M.dom; e.spd *= 1.3; return e;
 }
+/* ===== WARZONE · ARMORY: a mode of real guns. Waves of armed men come at you from both sides, and they shoot back.
+   Kills pay cash; the cash buys guns at the Armory (I), and the guns exist only here. G fires (hold for automatics),
+   R reloads, Q swaps between your two guns, F throws a grenade, J is still your blade. ===== */
+const GM_ARSENAL = {
+  // pistols
+  glock17:  { cat:'Pistol', name:'Glock 17', price:0, dmg:24, clip:17, rate:0.15, reload:1.2, speed:1600, range:700, pierce:1, kb:120, spread:0.03 },
+  m9:       { cat:'Pistol', name:'Beretta M9', price:600, dmg:27, clip:15, rate:0.16, reload:1.3, speed:1600, range:720, pierce:1, kb:130, spread:0.03 },
+  m1911:    { cat:'Pistol', name:'Colt M1911', price:900, dmg:36, clip:7, rate:0.2, reload:1.4, speed:1500, range:700, pierce:1, kb:200, spread:0.03 },
+  revolver: { cat:'Pistol', name:'S&W .357 Magnum', price:1500, dmg:58, clip:6, rate:0.38, reload:2.0, speed:1700, range:780, pierce:2, kb:320, spread:0.02, heavy:true },
+  deagle:   { cat:'Pistol', name:'Desert Eagle .50', price:2400, dmg:70, clip:7, rate:0.34, reload:1.6, speed:1800, range:820, pierce:2, kb:420, spread:0.03, heavy:true },
+  glock18:  { cat:'Pistol', name:'Glock 18 (auto)', price:3000, dmg:20, clip:33, rate:0.055, reload:1.4, speed:1600, range:650, pierce:1, kb:80, spread:0.07, auto:true },
+  // submachine guns
+  uzi:      { cat:'SMG', name:'Uzi', price:3500, dmg:19, clip:32, rate:0.065, reload:1.6, speed:1500, range:640, pierce:1, kb:70, spread:0.08, auto:true },
+  mp5:      { cat:'SMG', name:'HK MP5', price:4500, dmg:22, clip:30, rate:0.07, reload:1.7, speed:1700, range:720, pierce:1, kb:80, spread:0.05, auto:true },
+  mp7:      { cat:'SMG', name:'HK MP7', price:5500, dmg:21, clip:40, rate:0.06, reload:1.7, speed:1800, range:740, pierce:2, kb:70, spread:0.05, auto:true },
+  p90:      { cat:'SMG', name:'FN P90', price:6500, dmg:20, clip:50, rate:0.06, reload:2.0, speed:1800, range:760, pierce:2, kb:70, spread:0.05, auto:true },
+  vector:   { cat:'SMG', name:'Kriss Vector', price:7500, dmg:21, clip:33, rate:0.045, reload:1.6, speed:1700, range:700, pierce:1, kb:70, spread:0.05, auto:true },
+  thompson: { cat:'SMG', name:'Thompson M1928', price:8000, dmg:27, clip:50, rate:0.08, reload:2.4, speed:1500, range:700, pierce:1, kb:110, spread:0.07, auto:true },
+  // assault and battle rifles
+  ak47:     { cat:'Rifle', name:'AK-47', price:9000, dmg:34, clip:30, rate:0.1, reload:2.2, speed:2100, range:1000, pierce:2, kb:150, spread:0.05, auto:true },
+  m4a1:     { cat:'Rifle', name:'M4A1', price:10000, dmg:30, clip:30, rate:0.085, reload:2.0, speed:2200, range:1000, pierce:2, kb:130, spread:0.035, auto:true },
+  m16:      { cat:'Rifle', name:'M16A4', price:10500, dmg:33, clip:30, rate:0.09, reload:2.1, speed:2300, range:1050, pierce:2, kb:140, spread:0.03, auto:true },
+  famas:    { cat:'Rifle', name:'FAMAS', price:11000, dmg:28, clip:25, rate:0.06, reload:2.0, speed:2200, range:950, pierce:2, kb:120, spread:0.04, auto:true },
+  aug:      { cat:'Rifle', name:'Steyr AUG', price:12000, dmg:31, clip:30, rate:0.08, reload:2.1, speed:2300, range:1050, pierce:2, kb:130, spread:0.03, auto:true },
+  g36:      { cat:'Rifle', name:'HK G36', price:12500, dmg:31, clip:30, rate:0.08, reload:2.0, speed:2300, range:1050, pierce:2, kb:130, spread:0.03, auto:true },
+  scarh:    { cat:'Rifle', name:'FN SCAR-H', price:15000, dmg:44, clip:20, rate:0.11, reload:2.2, speed:2400, range:1100, pierce:3, kb:200, spread:0.035, auto:true },
+  m14:      { cat:'Rifle', name:'M14 EBR', price:14000, dmg:62, clip:20, rate:0.2, reload:2.2, speed:2600, range:1300, pierce:3, kb:260, spread:0.015 },
+  // shotguns
+  dbarrel:  { cat:'Shotgun', name:'Double-Barrel', price:3000, dmg:17, pellets:10, clip:2, rate:0.2, reload:1.8, speed:1300, range:380, pierce:1, kb:420, spread:0.2, heavy:true },
+  r870:     { cat:'Shotgun', name:'Remington 870', price:5000, dmg:15, pellets:8, clip:6, rate:0.65, reload:2.4, speed:1300, range:420, pierce:1, kb:380, spread:0.17, heavy:true },
+  spas12:   { cat:'Shotgun', name:'SPAS-12', price:8000, dmg:16, pellets:8, clip:8, rate:0.4, reload:2.6, speed:1300, range:430, pierce:1, kb:380, spread:0.16, heavy:true },
+  aa12:     { cat:'Shotgun', name:'AA-12 (auto)', price:16000, dmg:13, pellets:7, clip:20, rate:0.2, reload:2.8, speed:1300, range:400, pierce:1, kb:260, spread:0.17, auto:true },
+  // sniper rifles
+  svd:      { cat:'Sniper', name:'Dragunov SVD', price:14000, dmg:110, clip:10, rate:0.38, reload:2.4, speed:3000, range:1700, pierce:4, kb:380, spread:0.008, heavy:true },
+  r700:     { cat:'Sniper', name:'Remington 700', price:16000, dmg:150, clip:5, rate:1.0, reload:2.6, speed:3200, range:1900, pierce:5, kb:450, spread:0.004, heavy:true },
+  awm:      { cat:'Sniper', name:'AWM .338', price:22000, dmg:210, clip:5, rate:1.2, reload:3.0, speed:3400, range:2200, pierce:6, kb:520, spread:0.003, heavy:true, breakArmor:3 },
+  barrett:  { cat:'Sniper', name:'Barrett M82 .50', price:30000, dmg:190, clip:10, rate:0.55, reload:3.0, speed:3400, range:2200, pierce:7, kb:640, spread:0.006, heavy:true, breakArmor:4, guardBreak:true },
+  // machine guns
+  m249:     { cat:'Machine gun', name:'M249 SAW', price:20000, dmg:27, clip:100, rate:0.07, reload:4.0, speed:2100, range:1000, pierce:2, kb:120, spread:0.07, auto:true },
+  pkm:      { cat:'Machine gun', name:'PKM', price:24000, dmg:33, clip:100, rate:0.085, reload:4.2, speed:2200, range:1050, pierce:2, kb:150, spread:0.07, auto:true },
+  m60:      { cat:'Machine gun', name:'M60', price:26000, dmg:35, clip:100, rate:0.09, reload:4.5, speed:2200, range:1050, pierce:2, kb:160, spread:0.07, auto:true },
+  minigun:  { cat:'Machine gun', name:'M134 Minigun', price:80000, dmg:20, clip:300, rate:0.025, reload:5.0, speed:2200, range:950, pierce:2, kb:90, spread:0.09, auto:true },
+  // launchers and the rest
+  crossbow: { cat:'Launcher', name:'Crossbow', price:6000, dmg:120, clip:1, rate:0.2, reload:1.3, speed:1400, range:1100, pierce:4, kb:300, spread:0.01, heavy:true, g:120 },
+  m79:      { cat:'Launcher', name:'M79 Grenade Launcher', price:20000, dmg:160, clip:1, rate:0.2, reload:1.8, speed:900, range:1000, pierce:1, kb:420, spread:0.01, heavy:true, boom:true, lob:-320, g:900 },
+  m32:      { cat:'Launcher', name:'M32 MGL', price:38000, dmg:140, clip:6, rate:0.45, reload:3.6, speed:900, range:1000, pierce:1, kb:420, spread:0.02, heavy:true, boom:true, lob:-320, g:900 },
+  rpg7:     { cat:'Launcher', name:'RPG-7', price:45000, dmg:280, clip:1, rate:0.2, reload:2.8, speed:1000, range:1400, pierce:1, kb:600, spread:0.005, heavy:true, boom:true, g:40 },
+};
+const GM_CATS = ['Pistol', 'SMG', 'Rifle', 'Shotgun', 'Sniper', 'Machine gun', 'Launcher'];
+for (const id in GM_ARSENAL) GUNS['gm_' + id] = Object.assign({ gm:true, unlock:0, desc:'' }, GM_ARSENAL[id]);   // they live with the other guns, but only the Warzone hands them out
+/* what the enemy carries, by wave */
+const GM_ENEMY_POOL = [['glock17', 'm9', 'm1911', 'knife'], ['uzi', 'mp5', 'glock17', 'r870', 'knife'], ['ak47', 'm4a1', 'mp5', 'r870', 'uzi'], ['ak47', 'm16', 'scarh', 'spas12', 'p90', 'svd'],
+  ['ak47', 'scarh', 'm249', 'svd', 'aa12', 'g36'], ['pkm', 'barrett', 'scarh', 'aa12', 'rpg7', 'm60']];
+const GM_LINES = ['Contact! Contact!', 'Light him up!', 'Flank him!', 'Reloading!', 'You picked the wrong street.', 'Covering fire!', 'Man down!', 'He\u2019s got a sword?!'];
+function gmData(){ const d = SV.gm = SV.gm || {}; d.cash = d.cash ?? 1500; d.owned = d.owned || { glock17:true }; d.slots = d.slots || ['gm_glock17', null]; d.cur = d.cur || 0; d.nades = d.nades ?? 3; d.best = d.best || 0; if (!d.slots[d.cur]) d.cur = 0; return d; }
+function startGuns(){
+  G.mode = 'guns'; G.level = 0; G.theme = pick(['village', 'fortress', 'bamboo', 'grave']); G.diff = diffFor(2);
+  gmData();
+  G.worldW = 3600; resetCommon();
+  G.gmS = { wave:0, spawnT:2, left:0, betweenT:2.5, ammo:{} };
+  G.P.ammo = GUNS[gunId()].clip;
+  toast('Warzone', 1.2);
+  setTimeout(() => { if (G.running && G.mode === 'guns') showBanner('WARZONE', 'Every gun is real · so are theirs', 'G: fire (hold) · R: reload · Q: swap gun · F: grenade · I: Armory · J: blade', '#C9B27A'); }, 900);
+  setScreen(null); G.running = true;
+}
+function gmShot(gun){ if (gun.boom) sfx('boom', 0.02); }
+function gmSpawn(wave){
+  const pool = GM_ENEMY_POOL[Math.min(GM_ENEMY_POOL.length - 1, Math.floor((wave - 1)/3))], P = G.P;
+  const pickW = pick(pool), side = Math.random() < 0.5 ? -1 : 1, x = clamp(P.x + side*(VW*0.55 + rnd(40, 260)), 40, G.worldW - 40);
+  let e;
+  if (pickW === 'knife'){ e = makeEnemy(pick(['assassin', 'grunt']), x, G.diff, false); e.gmKnife = true; }
+  else { const W = GM_ARSENAL[pickW]; e = makeEnemy('gunner', x, G.diff, false); e.gmGun = pickW; e.gmAmmo = W.clip; e.gmCd = rnd(0.6, 1.4); e.gmBurst = 0;
+    const keep = W.cat === 'Sniper' ? [520, 820] : W.cat === 'Shotgun' ? [90, 200] : W.cat === 'Launcher' ? [420, 700] : W.cat === 'Pistol' ? [200, 380] : [260, 520];
+    e.T = { ...e.T, keep }; e.foeName = W.name; }
+  e.alert = true; e.state = 'chase'; e.noElite = true; e.beastRank = 0; e.lines = GM_LINES;
+  G.E.push(e); dressFoe(e);
+  const L = e.look; L.cloth = pick(['#4A5A2A', '#8A7A52', '#22242A', '#5E636E', '#1F2E4A', '#5A4632']); e.bodyCol = L.cloth; if (Math.random() < 0.35) L.mask = pick(['visor', 'cloth']);
+  if (e.gmGun) e.foeName = GM_ARSENAL[e.gmGun].name;
+  if (e.gmKnife){ e.foeSword = e.sword = { ...FOE_WEAPONS.dagger.sw }; e.weapon = 'dagger'; e.foeName = 'Combat knife'; }   // the knife men carry knives
+  return e;
+}
+function gmTick(dt){
+  const S = G.gmS, P = G.P, d = gmData(); if (!S) return;
+  // waves
+  const alive = G.E.filter(e => !e.dead).length;
+  if (S.left <= 0 && alive === 0){ S.betweenT -= dt;
+    if (S.betweenT <= 0){ S.wave++; S.left = 4 + 2*S.wave; S.spawnT = 0.5; G.diff = diffFor(Math.min(30, 2 + S.wave));
+      if (S.wave > 1){ const bonus = 150*(S.wave - 1); d.cash += bonus; pop(P.x, P.y - 140, 'Wave cleared · +$' + bonus, '#7FE39F'); }
+      if (S.wave > d.best){ d.best = S.wave; } saveSoon();
+      showBanner('WAVE ' + S.wave, S.wave % 5 === 0 ? 'Heavy weapons incoming' : 'They\u2019re coming', 'Enemies: ' + GM_ENEMY_POOL[Math.min(GM_ENEMY_POOL.length - 1, Math.floor((S.wave - 1)/3))].filter(w => w !== 'knife').map(w => GM_ARSENAL[w].name).join(', '), '#C9B27A'); sfx('boom', 0.02); } }
+  else if (S.left > 0){ S.spawnT -= dt; if (S.spawnT <= 0 && alive < 6 + Math.floor(S.wave/2)){ S.spawnT = Math.max(0.5, 1.6 - 0.05*S.wave); S.left--; gmSpawn(S.wave); S.betweenT = 3.5; } }
+  // their guns
+  for (const e of G.E){ if (e.dead || !e.gmGun) continue;
+    const W = GM_ARSENAL[e.gmGun]; e.cd = Math.max(e.cd || 0, 0.3);   // the default shot is replaced by the real gun
+    if (e.state === 'stun' || e.state === 'hurt' || e.state === 'down' || e.frozenT > 0 || e.webHeld || P.dead) continue;
+    const dist = Math.abs(P.x - e.x); e.gmCd -= dt;
+    if (e.gmAmmo <= 0){ if (e.gmCd <= 0){ e.gmAmmo = W.clip; if (Math.random() < 0.3) foeSay(e, 'meet', true); } continue; }
+    if (e.gmCd > 0 || dist > W.range*0.9 || !e.onG) continue;
+    e.face = sign(P.x - e.x) || 1;
+    const auto = W.auto, burst = auto ? 3 + ((Math.random()*4)|0) : 1;
+    if (e.gmBurst <= 0) e.gmBurst = burst;
+    e.gmBurst--; e.gmAmmo -= 1;
+    e.gmCd = e.gmBurst > 0 ? W.rate*1.6 : (W.cat === 'Sniper' ? rnd(2.2, 3.4) : W.boom ? rnd(3, 4.5) : rnd(0.7, 1.5) + W.rate*2);
+    if (e.gmAmmo <= 0){ e.gmCd = W.reload*1.4; }
+    const n = W.pellets || 1, dmg = Math.min(W.dmg*(W.boom ? 0.3 : 0.32)*G.diff.dmg, P.maxHp*(W.boom ? 0.35 : 0.22));
+    const sx = e.x + e.face*18*e.size, sy = e.y - 44*e.size, spd = Math.min(1500, W.speed*0.7);
+    const t = Math.abs(P.x - sx)/spd, vx = e.face*spd, vy0 = (P.y - 34 - sy)/Math.max(0.05, t);
+    for (let i = 0; i < n; i++) eproj(e, 'ball', sx, sy, vx, vy0 + rnd(-1, 1)*(W.spread + 0.04)*spd, { g:0, dmg, r:W.boom ? 8 : 3, life:W.range/spd });
+    impactFx(sx, sy, '#FFE7A8', W.heavy ? 1.3 : 0.8); sfx(W.boom ? 'boom' : auto ? 'cannon' : 'gun', 0.01);
+    e.state = 'swing'; e.timer = 0.12; e.hitDone = true; }
+  // talk bubbles in this mode too
+  for (const e of G.E) if (e.look) e.sayCd = (e.sayCd || 0) - dt;
+  for (const t of G.talk || []) t.t += dt; G.talk = (G.talk || []).filter(t => t.t < t.d);
+  // your hands: reload, swap, grenade, armory
+  if (pressed.gmReload && hasGun() && P.reloadT <= 0 && P.ammo < GUNS[gunId()].clip){ P.reloadT = gunReloadTime(); sfx('reload'); pop(P.x, P.y - 100, 'Reloading', '#FFE7A8'); }
+  if (pressed.gmSwap && d.slots[1 - d.cur]){ S.ammo[gunId()] = P.ammo; d.cur = 1 - d.cur; P.ammo = S.ammo[gunId()] ?? GUNS[gunId()].clip; P.reloadT = 0; P.fireCd = 0.25; pop(P.x, P.y - 110, GUNS[gunId()].name, '#C9B27A'); sfx('reload'); }
+  if (pressed.gmNade && !P.dead){
+    if (d.nades <= 0) pop(P.x, P.y - 110, 'No grenades · buy them at the Armory (I)', '#FF8A9A');
+    else { d.nades--; const f = P.face; G.proj.push({ kind:'bullet', x:P.x + f*20, y:P.y - 60, vx:f*640, vy:-560, g:1500, dmg:200, pierce:1, hit:new Set(), life:3, col:'#6A7A3A', kb:450, gunHeavy:true, guardBreak:true, breakArmor:2, cutArrows:false, boom:true }); sfx('swish'); saveSoon(); } }
+  if (pressed.armory) toggleArmory();
+  if (G.armoryOpen){ G.armT = (G.armT || 0) - dt; if (G.armT <= 0){ G.armT = 0.5; drawArmory(); } }
+}
+function gmKill(e){ const d = gmData(), S = G.gmS || { wave:1 }; const pay = (e.gmGun ? 60 : 40) + 10*S.wave + (e.gmGun && GM_ARSENAL[e.gmGun].price > 15000 ? 100 : 0); d.cash += pay; pop(e.x, e.y - 90*(e.size || 1), '+$' + pay, '#7FE39F'); track('blitz', 1); saveSoon(); }
+function toggleArmory(){
+  G.armoryOpen = !G.armoryOpen; let el = document.getElementById('armoryPanel');
+  if (!G.armoryOpen){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'armoryPanel';
+    el.style.cssText = 'position:fixed;left:50%;top:6%;transform:translateX(-50%);width:min(620px,96vw);max-height:84vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:rgba(14,13,10,0.96);border:1px solid #8A7A52;border-radius:10px;padding:14px 18px;color:#EDE4CC;font:15px/1.4 Teko,sans-serif;letter-spacing:0.4px;z-index:52;pointer-events:auto;box-shadow:0 0 40px rgba(201,178,122,0.3)';
+    for (const ev of ['wheel', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation(), { passive:true });
+    el.addEventListener('click', ev => { const b = ev.target.closest('button[data-a]'); if (!b) return; const d = gmData(), id = b.dataset.id, A = GM_ARSENAL[id], P = G.P;
+      if (b.dataset.a === 'buy' && d.cash >= A.price){ d.cash -= A.price; d.owned[id] = true; sfx('coin'); }
+      if (b.dataset.a === 'eq'){ const slot = +b.dataset.s, gid = 'gm_' + id; if (G.gmS) G.gmS.ammo[gunId()] = P.ammo;
+        if (d.slots[1 - slot] === gid) d.slots[1 - slot] = d.slots[slot]; d.slots[slot] = gid; d.cur = slot; if (P){ P.ammo = (G.gmS && G.gmS.ammo[gid]) ?? GUNS[gid].clip; P.reloadT = 0; } sfx('reload'); }
+      if (b.dataset.a === 'nade' && d.cash >= 400){ d.cash -= 400; d.nades++; sfx('coin'); }
+      saveSoon(); drawArmory(); });
+    document.body.appendChild(el); }
+  G.armT = 0; drawArmory();
+}
+function drawArmory(){
+  const el = document.getElementById('armoryPanel'); if (!el) return; const keep = el.scrollTop, d = gmData();
+  const btn = (a, id, txt, on, s) => `<button data-a="${a}" data-id="${id}" ${s != null ? `data-s="${s}"` : ''} ${on ? '' : 'disabled'} style="font:inherit;background:${on ? '#3A3220' : '#1E1C16'};color:${on ? '#FFE7A8' : '#6A6450'};border:1px solid ${on ? '#8A7A52' : '#3A3628'};border-radius:5px;padding:0 8px;margin-left:4px;cursor:${on ? 'pointer' : 'default'}">${txt}</button>`;
+  const row = id => { const A = GM_ARSENAL[id], gid = 'gm_' + id, own = !!d.owned[id], s0 = d.slots[0] === gid, s1 = d.slots[1] === gid;
+    const stats = `${A.pellets ? A.pellets + '×' : ''}${A.dmg} dmg · ${Math.round(60/A.rate)} rpm · ${A.clip} rounds${A.auto ? ' · auto' : ''}${A.boom ? ' · explosive' : ''}${A.pierce > 2 ? ' · pierces ' + A.pierce : ''}`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(138,122,82,0.2)"><div><b style="color:${own ? '#FFE7A8' : '#B8AE90'}">${A.name}</b> ${s0 ? '<span style="color:#7FE39F">[1]</span>' : ''}${s1 ? '<span style="color:#7FE39F">[2]</span>' : ''}<div style="font-size:13px;color:#8A8270">${stats}</div></div>
+      <div style="white-space:nowrap">${own ? btn('eq', id, 'Slot 1', !s0, 0) + btn('eq', id, 'Slot 2', !s1, 1) : btn('buy', id, '$' + A.price.toLocaleString(), d.cash >= A.price)}</div></div>`; };
+  el.innerHTML = `<div style="font-size:26px;color:#C9B27A;text-align:center;letter-spacing:2px">ARMORY</div>
+    <div style="display:flex;justify-content:space-between;margin:2px 0 8px"><span>Cash <b style="color:#7FE39F">$${d.cash.toLocaleString()}</b></span><span>Grenades <b>${d.nades}</b> ${btn('nade', '', '+1 · $400', d.cash >= 400)}</span><span>Best wave <b>${d.best}</b></span></div>
+    ${GM_CATS.map(c => `<div style="margin:10px 0 2px;color:#C9B27A;font-size:18px">${c}</div>` + Object.keys(GM_ARSENAL).filter(id => GM_ARSENAL[id].cat === c).map(row).join('')).join('')}
+    <div style="text-align:center;margin-top:10px;color:#6A6450">The fight is paused while the Armory is open · ${isTouch ? 'tap Armory' : 'I'} to close</div>`;
+  el.scrollTop = keep;
+}
+function gmHud(P){ const d = gmData(), S = G.gmS || { wave:0 }, g = hasGun() ? GUNS[gunId()] : null;
+  return `Warzone &nbsp; wave <span>${S.wave}</span> &nbsp; cash <span>$${d.cash.toLocaleString()}</span> &nbsp; ${g ? `${g.name} <span>${P.reloadT > 0 ? 'reloading' : P.ammo + '/' + g.clip}</span>` : ''} &nbsp; grenades <span>${d.nades}</span> &nbsp; best <span>${d.best}</span>`; }
 /* ===== SHADOW LEGION FOES: every one of them is someone. Their own colours, face, hair, weapon and voice; they fight fast;
    and the strongest of them (Slayers: named rogue hunters, gate commanders, dungeon bosses) cut shadows down like grass. ===== */
 const FOE_CLOTH = ['#7A1E2A', '#1F4E7A', '#2E6B45', '#8A6A1E', '#5B2E8A', '#5E636E', '#8A3A1A', '#1E6B6B', '#6B2048', '#3A3A8A'];
@@ -3388,7 +3543,7 @@ function dressFoe(e){
   // everybody fights fast here
   e.spd *= 1.15; e.wind *= 0.85; e.rec *= 0.8;
   // the strong ones: named, faster than anything, and death to shadows
-  const elite = !boss && Math.random() < Math.min(0.14, 0.06 + 0.02*rank);
+  const elite = !boss && !e.noElite && Math.random() < Math.min(0.14, 0.06 + 0.02*rank);
   if (boss || elite || e.forceSlayer){ e.slayer = true; e.slayCd = 1; e.stepCd = 2;
     e.foeName = e.foeName || (SP ? SP.name + ' ' + pick(['Captain', 'Champion', 'Elder', 'Alpha', 'Butcher']) : pick(FOE_NAMES) + ' ' + pick(FOE_TITLES));
     if (!boss){ e.maxHp *= 2 + 0.5*rank; e.hp = e.maxHp; e.dmg *= 1.5; e.size *= 1.1; }
@@ -3738,6 +3893,13 @@ function gateBeast(g, spec, boost){   // out of a broken gate: that gate's monst
   const k = 1 + 0.04*G.waves + (boost || 0); e.maxHp *= k; e.hp = e.maxHp; e.dmg *= 1 + 0.025*G.waves + (boost || 0)*0.6; e.fromGate = g;
   ringFx(g.x, GROUND - 60, 60, g.red ? '#FF3B3B' : '#3FA9FF'); G.E.push(e); return e;
 }
+const RED_GATE_BOSS = { spec:'iceelf', base:'kage', name:'Ice Elf Assassin', size:1.15, spd:1.5, loot:'frostfang' };
+function gateBoss(g){   // the boss of a gate, as it would be found inside
+  const r = g.rank, x = g.x + rnd(-20, 20);
+  const c = r >= 6 ? makeMonarch(x) : (o => makeBeast(o.spec, x, r, { boss:true, ...o }))(g.redGate ? RED_GATE_BOSS : pick(BOSS_BY_RANK[Math.min(5, r)]));
+  c.cmdr = true; c.fromGate = g; c.alert = true; c.state = 'chase';
+  ringFx(g.x, GROUND - 60, 110, '#FF3B3B', true); burst(g.x, GROUND - 60, 30, '#FF3B3B', 420, 5, true); G.E.push(c); return c;
+}
 function gatesTick(dt, alive){
   const P = G.P; if (!G.gates) makeGates();
   if (G.dungeon){ dungeonTick(dt, alive); return; }
@@ -3747,9 +3909,10 @@ function gatesTick(dt, alive){
   for (const g of G.gates){
     if (!g.red){ g.timer -= dt;
       if (g.timer <= 0){ g.red = true; g.spawnT = 1;   // DUNGEON BREAK
-        const c = gateBeast(g, SPECIES_BY_RANK[g.rank][1], 2.5); c.size *= 1.3; c.maxHp *= 2.5; c.hp = c.maxHp; c.dmg *= 1.4; c.cmdr = true; g.commander = c;
+        const c = gateBoss(g); g.commander = c;   // the dungeon's own boss walks out at the head of its army
         for (let i = 0; i < 5; i++){ const m = gateBeast(g, pick(SPECIES_BY_RANK[g.rank]), 0.8); m.army = c; }
-        showBanner('DUNGEON BREAK', RANKS[g.rank] + '-rank gate turned red', 'Its commander leads an army into the city · bring it down', '#FF3B3B'); sfx('boom'); vib(80); } }
+        showBanner('DUNGEON BREAK', c.bossName || RANKS[g.rank] + '-rank boss', 'The boss of the ' + RANKS[g.rank] + '-rank gate leads its army into the city · bring it down to close the gate', '#FF3B3B'); sfx('boom'); vib(80);
+        if (g.rank >= 5){ flash(g.rank >= 6 ? '#2A1A00' : '#1A0A12', 0.5); G.shake = Math.max(G.shake, 14); } } }
     else { g.spawnT -= dt; if (g.spawnT <= 0 && alive < 22){ g.spawnT = 2.6; for (let i = 0; i < 2; i++){ const m = gateBeast(g, pick(SPECIES_BY_RANK[g.rank]), 0.8); m.army = g.commander; } G.waves++; alive += 2; } }
   }
   const near = G.gates.find(g => !g.red && Math.abs(g.x - P.x) < 90);
@@ -3757,6 +3920,7 @@ function gatesTick(dt, alive){
   if (near && pressed.interact && !P.dead) enterDungeon(near);
 }
 function gateCommanderFell(e){
+  if (e.loot) dropLoot(e.loot, e);
   const g = (G.gates || []).find(g => g.commander === e); if (!g) return;
   for (const m of G.E) if (m.army === e) m.army = null;
   G.gates.splice(G.gates.indexOf(g), 1);   // the broken gate closes
@@ -3777,7 +3941,7 @@ function enterDungeon(g){
   if (g.redGate) showBanner('RED GATE', 'A world of ice · the gate has shut behind you', 'No way out until the boss falls · ice elves and ice bears', '#FF2A2A');
   G.dungeon = { g, rank:r, kills:0, need:Math.min(30, 8 + 4*r), boss:null, spawnT:DUNGEON_CALM, calm:DUNGEON_CALM, done:false, traps };
   G.diff = diffFor(Math.min(30, 4 + 4*r));
-  if (g.redGate){ G.theme = 'snow'; G.dungeon.pool = ['iceelf', 'icebear', 'icebear']; G.dungeon.bossDef = { spec:'iceelf', base:'kage', name:'Ice Elf Assassin', size:1.15, spd:1.5, loot:'frostfang' }; G.dungeon.red = true; }
+  if (g.redGate){ G.theme = 'snow'; G.dungeon.pool = ['iceelf', 'icebear', 'icebear']; G.dungeon.bossDef = RED_GATE_BOSS; G.dungeon.red = true; }
   if (!g.redGate) showBanner(r >= 6 ? 'MONARCH GATE' : RANKS[r] + '-rank Dungeon', 'Kill ' + G.dungeon.need + ' monsters, then the boss', ['Goblins and wolfkin: weak, but many', 'Wolfkin and the risen', 'Lizardmen and orcs: tough hides, they fight in packs', 'Orcs and stone golems', 'High orcs, giants and ice elves: they think, and they talk', 'A calamity waits at the end', 'Beyond S-rank. A Monarch waits at the end'][r], RANK_COL[r]); sfx('shadow');
 }
 function dungeonTick(dt, alive){
@@ -3864,7 +4028,7 @@ function drawGates(){
       if (G.gateNear === g) ctx.fillText(isTouch ? 'tap Enter' : 'O: enter the dungeon', cx, cy + 128); }
     ctx.restore(); }
   ctx.save(); ctx.font = '600 13px Teko, sans-serif'; ctx.textAlign = 'center';
-  for (const e of G.E){ if (!e.cmdr || e.dead) continue; ctx.fillStyle = '#FF8A8A'; ctx.fillText('GATE COMMANDER', e.x, e.y - 100*e.size - 12); }
+  for (const e of G.E){ if (!e.cmdr || e.dead) continue; ctx.fillStyle = '#FF8A8A'; ctx.fillText('DUNGEON BREAK BOSS', e.x, e.y - 104*e.size - 18); }
   ctx.restore();
 }
 function raiseShadow(P, c, many){
@@ -3964,25 +4128,22 @@ function drawShadowLegion(){
     ctx.restore(); ctx.globalAlpha = 1; }
   const ui = clamp(bS/S, 1, 3);   // how far the camera has pulled back: text and eyes grow so they stay readable
   const live = G.allies.filter(a => !a.fade);
-  if (live.length > 12){ let lo = Infinity, hi = -Infinity; for (const a of live){ lo = Math.min(lo, a.x); hi = Math.max(hi, a.x); }   // the ground they stand on
-    ctx.save(); const g = ctx.createLinearGradient(0, GROUND - 6, 0, GROUND + 78); g.addColorStop(0, 'rgba(155,107,255,0.30)'); g.addColorStop(1, 'rgba(155,107,255,0)');
-    ctx.fillStyle = g; ctx.fillRect(lo - 60, GROUND - 6, hi - lo + 120, 84); ctx.restore(); }
-  const order = G.allies.length > 40 ? G.allies.slice().sort((p, q) => (p.rank || 0) - (q.rank || 0)) : G.allies;
-  for (const a of order){ const s0 = a.size || 1, rk = a.rank || 0, s = s0*(1 + 0.05*rk), rise = Math.max(0, a.rise || 0), fade = a.fade ? Math.max(0, 1 - a.fade/0.7) : 1;
+  const order = G.allies.length > 40 ? G.allies.slice().sort((p, q) => (q.rank || 0) - (p.rank || 0)) : G.allies;   // back ranks first, so the front line stands over them
+  for (const a of order){ const s0 = a.size || 1, rk = a.rank || 0, s = s0*(1 - 0.07*rk), rise = Math.max(0, a.rise || 0), fade = a.fade ? Math.max(0, 1 - a.fade/0.7) : 1;
     if (a.x < G.camX - 120 || a.x > G.camX + VW + 120) continue;   // off screen: not drawn
     const moving = rise < 1 || fade < 1;
     ctx.save(); if (moving){ ctx.beginPath(); ctx.rect(a.x - 80*s, GROUND - 200*s - 400, 160*s, 400 + 200*s*rise + 2 + rk*14); ctx.clip(); }   // rising up out of the ground (or sinking back)
-    const dy = (1 - rise)*90*s + (1 - fade)*90*s + rk*14; a.y += dy; a.size = s;   // each rank stands a step nearer, on the ground
+    const dy = (1 - rise)*90*s + (1 - fade)*90*s; a.y += dy; a.size = s;   // every rank stands on the same ground; the ones further back are a little smaller and darker
     if (G.allies.length <= 12){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 36*s, 4, a.x, a.y - 36*s, 60*s); g.addColorStop(0, `rgba(155,107,255,${0.25*fade})`); g.addColorStop(1, 'rgba(155,107,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 36*s, 60*s, 0, 6.283); ctx.fill(); ctx.restore(); }
     ctx.save(); ctx.globalAlpha = 0.35*fade; ctx.fillStyle = '#05030C'; ctx.beginPath(); ctx.ellipse(a.x, a.y, 14*s, 3*s, 0, 0, 6.283); ctx.fill(); ctx.restore();   // its feet on the ground
-    const hd = drawStick(a, 0.92*fade, rk > 0.5 ? (rk % 2 > 0.5 ? '#2A1E4E' : '#241A44') : '#1E1438');
+    const hd = drawStick(a, (0.92 - 0.1*rk)*fade, rk > 0.5 ? (rk > 2.5 ? '#120C26' : '#17102E') : '#1E1438');
     const gc = GRADE_COL[a.grade || 0];
     if (hd){ ctx.globalAlpha = fade; ctx.fillStyle = (a.grade || 0) ? gc : 'rgb(160,200,255)'; ctx.beginPath(); ctx.arc(hd[0] + (a.face || 1)*3*s, hd[1] - 1, (2.2 + 0.3*(a.grade || 0))*s*Math.sqrt(ui), 0, 6.283); ctx.fill();   // the eyes: their grade's colour
       if ((a.grade || 0) >= 2 && FXL() > 0) glowDot(ctx, hd[0] + (a.face || 1)*3*s, hd[1] - 1, (5 + a.grade)*s, gc, 0.6);
       if ((a.grade || 0) >= 5){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 70*s); g.addColorStop(0, 'rgba(255,230,180,0.25)'); g.addColorStop(1, 'rgba(255,230,180,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 70*s, 0, 6.283); ctx.fill(); ctx.restore(); }
       if (a.sname && rise >= 1 && fade >= 1 && rk < 0.5 && !G._nameXs.some(x => Math.abs(x - a.x) < 95*ui) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = `600 ${Math.round(13*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade], a.x, hd[1] - 16*s); }
       ctx.globalAlpha = 1; }
-    if (a.idx != null && (a.idx + 1) % 50 === 0 && rise >= 1 && fade >= 1){ ctx.font = `600 ${Math.round(12*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,208,255,0.85)'; ctx.fillText(String(a.idx + 1), a.x, GROUND + 70); }   // a mark every fifty, to count them by
+    if (a.idx != null && (a.idx + 1) % 50 === 0 && rise >= 1 && fade >= 1){ ctx.font = `600 ${Math.round(12*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,208,255,0.85)'; ctx.fillText(String(a.idx + 1), a.x, GROUND + 26*ui); }   // a mark every fifty, to count them by
     a.y -= dy; a.size = s0; ctx.restore(); }
   if (live.length > 12 && G.P){   // the count, over the army
     const by = GRADES.map(() => 0); for (const a of live) by[a.grade || 0]++;
@@ -4551,7 +4712,7 @@ const MISSIONS = [
   { id:'levels', text:n=>`Clear ${n} level${n>1?'s':''}`,             goals:[1,2,3],     reward:[120,200,280] },
   { id:'survive',text:n=>`Reach wave ${n} in Survival`,              goals:[5,8,12],    reward:[120,200,300], max:true },
   { id:'slowkills', text:n=>`Defeat ${n} enemies while time is slowed`, goals:[15,30,50], reward:[100,160,230] },
-  { id:'blitz',  text:n=>`Score ${n} in Blitz`,                     goals:[800,1500,2500], reward:[120,200,300], max:true },
+  { id:'blitz',  text:n=>`Defeat ${n} gunmen in the Warzone`,       goals:[15,30,50], reward:[120,200,300] },
   { id:'bosses', text:n=>`Defeat ${n} boss${n>1?'es':''}`,           goals:[1,2,4],     reward:[150,220,350] }
 ];
 
@@ -4969,7 +5130,8 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
 const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
-const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || keyMap[k];
+const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory' };   // Warzone only
+const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
   if (W3.on || W3.loading) return;
@@ -4984,7 +5146,7 @@ addEventListener('keydown', ev => {
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
-addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
+addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; for (const k in GUN_KEYS) if (ev.key.toLowerCase() === k) held[GUN_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
 cv.addEventListener('mousedown', ev => { if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
 addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; });
 cv.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -5126,7 +5288,7 @@ function makePlayer(){
     scarf:[], dead:false, breath:st.breathMax*0.5, form:null, ironT:0, jumpsLeft:1, airDashUsed:false,
     kunai:3, kunaiT:0, cloneCd:0, dsCd:0, dashWin:0, crouching:false, chainT:null, chainN:0, queuedWhich:'punch',
     hiddenT:0, ambush:0, mistT:0, mistHealed:0, staticT:0,
-    ammo: hasGun() ? GUNS[SV.eq.gun].clip : 0, reloadT:0, fireCd:0, gunT:0, gunRecoil:0, astraCd:0, astraT:0 };
+    ammo: hasGun() ? GUNS[gunId()].clip : 0, reloadT:0, fireCd:0, gunT:0, gunRecoil:0, astraCd:0, astraT:0 };
 }
 function makeEnemy(type, x, d, approach){
   if (type === 'boss') type = 'ronin';
@@ -5400,7 +5562,7 @@ function nextSurvWave(){
 function resetCommon(){
   { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
-  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
+  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; G.armoryOpen = false; { const ap = document.getElementById('armoryPanel'); if (ap) ap.remove(); } G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -5420,15 +5582,15 @@ function resetCommon(){
   for (const k in held) held[k]=false;
   buildLoadoutUI();
 }
-const gunReloadTime = () => { const t = SV.guns[SV.eq.gun] || 0; return GUNS[SV.eq.gun].reload * (t >= 3 ? 0.8 : 1); };
+const gunReloadTime = () => GUNS[gunId()].reload;
 function fireGun(P, gun){
-  const tier = SV.guns[SV.eq.gun] || 0, f = P.face;
+  const tier = 0, f = P.face;
   if (G.time - (G.lastShotT ?? -9) > 2.5) startMo('gun', 0.85, 0.25);
   G.lastShotT = G.time;
   P.ammo--; P.fireCd = gun.rate; P.gunT = 0.28; P.gunRecoil = 0; P.atk = null; P.blockT = -1;
   const [mx, my] = gunMuzzle(P);   // the off-hand is now levelled: take the muzzle from the gun's own geometry
   P.gunRecoil = 1; P.trigT = TRIG_T;   // the trigger finger squeezes: only a shot that really went off gets here
-  const n = gun.pellets || 1, slowB = (gun.slowBonus && G.slowK > 0.5) ? gun.slowBonus : 1;
+  const n = gun.pellets || 1, slowB = (gun.slowBonus && G.slowK > 0.5) ? gun.slowBonus : 1; if (G.mode === 'guns') gmShot(gun);
   const dmg = gun.dmg * (1 + 0.12*tier) * (1 + 0.08*SV.body.dmg) * slowB * ((hasAbil('lastStand') && P.hp/P.maxHp < 0.35) ? 1.35 : 1);
   for (let i=0;i<n;i++){
     const a = (n > 1 ? (i/(n-1) - 0.5) * 2 : 0) * gun.spread + rnd(-gun.spread*0.25, gun.spread*0.25);
@@ -5455,7 +5617,7 @@ function shellBoom(p, x, y){
 function applyLoadout(){
   const P = G.P; const ratio = P ? P.hp/P.maxHp : 1;
   G.ST = computeStats();
-  if (P){ P.maxHp = G.ST.maxHp; P.hp = Math.max(1, ratio*P.maxHp); P.sword = G.ST.sword; P.breath = Math.min(P.breath, G.ST.breathMax); P.atk=null; P.ammo = hasGun() ? GUNS[SV.eq.gun].clip : 0; P.reloadT = 0; }
+  if (P){ P.maxHp = G.ST.maxHp; P.hp = Math.max(1, ratio*P.maxHp); P.sword = G.ST.sword; P.breath = Math.min(P.breath, G.ST.breathMax); P.atk=null; P.ammo = hasGun() ? GUNS[gunId()].clip : 0; P.reloadT = 0; }
   buildLoadoutUI();
 }
 function spawnWave(first){
@@ -5998,6 +6160,7 @@ function alertEnemy(e){
 function killEnemy(e){
   if (e.dead) return;
   e.dead = true; G.kills++;
+  if (G.mode === 'guns' && !e.remote) gmKill(e);
   if (G.mode === 'shadow' && e.cmdr) gateCommanderFell(e);
   if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
   if (G.mode === 'shadow' && !e.shadow && !e.remote) sysGainXP(3 + 6*(e.beastRank ?? hunterRank()) + (e.slayer ? 30 : 0) + (e.dunBoss ? 150*((e.beastRank || 0) + 1) : 0));
@@ -6098,7 +6261,7 @@ function updatePlayer(dt){
   if (P.ride){
     P.breath = Math.min(ST.breathMax, P.breath + ST.regen*dt);
     P.fireCd -= dt; P.gunT -= dt; P.trigT = (P.trigT || 0) - dt; P.gunRecoil *= Math.exp(-dt*12);
-    if (hasGun()){ const gun = GUNS[SV.eq.gun];
+    if (hasGun()){ const gun = GUNS[gunId()];
       if (P.reloadT > 0){ P.reloadT -= dt; if (P.reloadT <= 0){ P.ammo = gun.clip; sfx('reload'); } }
       if ((pressed.fire || (gun.auto && held.fire)) && P.fireCd <= 0 && P.reloadT <= 0 && !P.vthrow && !P.gsum){ if (P.ammo <= 0){ P.reloadT = gunReloadTime(); sfx('reload'); } else fireGun(P, gun); } }
     if (P.ride.kind === 'bike' && (pressed.attack || pressed.kick) && !P.atk) startAttack('punch');
@@ -6144,7 +6307,7 @@ function updatePlayer(dt){
   // firearms
   P.fireCd -= dt; P.gunT -= dt; P.trigT = (P.trigT || 0) - dt; P.gunRecoil *= Math.exp(-dt*12);
   if (hasGun()){
-    const gun = GUNS[SV.eq.gun];
+    const gun = GUNS[gunId()];
     if (P.reloadT > 0){ P.reloadT -= dt; if (P.reloadT <= 0){ P.ammo = gun.clip; pop(P.x, P.y-96, 'Reloaded', '#FFE7A8'); sfx('reload'); } }
     const wantFire = (pressed.fire || (gun.auto && held.fire)) && !shBusy;
     if (wantFire && !P.form && P.dashT <= 0 && P.fireCd <= 0 && P.hurtT <= 0 && !P.vthrow && !P.gsum){   // the off-hand is busy during a vajra throw
@@ -7963,9 +8126,11 @@ function playerDie(){
   if (G.mode === 'coop'){ coopDown(); return; }
   const P = G.P; if (P.dead) return;
   P.hp = 0; P.dead = true; P.form = null; P.sheath = null; vox('die');
-  if (G.mode !== 'free' && G.mode !== 'spider' && G.mode !== 'hammer' && G.mode !== 'shadow' && G.mode !== 'duel') setTimeout(() => callout('DEFEATED', '#FF5A4A', 1.3, 'Defeated'), 350);
+  if (G.mode !== 'free' && G.mode !== 'spider' && G.mode !== 'hammer' && G.mode !== 'shadow' && G.mode !== 'guns' && G.mode !== 'duel') setTimeout(() => callout('DEFEATED', '#FF5A4A', 1.3, 'Defeated'), 350);
   for (const sg of stickSegments(P)) G.debris.push({ x:(sg[0]+sg[2])/2, y:(sg[1]+sg[3])/2, len:Math.hypot(sg[2]-sg[0],sg[3]-sg[1]), ang:Math.atan2(sg[3]-sg[1],sg[2]-sg[0]), vx:rnd(-250,250), vy:rnd(-500,-150), va:rnd(-10,10), w:sg[4]||4, col:sg[5]||'#000', life:6, r:sg[6]||0 });
   burst(P.x, P.y-36, 30, '#C8102E', 480, 4);
+  if (G.mode === 'guns'){ const w = G.gmS ? G.gmS.wave : 0; showBanner('KILLED IN ACTION', 'Wave ' + w, 'Your cash and guns are kept · back in', '#FF5A4A'); saveSoon();
+    setTimeout(() => { if (G.mode === 'guns' && G.running) startGuns(); }, 2600); return; }
   if (G.mode === 'shadow'){ for (const a of G.allies || []){ if (!a.fade) a.fade = 0.01; if (!a.kept){ a.kept = true; (G.stored = G.stored || []).push(legionEntry(a)); } } G.corpses = []; syncLegion(true);
     { const w = G.E.filter(o => !o.dead && o.look).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x))[0]; if (w) foeSay(w, 'win', true); }
     showBanner('Fallen', G.kills + ' slain', 'Your shadows wait in the dark · R to call them back', '#9B6BFF');
@@ -10255,6 +10420,8 @@ const GUN_SHAPE = {
   carbine: { L:22, bh:2.0, coils:true },
   yamagun: { L:26, bh:2.6, drum:true, coils:true }
 };
+const GM_SHAPES = { Pistol:{ L:14, bh:1.8 }, SMG:{ L:18, bh:2.0, drum:false }, Rifle:{ L:28, bh:1.9, stock:true }, Shotgun:{ L:27, bh:2.4, stock:true }, Sniper:{ L:38, bh:1.7, stock:true }, 'Machine gun':{ L:31, bh:2.3, stock:true, drum:true }, Launcher:{ L:30, bh:3.8, tube:true } };
+for (const id in GM_ARSENAL){ const A = GM_ARSENAL[id]; GUN_SHAPE['gm_' + id] = Object.assign({}, GM_SHAPES[A.cat], id === 'dbarrel' ? { double:true } : {}, id === 'minigun' ? { coils:true, drum:true } : {}, id === 'crossbow' ? { tube:false, L:22, bh:1.4, flare:true } : {}, id === 'thompson' ? { drum:true } : {}); }
 function gunShape(id){ return GUN_SHAPE[id] || { L:18, bh:2 }; }
 /* local frame: origin at the grip under the hand, +x down the barrel, +y down; the barrel axis is y = -2.4 */
 function gunMuzzleLocal(id){ const g = gunShape(id); return [g.L + (g.flare ? 2 : 1), -2.4]; }
@@ -10268,10 +10435,10 @@ function gunToWorld(X, lx, ly){ const c = Math.cos(X.a), n = Math.sin(X.a); retu
 function gunMuzzle(P){
   const sg = stickSegments(P), arm = vajraArmSeg(P, sg);
   if (!arm) return [P.x + P.face*30, P.y - 48];
-  const m = gunMuzzleLocal(SV.eq.gun); return gunToWorld(gunXform(P, arm, P.size || 1), m[0], m[1]);
+  const m = gunMuzzleLocal(gunId()); return gunToWorld(gunXform(P, arm, P.size || 1), m[0], m[1]);
 }
 function drawHeroGun(e, arm, flat, paint, s, f, t){
-  const id = SV.eq.gun, g = gunShape(id), X = gunXform(e, arm, s), r = e.gunRecoil || 0, bh = g.bh, L = g.L, by = -2.4, detail = !flat;
+  const id = gunId(), g = gunShape(id), X = gunXform(e, arm, s), r = e.gunRecoil || 0, bh = g.bh, L = g.L, by = -2.4, detail = !flat;
   ctx.save(); ctx.translate(X.x, X.y); ctx.scale(f, 1); ctx.rotate(X.a); ctx.scale(s, s); ctx.translate(-r*1.6, 0);   // the slide kicks back with the shot
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ink = () => { if (detail){ ctx.strokeStyle = '#000'; ctx.lineWidth = 0.55; ctx.stroke(); } };
@@ -11905,7 +12072,7 @@ function renderScene(){
     drawDashFx(); drawImpacts(); drawLines();
     drawProj(); drawAstraFlight(); drawBolts(); drawRings();
     if (G.ring > 0){ ctx.strokeStyle=`rgba(255,231,168,${G.ring})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y-40,(1-G.ring)*160+20,0,Math.PI*2); ctx.stroke(); }
-    if (G.mode === 'shadow') drawFoeTalk();
+    if (G.mode === 'shadow' || G.mode === 'guns') drawFoeTalk();
     // floating texts
     ctx.textAlign='center';
     for (const p of G.pops){
@@ -15442,7 +15609,7 @@ function frameBody(now){
   if (formNameT > 0){ formNameT -= dt; if (formNameT<=0) formNameEl.classList.remove('on'); }
   if (screens.dojo.classList.contains('on')) safeDraw(() => renderPreview(dt));
   moodT -= dt; if (moodT <= 0){ moodT = 0.5; MUS.mood = musicMood(); if (MUS.filt && AU.c && (!G.P || !G.running) && MUS.filt.frequency.value < 15000) MUS.filt.frequency.setTargetAtTime(16000, AU.c.currentTime, 0.2); }
-  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'sysPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
+  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'sysPanel', 'armoryPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
     demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
   if (pressed.pause && G.running && (!G.over || G.mode === 'duel')) togglePause();
   if (pressed.grab && G.running && !G.paused && G.mode !== 'arena'){   // T: cinematic follow cam on / off
@@ -15530,6 +15697,7 @@ function step(dt){
     if (storyTick(dt)) return;   // a story is being told: the world holds still
     if (pressed.auto){ setAuto(!G.autoOn, false); toast(G.autoOn ? 'AUTO BATTLE on · M to stop' : 'Auto battle off', 1.4); }
     if (G.autoOn && !P.dead) autoPilot(dt); }
+  if (G.mode === 'guns' && P && G.armoryOpen){ if (pressed.armory) toggleArmory(); return; }   // the Armory holds the fight still
   if (G.mode === 'duel') duelFocus(dt);
   const slowOn = G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (G.mode === 'coop' && !NET.coopCfg.slow) ? false : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead && !(G.mode === 'spider' && held.kunai) && !(P.wg && P.wg.st === 'sling');
   if (freeCheat(infBreath)) P.breath = G.ST.breathMax;
@@ -15850,6 +16018,7 @@ function step(dt){
   if (G.mode === 'spider' && !P.dead) spiderTick(dt, alive);
   if (G.mode === 'hammer' && !P.dead) hammerTick(dt, alive);
   if (G.mode === 'shadow' && !P.dead) shadowTick(dt, alive);
+  if (G.mode === 'guns' && !P.dead) gmTick(dt);
   if (G.mode === 'hammer'){ championTick(dt); gearTick(dt); }
   G.E = G.E.filter(e=>!e.dead);
   updateHUD(alive);
@@ -16000,7 +16169,7 @@ function updateHUD(alive){
     if (s.kind==='form'){ const off = P.breath < s.cost*disc; s.el.classList.toggle('off', off); s.btn.classList.toggle('off', off); }
     else if (s.kind==='ds'){ const r = Math.max(0, Math.ceil(P.dsCd)); s.el.innerHTML = `<b>L+J</b> Dash slash ${r>0 ? r+' s' : 'ready'}`; s.el.classList.toggle('off', r>0); s.btn.classList.toggle('off', r>0); setBtn(s.btn, r>0 ? r+'s' : 'Cut'); }
     else if (s.kind==='ride'){ const V = G.veh; const off = !V || V.dead; s.el.classList.toggle('off', off); s.btn.classList.toggle('off', off); setBtn(s.btn, off ? 'Wreck' : P.ride ? 'Off' : 'Ride'); }
-    else if (s.kind==='gun'){ const g = GUNS[SV.eq.gun]; const rl = P.reloadT > 0; const txt = rl ? `reload ${Math.ceil(P.reloadT*10)/10}s` : `${P.ammo}/${g.clip}`;
+    else if (s.kind==='gun'){ const g = GUNS[gunId()]; const rl = P.reloadT > 0; const txt = rl ? `reload ${Math.ceil(P.reloadT*10)/10}s` : `${P.ammo}/${g.clip}`;
       if (s.el.dataset.t !== txt){ s.el.dataset.t = txt; s.el.innerHTML = `<b>G</b> ${g.name.split(' ')[0]} ${txt}`; }
       s.el.classList.toggle('off', rl); s.btn.classList.toggle('off', rl); setBtn(s.btn, rl ? Math.ceil(P.reloadT)+'s' : (g.auto ? 'Fire' : 'Gun ' + P.ammo)); }
     else if (s.kind==='astra'){ const nm = SWORDS[SV.eq.astra].name.split(' ').pop(), out = !!G.astra, r = Math.max(0, Math.ceil(P.astraCd));
@@ -16029,6 +16198,7 @@ function updateHUD(alive){
     info.innerHTML = G.mode==='levels'
       ? `${G.nightmare ? '<span style="color:#FF5A3D">Nightmare</span>' : 'Level'} <span>${G.level}</span> &nbsp; wave ${Math.min(G.waveIdx+1,G.waves.length)}/${G.waves.length} &nbsp; enemies <span>${alive}</span>${(() => { const c = chalState(); return c ? ` &nbsp; <b style="color:${c.fail ? '#FF6A5A' : c.ok ? '#8FE38A' : '#FFB347'}">⚑ ${c.txt}</b>` : ''; })()}`
       : G.mode==='train' ? `Training &nbsp; step <span>${G.train ? Math.min(G.train.i + 1, TRAIN.length) : 0}</span>/${TRAIN.length}`
+      : G.mode==='guns' ? gmHud(P)
       : G.mode==='shadow' ? (G.dungeon ? `${G.dungeon.penalty ? 'PENALTY ZONE' : G.dungeon.red ? RANKS[G.dungeon.rank] + '-rank RED GATE' : RANKS[G.dungeon.rank] + '-rank Dungeon'} &nbsp; Lv <span>${sysData().lv}</span> &nbsp; kills <span>${G.dungeon.kills}/${G.dungeon.need}</span> &nbsp; ${G.dungeon.boss ? (G.dungeon.done ? 'boss <span>down</span>' : 'boss <span>here</span>') : ''} &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; crystals <span>${SV.crystals || 0}</span>` : `Hunter <span style="color:${RANK_COL[hunterRank()]}">${RANKS[hunterRank()]}-rank</span> &nbsp; Lv <span>${sysData().lv}</span>${sysData().pts ? ' <span style="color:#FFD23F">(+' + sysData().pts + ' · N)</span>' : ''} &nbsp; gates <span>${(G.gates || []).map(g => RANKS[g.rank] + (g.red ? '!' : ' ' + Math.max(0, Math.ceil(g.timer)) + 's')).join(' · ') || 'none'}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length} (${G.legionMode === 'attack' ? 'attacking' : 'guarding'})</span> &nbsp; legion <span>${(SV.legion || []).length}</span> &nbsp; power <span>+${Math.round(legionBonus()*100)}%</span> &nbsp; crystals <span>${SV.crystals || 0}</span>`)
       : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
       : G.mode==='spider' ? `Spider Chase &nbsp; distance <span>${(G.spider && G.spider.dist) || 0} m</span> &nbsp; best <span>${SV.spiderBest || 0} m</span> &nbsp; trapped <span>${(G.spider && G.spider.trapped) || 0}</span> &nbsp; chasing <span>${G.E.filter(e => e.flyChase && !e.dead).length}</span>`
@@ -16951,7 +17121,7 @@ function watchAstraCard(cv, id, locked){ astraCards.push({ cv, id, locked }); if
    THE DOJO (shop)
    ========================================================= */
 let dojoFrom = 'menu', dojoTab = 'swords', pvSword = null, pvStyle = null, dojoMsgT = 0;
-const TABS = [['swords','Weapons'],['astras','Divya Astra'],['guns','Firearms'],['styles','Breathing Styles'],['abilities','Abilities'],['body','Body'],['look','Look']];
+const TABS = [['swords','Weapons'],['styles','Breathing Styles'],['abilities','Abilities'],['body','Body'],['look','Look']];
 /* one weapon or ability is 30% off each day */
 function dealId(){
   const r = seeded(dailyKey() + ':deal');
@@ -16988,6 +17158,7 @@ function lockReason(o){
 }
 function pips(n, max){ let s='<span class="pips">'; for (let i=0;i<max;i++) s+=`<i class="${i<n?'on':''}"></i>`; return s+'</span>'; }
 function renderItems(){
+  if (!TABS.some(t => t[0] === dojoTab)) dojoTab = 'swords';
   $('dojoCoins').textContent = SV.coins;
   const box = $('items'); box.innerHTML = '';
   const add = (html, cls, onSel) => { const d=document.createElement('div'); d.className='item '+(cls||''); d.innerHTML=html; if (onSel) d.addEventListener('click', ev => { if (ev.target.tagName!=='BUTTON'){ onSel(); renderItems(); } }); box.appendChild(d); return d; };
@@ -17155,7 +17326,7 @@ function updatePreviewText(){
   $('pvName').textContent = sw.name;
   const st = SV.eq.style ? STYLES[SV.eq.style].name + ` (${SV.styles[SV.eq.style]} of ${MAXF} forms)` : 'No breathing style';
   const ab = SV.eq.abilities.map(a=>ABILITIES[a].name).join(', ') || 'No abilities';
-  $('pvLoad').innerHTML = `Equipped: ${SWORDS[SV.eq.sword].name}${hasFists() ? ' + Iron Fists (H)' : ''}${hasGun() ? ' + ' + GUNS[SV.eq.gun].name + ' (G)' : ''}${hasAstra() ? ' + ' + SWORDS[SV.eq.astra].name + ' (F)' : ''}<br>${st}<br>${ab}`;
+  $('pvLoad').innerHTML = `Equipped: ${SWORDS[SV.eq.sword].name}${hasFists() ? ' + Iron Fists (H)' : ''}${hasAstra() ? ' + ' + SWORDS[SV.eq.astra].name + ' (F)' : ''}<br>${st}<br>${ab}`;
 }
 /* Live preview: the stickman swings the selected sword in a loop */
 const pvCanvas = $('pv'), pvCtx = pvCanvas.getContext('2d');
@@ -18309,6 +18480,7 @@ $('goFree').onclick = startFree;
 $('goSpider').onclick = startSpider;
 $('goHammer').onclick = startHammer;
 $('goShadow').onclick = startShadow;
+$('goGuns').onclick = startGuns;
 $('goDojo').onclick = () => openDojo('menu');
 $('lvDojo').onclick = () => openDojo('levels');
 $('resDojo').onclick = () => openDojo('result');
