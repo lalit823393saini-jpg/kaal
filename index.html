@@ -3399,11 +3399,11 @@ function startGuns(){
   gmData();
   G.worldW = 3600; resetCommon();
   G.gmS = { wave:0, spawnT:2, left:0, betweenT:2.5, ammo:{} };
-  G.P.ammo = GUNS[gunId()].clip; G.gw = null;
+  G.P.ammo = GUNS[gunId()].clip; G.gw = null; G.gwSolids = gwBuildMap();
   { const box = $('extraBtns'); if (box && isTouch && !document.getElementById('gwBtn')) for (const [id, k, txt, col] of [['gwBtn', 'ghostAim', 'Ghost', '#C8EBFF'], ['gmRBtn', 'gmReload', 'Reload', '#FFE7A8'], ['gmQBtn', 'gmSwap', 'Swap', '#C9B27A'], ['gmFBtn', 'gmNade', 'Nade', '#8FBF5A'], ['gmIBtn', 'armory', 'Armory', '#C9B27A']]){
     const q = document.createElement('button'); q.id = id; q.className = 'tb sm'; q.dataset.k = k; q.textContent = txt; q.style.setProperty('--sc', col); box.appendChild(q); bindTouch(q); } }
   toast('Warzone', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'guns') showBanner('WARZONE', 'Every gun is real · so are theirs', 'Hold the mouse and drag: ghost dash (time stops while you aim) · V: dash at the nearest · G: fire · R · Q · F: grenade · I: Armory', '#C9B27A'); }, 900);
+  setTimeout(() => { if (G.running && G.mode === 'guns') showBanner('WARZONE', 'Every gun is real · so are theirs', 'Hold the mouse and drag: ghost dash (time stops, you hang in the air) · V: dash at the nearest · stand on roofs · hide behind walls · G: fire · I: Armory', '#C9B27A'); }, 900);
   setScreen(null); G.running = true;
 }
 function gmShot(gun){ if (gun.boom) sfx('boom', 0.02); }
@@ -3416,6 +3416,7 @@ function gmSpawn(wave){
     const keep = W.cat === 'Sniper' ? [520, 820] : W.cat === 'Shotgun' ? [90, 200] : W.cat === 'Launcher' ? [420, 700] : W.cat === 'Pistol' ? [200, 380] : [260, 520];
     e.T = { ...e.T, keep }; e.foeName = W.name; }
   e.alert = true; e.state = 'chase'; e.noElite = true; e.beastRank = 0; e.lines = GM_LINES;
+  if (e.gmGun && wave >= 2 && Math.random() < 0.3){ const roofs = (G.gwSolids || []).filter(s => s.kind === 'house' || s.kind === 'tower'); if (roofs.length){ const r = pick(roofs); e.roof = r; e.x = r.x + r.w/2 + rnd(-r.w/4, r.w/4); e.y = r.top; } }   // some take the high ground
   G.E.push(e); dressFoe(e);
   const L = e.look; L.cloth = pick(['#4A5A2A', '#8A7A52', '#22242A', '#5E636E', '#1F2E4A', '#5A4632']); e.bodyCol = L.cloth; if (Math.random() < 0.35) L.mask = pick(['visor', 'cloth']);
   if (e.gmGun) e.foeName = GM_ARSENAL[e.gmGun].name;
@@ -3494,6 +3495,65 @@ function drawArmory(){
 }
 function gmHud(P){ const d = gmData(), S = G.gmS || { wave:0 }, g = hasGun() ? GUNS[gunId()] : null;
   return `Warzone &nbsp; wave <span>${S.wave}</span> &nbsp; cash <span>$${d.cash.toLocaleString()}</span> &nbsp; ${g ? `${g.name} <span>${P.reloadT > 0 ? 'reloading' : P.ammo + '/' + g.clip}</span>` : ''} &nbsp; grenades <span>${d.nades}</span> &nbsp; best <span>${d.best}</span>`; }
+/* ===== WARZONE GROUND: buildings with flat roofs you can stand on (and snipers who do), concrete walls and crates that
+   stop bullets and block the way, a watchtower. Bullets from either side end in cover; your dash stops at a wall. ===== */
+function gwBuildMap(){
+  const out = [], W = G.worldW, taken = [];
+  const free = (x, w) => !taken.some(t => x < t[1] + 60 && t[0] < x + w + 60);
+  const put = (kind, x, w, h) => { if (x < 120 || x + w > W - 120 || !free(x, w)) return false; taken.push([x, x + w]); out.push({ kind, x, w, top:GROUND - h, h, seed:Math.random() }); return true; };
+  for (let i = 0, n = 0; i < 40 && n < 4; i++) if (put('house', rnd(200, W - 520), rnd(240, 340), rnd(150, 200))) n++;
+  for (let i = 0, n = 0; i < 40 && n < 1; i++) if (put('tower', rnd(300, W - 300), 110, 320)) n++;
+  for (let i = 0, n = 0; i < 60 && n < 6; i++) if (put('wall', rnd(200, W - 260), rnd(26, 40), rnd(70, 95))) n++;
+  for (let i = 0, n = 0; i < 60 && n < 5; i++) if (put('crate', rnd(200, W - 260), rnd(48, 70), rnd(46, 60))) n++;
+  return out;
+}
+const gwBlocks = s => s.kind === 'wall' || s.kind === 'crate';   // the ones that stop bullets and bodies
+function gwSolidAt(x, y){ for (const s of G.gwSolids || []) if (gwBlocks(s) && x > s.x && x < s.x + s.w && y > s.top) return s; return null; }
+function gwCollide(dt){
+  const P = G.P, W = gwState(), S = G.gwSolids || [];
+  // stand on roofs, walls, crates and the tower; walls and crates push you out sideways
+  let stood = null;
+  for (const s of S){
+    if (P.x < s.x - 8 || P.x > s.x + s.w + 8) continue;
+    if (P.vy >= 0 && (W.prevFeet ?? P.y) <= s.top + 3 && P.y >= s.top - 1){ P.y = s.top; P.vy = 0; P.onG = true; stood = s; continue; }
+    if (gwBlocks(s) && P.y > s.top + 8 && P.x > s.x - 8 && P.x < s.x + s.w + 8){ P.x = (P.x - s.x < s.x + s.w - P.x) ? s.x - 9 : s.x + s.w + 9; P.vx = 0; }
+  }
+  W.stand = stood; W.prevFeet = P.y;
+  // gunmen can't walk through cover; men on a roof stay on it
+  for (const e of G.E){ if (e.dead || e.remote) continue;
+    if (e.roof){ const r = e.roof; if (e.x < r.x + 10 || e.x > r.x + r.w - 10){ if (e.state === 'hurt' || e.state === 'down') e.roof = null; else e.x = clamp(e.x, r.x + 10, r.x + r.w - 10); }
+      if (e.roof){ e.y = r.top; e.vy = 0; e.onG = true; } continue; }
+    if (!e.gmGun) continue;
+    for (const s of S){ if (!gwBlocks(s)) continue; if (e.x > s.x - 10 && e.x < s.x + s.w + 10 && e.y > s.top + 4){ e.x = (e.x - s.x < s.x + s.w - e.x) ? s.x - 11 : s.x + s.w + 11; e.vx = 0; } } }
+  // bullets end in cover
+  for (const p of G.proj){ if (p.kind !== 'bullet' || p.life <= 0) continue; const s = gwSolidAt(p.x, p.y); if (!s) continue;
+    p.life = 0; if (p.boom) shellBoom(p, p.x, p.y); else { sparks(p.x, p.y); burst(p.x, p.y, 5, '#8A8478', 200, 2); } }
+  for (const q of G.eproj || []){ if (q.life <= 0) continue; if (gwSolidAt(q.x, q.y)){ q.life = 0; sparks(q.x, q.y); } }
+}
+function drawSolids(){
+  const S = G.gwSolids; if (!S) return; const th = THEMES[G.theme] || {};
+  for (const s of S){ if (s.x + s.w < G.camX - 50 || s.x > G.camX + VW + 50) continue;
+    ctx.save();
+    if (s.kind === 'house'){   // a flat-roofed building: dark walls, lit windows, a ledge to stand on
+      ctx.fillStyle = '#1A1418'; ctx.fillRect(s.x, s.top, s.w, s.h);
+      ctx.fillStyle = '#2A2226'; ctx.fillRect(s.x - 6, s.top - 6, s.w + 12, 8);
+      const cols = Math.floor(s.w/56), rows = Math.floor((s.h - 40)/52);
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++){ const lit = ((s.seed*97 + r*7 + c*13) % 3) < 1.6;
+        ctx.fillStyle = lit ? 'rgba(255,190,110,0.75)' : '#0E0A0C'; ctx.fillRect(s.x + 18 + c*56, s.top + 24 + r*52, 22, 26); }
+      ctx.fillStyle = '#0E0A0C'; ctx.fillRect(s.x + s.w/2 - 16, GROUND - 52, 32, 52); }   // the door
+    if (s.kind === 'tower'){   // a watchtower: legs, a platform, a rail
+      ctx.strokeStyle = '#2A2226'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(s.x + 14, GROUND); ctx.lineTo(s.x + 26, s.top); ctx.moveTo(s.x + s.w - 14, GROUND); ctx.lineTo(s.x + s.w - 26, s.top);
+      for (let y = GROUND - 70; y > s.top + 30; y -= 80){ ctx.moveTo(s.x + 18, y); ctx.lineTo(s.x + s.w - 18, y - 40); } ctx.stroke();
+      ctx.fillStyle = '#2A2226'; ctx.fillRect(s.x - 4, s.top - 6, s.w + 8, 10); ctx.fillStyle = '#1A1418'; ctx.fillRect(s.x, s.top - 34, 6, 30); ctx.fillRect(s.x + s.w - 6, s.top - 34, 6, 30); ctx.fillRect(s.x, s.top - 34, s.w, 5); }
+    if (s.kind === 'wall'){   // concrete cover with sandbags on top
+      ctx.fillStyle = '#4A4448'; ctx.fillRect(s.x, s.top, s.w, s.h); ctx.strokeStyle = '#2E2A2E'; ctx.lineWidth = 1.5;
+      for (let y = s.top + 18; y < GROUND; y += 18){ ctx.beginPath(); ctx.moveTo(s.x, y); ctx.lineTo(s.x + s.w, y); ctx.stroke(); }
+      ctx.fillStyle = '#6E6450'; for (let x = s.x - 4; x < s.x + s.w; x += 16){ ctx.beginPath(); ctx.ellipse(x + 8, s.top - 3, 9, 6, 0, 0, 6.283); ctx.fill(); } }
+    if (s.kind === 'crate'){   // wooden crates
+      ctx.fillStyle = '#5A4028'; ctx.fillRect(s.x, s.top, s.w, s.h); ctx.strokeStyle = '#3A2814'; ctx.lineWidth = 3; ctx.strokeRect(s.x + 1.5, s.top + 1.5, s.w - 3, s.h - 3);
+      ctx.beginPath(); ctx.moveTo(s.x + 3, s.top + 3); ctx.lineTo(s.x + s.w - 3, GROUND - 3); ctx.moveTo(s.x + s.w - 3, s.top + 3); ctx.lineTo(s.x + 3, GROUND - 3); ctx.stroke(); }
+    ctx.restore(); }
+}
 /* ===== GHOST DASH (Warzone): hold the left mouse button and drag toward where you want to go; time nearly stops
    while you aim; let go and you flash along that line, cutting through every gunman on it and every bullet in the air.
    Up to three dashes before you touch the ground again. Keyboard: hold V to aim at the nearest enemy, let go to dash.
@@ -3532,8 +3592,13 @@ function gwTick(dt){
   if (held.ghostAim && !W.aim && !W.dash) gwDown(0, 0, 'key');
   if (W.aim && W.src === 'key' && !held.ghostAim) gwUp();
   if (W.aim && P.dead) W.aim = false;
+  if (!W.dash && !P.onG && (W.aim || W.hangT > 0)){   // aiming in the air: you hang there instead of falling
+    if (W.hoverY == null) W.hoverY = P.y; P.y = W.hoverY; P.vy = 0; P.vx *= 0.8; W.hangT -= dt; }
+  else { W.hoverY = null; W.hangT = Math.max(0, (W.hangT || 0) - dt); }
   const D = W.dash; if (!D) return;
-  D.t += dt; const k = Math.min(1, D.t/D.dur), nx = D.x0 + (D.x1 - D.x0)*k, ny = D.y0 + (D.y1 - D.y0)*k;
+  D.t += dt; let k = Math.min(1, D.t/D.dur), nx = D.x0 + (D.x1 - D.x0)*k, ny = D.y0 + (D.y1 - D.y0)*k;
+  { const feet = ny + 40*(P.size || 1); for (const s of G.gwSolids || []){ if (!gwBlocks(s)) continue;   // a wall in the way: the dash ends against it
+      if (nx > s.x - 10 && nx < s.x + s.w + 10 && feet > s.top + 6){ nx = D.px < s.x ? s.x - 11 : s.x + s.w + 11; k = 1; break; } } }
   // everything on the line between the last frame and this one
   for (const e of G.E){ if (e.dead || e.remote || D.hit.has(e)) continue;
     if (segDist(e.x, e.y - 40*(e.size || 1), D.px, D.py, nx, ny) < 46*(e.size || 1)){ D.hit.add(e);
@@ -3544,7 +3609,7 @@ function gwTick(dt){
   W.trails.push({ x0:D.px, y0:D.py, x1:nx, y1:ny, t:0 });
   D.px = nx; D.py = ny;
   P.x = nx; P.y = ny + 40*(P.size || 1); P.vx = 0; P.vy = 0; P.inv = Math.max(P.inv || 0, 0.18);
-  if (k >= 1){ W.dash = null; W.cd = 0.1; if (P.y < GROUND - 2){ P.onG = false; P.vy = -140; }
+  if (k >= 1){ W.dash = null; W.cd = 0.1; W.hoverY = null; if (P.y < GROUND - 2){ P.onG = false; P.vy = 0; W.hangT = 0.5; }
     if (D.hit.size >= 2) pop(P.x, P.y - 130, D.hit.size + ' in one cut', '#FFFFFF'); }
 }
 function drawGhost(){
@@ -11989,6 +12054,7 @@ function renderScene(){
   drawGround();
   if (G.fc) fcDrawBack();
   if (G.mode === 'shadow') drawGates();
+  if (G.mode === 'guns') drawSolids();   // buildings and cover go behind everyone
   if (G.mode === 'world' && G.world && G.P) drawWorldBack();
   if (FXL() > 0){ ctx.save(); drawFog(); ctx.restore(); drawLights(); }
   for (const o of G.orbs){ const oy = o.y+Math.sin(G.time*4+o.x)*3; ctx.fillStyle='#FFE9B0'; ctx.globalAlpha=0.3; ctx.beginPath(); ctx.arc(o.x,oy,12,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; ctx.beginPath(); ctx.arc(o.x,oy,6,0,Math.PI*2); ctx.fill(); }
@@ -16105,7 +16171,7 @@ function step(dt){
   if (G.mode === 'spider' && !P.dead) spiderTick(dt, alive);
   if (G.mode === 'hammer' && !P.dead) hammerTick(dt, alive);
   if (G.mode === 'shadow' && !P.dead) shadowTick(dt, alive);
-  if (G.mode === 'guns' && !P.dead){ gmTick(dt); gwTick(dt); }
+  if (G.mode === 'guns' && !P.dead){ gmTick(dt); gwTick(dt); gwCollide(dt); }
   if (G.mode === 'hammer'){ championTick(dt); gearTick(dt); }
   G.E = G.E.filter(e=>!e.dead);
   updateHUD(alive);
