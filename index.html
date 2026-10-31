@@ -3399,9 +3399,11 @@ function startGuns(){
   gmData();
   G.worldW = 3600; resetCommon();
   G.gmS = { wave:0, spawnT:2, left:0, betweenT:2.5, ammo:{} };
-  G.P.ammo = GUNS[gunId()].clip;
+  G.P.ammo = GUNS[gunId()].clip; G.gw = null;
+  { const box = $('extraBtns'); if (box && isTouch && !document.getElementById('gwBtn')) for (const [id, k, txt, col] of [['gwBtn', 'ghostAim', 'Ghost', '#C8EBFF'], ['gmRBtn', 'gmReload', 'Reload', '#FFE7A8'], ['gmQBtn', 'gmSwap', 'Swap', '#C9B27A'], ['gmFBtn', 'gmNade', 'Nade', '#8FBF5A'], ['gmIBtn', 'armory', 'Armory', '#C9B27A']]){
+    const q = document.createElement('button'); q.id = id; q.className = 'tb sm'; q.dataset.k = k; q.textContent = txt; q.style.setProperty('--sc', col); box.appendChild(q); bindTouch(q); } }
   toast('Warzone', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'guns') showBanner('WARZONE', 'Every gun is real · so are theirs', 'G: fire (hold) · R: reload · Q: swap gun · F: grenade · I: Armory · J: blade', '#C9B27A'); }, 900);
+  setTimeout(() => { if (G.running && G.mode === 'guns') showBanner('WARZONE', 'Every gun is real · so are theirs', 'Hold the mouse and drag: ghost dash (time stops while you aim) · V: dash at the nearest · G: fire · R · Q · F: grenade · I: Armory', '#C9B27A'); }, 900);
   setScreen(null); G.running = true;
 }
 function gmShot(gun){ if (gun.boom) sfx('boom', 0.02); }
@@ -3425,14 +3427,14 @@ function gmTick(dt){
   // waves
   const alive = G.E.filter(e => !e.dead).length;
   if (S.left <= 0 && alive === 0){ S.betweenT -= dt;
-    if (S.betweenT <= 0){ S.wave++; S.left = 4 + 2*S.wave; S.spawnT = 0.5; G.diff = diffFor(Math.min(30, 2 + S.wave));
+    if (S.betweenT <= 0){ S.wave++; S.left = 4 + 2*S.wave; S.spawnT = 0.5; G.diff = diffFor(Math.min(30, 2 + S.wave)); if (S.wave % 5 === 0){ S.left = 2 + S.wave; setTimeout(() => { if (G.mode === 'guns' && G.running && G.P) gwBoss(S.wave); }, 2200); }
       if (S.wave > 1){ const bonus = 150*(S.wave - 1); d.cash += bonus; pop(P.x, P.y - 140, 'Wave cleared · +$' + bonus, '#7FE39F'); }
       if (S.wave > d.best){ d.best = S.wave; } saveSoon();
       showBanner('WAVE ' + S.wave, S.wave % 5 === 0 ? 'Heavy weapons incoming' : 'They\u2019re coming', 'Enemies: ' + GM_ENEMY_POOL[Math.min(GM_ENEMY_POOL.length - 1, Math.floor((S.wave - 1)/3))].filter(w => w !== 'knife').map(w => GM_ARSENAL[w].name).join(', '), '#C9B27A'); sfx('boom', 0.02); } }
-  else if (S.left > 0){ S.spawnT -= dt; if (S.spawnT <= 0 && alive < 6 + Math.floor(S.wave/2)){ S.spawnT = Math.max(0.5, 1.6 - 0.05*S.wave); S.left--; gmSpawn(S.wave); S.betweenT = 3.5; } }
+  else if (S.left > 0 || G.E.some(e => e.gmBoss && !e.dead)){ S.spawnT -= dt; if (S.left <= 0) S.spawnT = 9; if (S.spawnT <= 0 && alive < 6 + Math.floor(S.wave/2)){ S.spawnT = Math.max(0.5, 1.6 - 0.05*S.wave); S.left--; gmSpawn(S.wave); S.betweenT = 3.5; } }
   // their guns
   for (const e of G.E){ if (e.dead || !e.gmGun) continue;
-    const W = GM_ARSENAL[e.gmGun]; e.cd = Math.max(e.cd || 0, 0.3);   // the default shot is replaced by the real gun
+    const W = GM_ARSENAL[e.gmGun]; if (!e.gmBoss) e.cd = Math.max(e.cd || 0, 0.3);   // the default shot is replaced by the real gun (a leader still fights up close)
     if (e.state === 'stun' || e.state === 'hurt' || e.state === 'down' || e.frozenT > 0 || e.webHeld || P.dead) continue;
     const dist = Math.abs(P.x - e.x); e.gmCd -= dt;
     if (e.gmAmmo <= 0){ if (e.gmCd <= 0){ e.gmAmmo = W.clip; if (Math.random() < 0.3) foeSay(e, 'meet', true); } continue; }
@@ -3461,7 +3463,7 @@ function gmTick(dt){
   if (pressed.armory) toggleArmory();
   if (G.armoryOpen){ G.armT = (G.armT || 0) - dt; if (G.armT <= 0){ G.armT = 0.5; drawArmory(); } }
 }
-function gmKill(e){ const d = gmData(), S = G.gmS || { wave:1 }; const pay = (e.gmGun ? 60 : 40) + 10*S.wave + (e.gmGun && GM_ARSENAL[e.gmGun].price > 15000 ? 100 : 0); d.cash += pay; pop(e.x, e.y - 90*(e.size || 1), '+$' + pay, '#7FE39F'); track('blitz', 1); saveSoon(); }
+function gmKill(e){ const d = gmData(), S = G.gmS || { wave:1 }; const pay = (e.gmBoss ? 2000 + 400*S.wave : 0) + (e.gmGun ? 60 : 40) + 10*S.wave + (e.gmGun && GM_ARSENAL[e.gmGun].price > 15000 ? 100 : 0); if (e.gmBoss) showBanner('LEADER DOWN', e.T.name || 'Bandit leader', '+$' + pay, '#7FE39F'); d.cash += pay; pop(e.x, e.y - 90*(e.size || 1), '+$' + pay, '#7FE39F'); track('blitz', 1); saveSoon(); }
 function toggleArmory(){
   G.armoryOpen = !G.armoryOpen; let el = document.getElementById('armoryPanel');
   if (!G.armoryOpen){ if (el) el.remove(); return; }
@@ -3492,6 +3494,90 @@ function drawArmory(){
 }
 function gmHud(P){ const d = gmData(), S = G.gmS || { wave:0 }, g = hasGun() ? GUNS[gunId()] : null;
   return `Warzone &nbsp; wave <span>${S.wave}</span> &nbsp; cash <span>$${d.cash.toLocaleString()}</span> &nbsp; ${g ? `${g.name} <span>${P.reloadT > 0 ? 'reloading' : P.ammo + '/' + g.clip}</span>` : ''} &nbsp; grenades <span>${d.nades}</span> &nbsp; best <span>${d.best}</span>`; }
+/* ===== GHOST DASH (Warzone): hold the left mouse button and drag toward where you want to go; time nearly stops
+   while you aim; let go and you flash along that line, cutting through every gunman on it and every bullet in the air.
+   Up to three dashes before you touch the ground again. Keyboard: hold V to aim at the nearest enemy, let go to dash.
+   Touch: hold Ghost. A short click is still a normal cut. Every fifth wave a bandit leader comes. ===== */
+const GW_CHARGES = 3;
+function gwState(){ return G.gw = G.gw || { aim:false, src:null, sx:0, sy:0, cx:0, cy:0, charges:GW_CHARGES, cd:0, dash:null, trails:[] }; }
+function gwDown(x, y, src){ const W = gwState(), P = G.P; if (!P || P.dead || W.dash || G.armoryOpen) return; W.aim = true; W.src = src; W.sx = W.cx = x; W.sy = W.cy = y; W.t0 = performance.now(); }
+function gwMove(x, y){ const W = G.gw; if (W && W.aim && W.src === 'mouse'){ W.cx = x; W.cy = y; } }
+function gwUp(){ const W = G.gw; if (!W || !W.aim) return; W.aim = false; const v = gwAimVec(); if (!v){ if (W.src === 'mouse') pressed.attack = true; return; } gwDash(v); }
+/* where the dash would go, in world units: [x0, y0, x1, y1] from the body's centre */
+function gwAimVec(){
+  const W = G.gw, P = G.P; if (!W || !P) return null;
+  const x0 = P.x, y0 = P.y - 40*(P.size || 1);
+  let dx, dy;
+  if (W.src === 'mouse'){ const k = VW/Math.max(1, cv.clientWidth); dx = (W.cx - W.sx)*k; dy = (W.cy - W.sy)*k; if (Math.hypot(dx, dy) < 14) return null;
+    const L = Math.hypot(dx, dy), d = clamp(L*1.7 + 120, 170, 620); dx = dx/L*d; dy = dy/L*d; }
+  else { const t = G.E.filter(e => !e.dead && !e.remote).sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x))[0];
+    if (t){ const tx = t.x, ty = t.y - 40*(t.size || 1), L = Math.max(1, Math.hypot(tx - x0, ty - y0)), d = Math.min(620, L + 90); dx = (tx - x0)/L*d; dy = (ty - y0)/L*d; }
+    else { dx = P.face*320; dy = 0; } }
+  let x1 = clamp(x0 + dx, 20, G.worldW - 20), y1 = clamp(y0 + dy, GROUND - 460, GROUND - 40*(P.size || 1));
+  return [x0, y0, x1, y1];
+}
+function gwDash(v){
+  const W = gwState(), P = G.P;
+  if (W.charges <= 0){ pop(P.x, P.y - 110, 'No dashes left · touch the ground', '#9FD3FF'); return; }
+  if (W.cd > 0) return;
+  W.charges--; W.dash = { x0:v[0], y0:v[1], x1:v[2], y1:v[3], t:0, dur:0.11, hit:new Set(), px:v[0], py:v[1] };
+  P.face = v[2] >= v[0] ? 1 : -1; P.atk = null; sfx('swish'); vib(25);
+}
+const segDist = (px, py, x0, y0, x1, y1) => { const vx = x1 - x0, vy = y1 - y0, L2 = vx*vx + vy*vy || 1, t = clamp(((px - x0)*vx + (py - y0)*vy)/L2, 0, 1); return Math.hypot(px - (x0 + vx*t), py - (y0 + vy*t)); };
+function gwTick(dt){
+  const W = gwState(), P = G.P;
+  W.cd = Math.max(0, W.cd - dt);
+  if (P.onG && !W.dash) W.charges = GW_CHARGES;
+  // keyboard and touch: hold to aim at the nearest, let go to dash
+  if (held.ghostAim && !W.aim && !W.dash) gwDown(0, 0, 'key');
+  if (W.aim && W.src === 'key' && !held.ghostAim) gwUp();
+  if (W.aim && P.dead) W.aim = false;
+  const D = W.dash; if (!D) return;
+  D.t += dt; const k = Math.min(1, D.t/D.dur), nx = D.x0 + (D.x1 - D.x0)*k, ny = D.y0 + (D.y1 - D.y0)*k;
+  // everything on the line between the last frame and this one
+  for (const e of G.E){ if (e.dead || e.remote || D.hit.has(e)) continue;
+    if (segDist(e.x, e.y - 40*(e.size || 1), D.px, D.py, nx, ny) < 46*(e.size || 1)){ D.hit.add(e);
+      const dmg = isBoss(e) || e.gmBoss ? e.maxHp*0.16 + 80 : e.maxHp*1.6 + 60;
+      damageEnemy(e, dmg, { src:'slash', kb:260, dir:P.face, heavy:true, unblockable:true, noStop:true, launch:180 });
+      sparks(e.x, e.y - 40*(e.size || 1)); burst(e.x, e.y - 40*(e.size || 1), 14, '#FFFFFF', 380, 3, true); G.hitstop = Math.max(G.hitstop, 0.04); G.shake = Math.max(G.shake, 6); } }
+  for (const q of G.eproj || []) if (q.life > 0 && segDist(q.x, q.y, D.px, D.py, nx, ny) < 34){ q.life = 0; sparks(q.x, q.y); }   // bullets cut out of the air
+  W.trails.push({ x0:D.px, y0:D.py, x1:nx, y1:ny, t:0 });
+  D.px = nx; D.py = ny;
+  P.x = nx; P.y = ny + 40*(P.size || 1); P.vx = 0; P.vy = 0; P.inv = Math.max(P.inv || 0, 0.18);
+  if (k >= 1){ W.dash = null; W.cd = 0.1; if (P.y < GROUND - 2){ P.onG = false; P.vy = -140; }
+    if (D.hit.size >= 2) pop(P.x, P.y - 130, D.hit.size + ' in one cut', '#FFFFFF'); }
+}
+function drawGhost(){
+  const W = G.gw, P = G.P; if (!W || !P) return;
+  for (const t of W.trails){ t.t += 1/60; }
+  W.trails = W.trails.filter(t => t.t < 0.3);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (const t of W.trails){ const a = 1 - t.t/0.3; ctx.strokeStyle = `rgba(200,235,255,${0.8*a})`; ctx.lineWidth = 10*a + 2; ctx.beginPath(); ctx.moveTo(t.x0, t.y0); ctx.lineTo(t.x1, t.y1); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.restore();
+  if (W.aim){ const v = gwAimVec(); if (!v) return;
+    ctx.save(); ctx.setLineDash([10, 8]); ctx.lineWidth = 3; ctx.strokeStyle = W.charges > 0 ? 'rgba(160,220,255,0.9)' : 'rgba(255,120,120,0.8)';
+    ctx.beginPath(); ctx.moveTo(v[0], v[1]); ctx.lineTo(v[2], v[3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(200,235,255,0.9)'; ctx.beginPath(); ctx.arc(v[2], v[3], 7, 0, 6.283); ctx.fill();
+    for (const e of G.E){ if (e.dead || e.remote) continue; if (segDist(e.x, e.y - 40*(e.size || 1), v[0], v[1], v[2], v[3]) < 46*(e.size || 1)){   // who the line will cut
+      ctx.strokeStyle = '#FF3B3B'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(e.x, e.y - 40*(e.size || 1), 34*(e.size || 1), 0, 6.283); ctx.stroke(); } }
+    ctx.font = '600 15px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#C8EBFF'; ctx.fillText('dashes ' + W.charges + ' / ' + GW_CHARGES, P.x, P.y - 120*(P.size || 1));
+    ctx.restore(); }
+}
+const GW_BOSSES = [
+  { base:'ronin', name:'Viktor \u201cIron Jaw\u201d Kral', gun:'spas12' }, { base:'kage', name:'Mei \u201cRazor\u201d Tanaka', gun:'vector' },
+  { base:'ogre', name:'Big Hector', gun:'minigun' }, { base:'asura', name:'The Colonel', gun:'m249' }, { base:'kage', name:'Sasha \u201cGhost\u201d Volkova', gun:'barrett' },
+  { base:'yama', name:'Don Marco, the Bandit King', gun:'rpg7' },
+];
+const GW_BOSS_LINES = ['So you\u2019re the ghost everyone talks about.', 'My men were cheap. I am not.', 'Come closer, ninja.', 'Nobody walks out of my territory.'];
+function gwBoss(wave){
+  const B = GW_BOSSES[Math.floor(wave/5 - 1) % GW_BOSSES.length], P = G.P, x = clamp(P.x + (Math.random() < 0.5 ? -1 : 1)*VW*0.5, 80, G.worldW - 80);
+  const e = makeEnemy(B.base, x, G.diff, false); e.maxHp *= 1 + 0.25*Math.floor(wave/5); e.hp = e.maxHp; e.alert = true; e.state = 'chase';
+  const W = GM_ARSENAL[B.gun]; e.gmGun = B.gun; e.gmAmmo = W.clip; e.gmCd = 1.5; e.gmBurst = 0; e.gmBoss = true; e.noElite = true; e.beastRank = 0; e.lines = GW_BOSS_LINES;
+  G.E.push(e); dressFoe(e); e.foeName = B.name + ' \u00b7 ' + W.name; e.T = { ...e.T, name:B.name, title:'Bandit leader' }; e.look.mask = ''; e.look.glow = true;
+  showBanner('BANDIT LEADER', B.name, 'Armed with a ' + W.name + ' · cut him down', '#FF5A4A'); sfx('boom'); foeSay(e, 'meet', true);
+  return e;
+}
 /* ===== SHADOW LEGION FOES: every one of them is someone. Their own colours, face, hair, weapon and voice; they fight fast;
    and the strongest of them (Slayers: named rogue hunters, gate commanders, dungeon bosses) cut shadows down like grass. ===== */
 const FOE_CLOTH = ['#7A1E2A', '#1F4E7A', '#2E6B45', '#8A6A1E', '#5B2E8A', '#5E636E', '#8A3A1A', '#1E6B6B', '#6B2048', '#3A3A8A'];
@@ -5127,7 +5213,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
 const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
-const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory' };   // Warzone only
+const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory', v:'ghostAim' };   // Warzone only
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -5144,8 +5230,10 @@ addEventListener('keydown', ev => {
   held[a] = true;
 });
 addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; for (const k in GUN_KEYS) if (ev.key.toLowerCase() === k) held[GUN_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
-cv.addEventListener('mousedown', ev => { if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
-addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; });
+cv.addEventListener('mousedown', ev => { if (ev.button === 0 && G_ref && G_ref.mode === 'guns' && G_ref.running && G_ref.P){ gwDown(ev.clientX, ev.clientY, 'mouse'); return; }   // Warzone: drag to aim a ghost dash
+  if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
+addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; if (ev.button === 0) gwUp(); });
+addEventListener('mousemove', ev => gwMove(ev.clientX, ev.clientY));
 cv.addEventListener('contextmenu', ev => ev.preventDefault());
 addEventListener('blur', () => { for (const k in held) held[k] = false; });
 
@@ -5557,7 +5645,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['gwBtn', 'gmRBtn', 'gmQBtn', 'gmFBtn', 'gmIBtn', 'riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
   if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; G.armoryOpen = false; { const ap = document.getElementById('armoryPanel'); if (ap) ap.remove(); } G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
@@ -12070,6 +12158,7 @@ function renderScene(){
     drawProj(); drawAstraFlight(); drawBolts(); drawRings();
     if (G.ring > 0){ ctx.strokeStyle=`rgba(255,231,168,${G.ring})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y-40,(1-G.ring)*160+20,0,Math.PI*2); ctx.stroke(); }
     if (G.mode === 'shadow' || G.mode === 'guns') drawFoeTalk();
+    if (G.mode === 'guns') drawGhost();
     // floating texts
     ctx.textAlign='center';
     for (const p of G.pops){
@@ -15696,14 +15785,15 @@ function step(dt){
     if (G.autoOn && !P.dead) autoPilot(dt); }
   if (G.mode === 'guns' && P && G.armoryOpen){ if (pressed.armory) toggleArmory(); return; }   // the Armory holds the fight still
   if (G.mode === 'duel') duelFocus(dt);
-  const slowOn = G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (G.mode === 'coop' && !NET.coopCfg.slow) ? false : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead && !(G.mode === 'spider' && held.kunai) && !(P.wg && P.wg.st === 'sling');
+  const gwAim = G.mode === 'guns' && G.gw && G.gw.aim;
+  const slowOn = gwAim || (G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (G.mode === 'coop' && !NET.coopCfg.slow) ? false : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead && !(G.mode === 'spider' && held.kunai) && !(P.wg && P.wg.st === 'sling'));
   if (freeCheat(infBreath)) P.breath = G.ST.breathMax;
   G.slowK = lerp(G.slowK, slowOn?1:0, Math.min(1, dt*9));
   slowBadge.classList.toggle('on', slowOn);
   if (G.mode === 'duel') slowBadge.textContent = (NET.oppSlow && !NET.mySlow) ? 'rival slowed time' : 'time slowed';
   else if (slowBadge.textContent !== 'time slowed') slowBadge.textContent = 'time slowed';
   if (slowOn !== G.slowWas){ sfx(slowOn ? 'slowIn' : 'slowOut'); G.slowWas = slowOn; if (MUS.filt && AU.c) MUS.filt.frequency.setTargetAtTime(slowOn ? 650 : 16000, AU.c.currentTime, 0.12); }
-  const ws = 1 - 0.8*G.slowK; // world speed: 0.2 when fully slowed
+  const ws = gwAim ? 0.06 : 1 - 0.8*G.slowK; // world speed: 0.2 when fully slowed (almost still while you aim a ghost dash)
   G.shake = Math.max(0, G.shake - dt*40);
   G.ring = Math.max(0, G.ring - dt*2.2);
   let pdt = dt, wdt = dt*ws;
@@ -16015,7 +16105,7 @@ function step(dt){
   if (G.mode === 'spider' && !P.dead) spiderTick(dt, alive);
   if (G.mode === 'hammer' && !P.dead) hammerTick(dt, alive);
   if (G.mode === 'shadow' && !P.dead) shadowTick(dt, alive);
-  if (G.mode === 'guns' && !P.dead) gmTick(dt);
+  if (G.mode === 'guns' && !P.dead){ gmTick(dt); gwTick(dt); }
   if (G.mode === 'hammer'){ championTick(dt); gearTick(dt); }
   G.E = G.E.filter(e=>!e.dead);
   updateHUD(alive);
