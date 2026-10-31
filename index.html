@@ -2922,6 +2922,134 @@ function promote(a){
   if (a.grade >= 4) allySay(a, 'I have grown, my liege.');
 }
 function allySay(a, txt){ G.talk = (G.talk || []).filter(t => t.t < t.d && t.e !== a); G.talk.push({ e:a, txt, t:0, d:2.4, ally:true }); }
+/* ===== STORY & AUTO BATTLE (Shadow Legion): now and then the story plays by itself (the world holds still while it is
+   told), and some fights are fought on auto: your hunter moves, strikes, blocks, calls the legion and uses skills alone.
+   M turns auto battle on or off at any time; Enter, J or Space moves a story line on (they also move on by themselves). ===== */
+const SPK = { Narrator:'#CFC6E8', System:'#7FD3FF', You:'#FFD23F', Association:'#9FD3FF', 'Rhys Kalden':'#FF8A9A', 'The Voice':'#C77DFF', 'Masked Hunter':'#FF5A6A' };
+const L_ = (who, txt) => ({ who, txt });
+const STORIES = {
+  intro:[L_('Narrator', 'Ten years ago, the first Gate tore open the sky.'), L_('Narrator', 'Monsters poured out. And some people woke up with power. They were called Hunters.'),
+    L_('Narrator', 'You were one of them. The weakest of them all: an E-rank who fought only to pay the bills.'),
+    L_('Narrator', 'Then came the hidden dungeon. The temple of stone statues. Everyone else ran. You stayed.'),
+    L_('System', '[You have satisfied the conditions. You are now the Player.]'), L_('You', '...So this is my second chance.'), L_('System', '[A Daily Quest has arrived. Press N to open the System.]')],
+  legion100:[L_('Narrator', 'A hundred shadows now kneel behind you.'), L_('Association', 'Hunter, our readings of your mana make no sense. What ARE you?'), L_('You', 'Someone who does not stay dead.')],
+  legion500:[L_('The Voice', 'Five hundred... The old king\u2019s army stirs again.'), L_('You', 'Who\u2019s there?'), L_('The Voice', 'Soon, Shadow. Soon.')],
+  rank1:[L_('Association', 'Re-evaluation complete. D-rank.'), L_('Association', '...A hunter\u2019s rank is not supposed to change. Ever.'), L_('You', 'Then I\u2019m the first.')],
+  rank2:[L_('Association', 'C-rank. The guilds are already calling about you.')],
+  rank3:[L_('Rhys Kalden', 'B-rank, huh? The Iron Fang Guild doesn\u2019t like hunters who climb this fast.'), L_('You', 'Then get out of my way.')],
+  rank4:[L_('Association', 'A-rank. You are now one of the strongest hunters in the country.')],
+  rank5:[L_('Association', 'S-rank. Hunter... the nation needs you now.'), L_('The Voice', 'And the Monarchs have noticed you.')],
+  redgate:[L_('Narrator', 'The gate turned red behind you. Snow. Silence. No way back.'), L_('You', 'Then I go forward.')],
+  srank:[L_('Narrator', 'An S-rank gate. A calamity waits inside, strong enough to swallow a city.'), L_('Association', 'If this one breaks, we lose everything. Bring it down.')],
+  monarch:[L_('The Voice', 'You walk into a king\u2019s house, little Shadow.'), L_('Narrator', 'Beyond S-rank. A primordial king of the dark waits at the end.'), L_('You', 'Then let\u2019s see whose shadow is longer.')],
+  voice:[L_('The Voice', 'Do you know why the System chose you?'), L_('The Voice', 'Ten thousand years ago a war began, between the Monarchs of the dark and the Rulers of the light.'),
+    L_('The Voice', 'You are a piece in that war, Shadow.'), L_('You', 'Then I\u2019ll be the piece that ends it.')],
+};
+const EVENTS = {   // the things that happen in the city on their own
+  ambush:{ intro:[L_('Rhys Kalden', 'There he is. The so-called Shadow.'), L_('Rhys Kalden', 'The Iron Fang Guild takes what it wants. Today, that\u2019s your head.'), L_('You', '...You talk too much.')],
+    outro:[L_('System', '[Ambush repelled.]')], spawn:'ambush' },
+  rescue:{ intro:[L_('Association', 'Emergency! A gate broke near the market. People are trapped!'), L_('You', 'On my way.')],
+    outro:[L_('Association', 'The area is clear. You saved them all.')], spawn:'rescue' },
+  duel:{ intro:[L_('Narrator', 'A masked hunter blocks your path.'), L_('Masked Hunter', 'They say you\u2019re the strongest now. Prove it.')],
+    outro:[L_('Masked Hunter', '...So it\u2019s true. Good. You\u2019ll need that strength.')], spawn:'duel' },
+  voice:{ intro:null, story:'voice' },
+};
+function storySeen(id){ return (SV.story = SV.story || { seen:[] }).seen.includes(id); }
+function playStory(id, lines, opts){
+  opts = opts || {}; if (!lines) return;
+  if (id && storySeen(id) && !opts.again) return;
+  if (id && !opts.again){ SV.story.seen.push(id); saveSoon(); }
+  (G.storyQ = G.storyQ || []).push({ lines, i:0, t:0, hold:opts.hold !== false, onEnd:opts.onEnd || null });
+}
+function storyBox(show){
+  let el = document.getElementById('storyBox');
+  if (!show){ if (el) el.remove(); for (const id of ['storyBarT', 'storyBarB']){ const b = document.getElementById(id); if (b) b.remove(); } return null; }
+  if (!el){ el = document.createElement('div'); el.id = 'storyBox';
+    el.style.cssText = 'position:fixed;left:50%;bottom:11vh;transform:translateX(-50%);width:min(760px,92vw);background:rgba(8,6,16,0.9);border:1px solid #4A3A7A;border-radius:10px;padding:12px 18px 10px;color:#F0EAFF;font:19px/1.4 Teko,sans-serif;letter-spacing:0.4px;z-index:60;pointer-events:none';
+    document.body.appendChild(el); }
+  return el;
+}
+function storyBars(on){
+  for (const [id, pos] of [['storyBarT', 'top'], ['storyBarB', 'bottom']]){ let b = document.getElementById(id);
+    if (!on){ if (b) b.remove(); continue; }
+    if (!b){ b = document.createElement('div'); b.id = id; b.style.cssText = `position:fixed;left:0;right:0;${pos}:0;height:8vh;background:#000;z-index:59;pointer-events:none`; document.body.appendChild(b); } }
+}
+/* runs first in every frame of Shadow Legion; true while a story holds the world still */
+function storyTick(dt){
+  if (!G.story && G.storyQ && G.storyQ.length) G.story = G.storyQ.shift();
+  const S = G.story; if (!S){ storyBox(false); return false; }
+  const L = S.lines[S.i]; S.t += dt;
+  const dur = 1.8 + L.txt.length*0.045, shown = Math.min(L.txt.length, Math.floor(S.t*48));
+  const el = storyBox(true); storyBars(S.hold);
+  el.innerHTML = `<div style="color:${SPK[L.who] || '#E9D8FF'};font-size:16px;letter-spacing:1px">${L.who === 'Narrator' ? '' : L.who}</div><div>${L.txt.slice(0, shown)}</div><div style="text-align:right;color:#6A5A9A;font-size:13px">${isTouch ? 'tap' : 'Enter'} · ${S.i + 1}/${S.lines.length}</div>`;
+  if (pressed.storyNext || pressed.attack || pressed.jump || (isTouch && pressed.interact)){ if (shown < L.txt.length) S.t = L.txt.length/48; else S.t = dur; }
+  if (S.t >= dur){ S.i++; S.t = 0;
+    if (S.i >= S.lines.length){ G.story = null; storyBox(false); storyBars(false); if (S.onEnd) S.onEnd(); return S.hold; } }
+  return S.hold;
+}
+function storyTriggers(dt){
+  const P = G.P; if (G.story || (G.storyQ && G.storyQ.length) || P.dead) return;
+  if (!storySeen('intro')){ playStory('intro', STORIES.intro); return; }
+  const hr = hunterRank();
+  if (G._storyRank == null) G._storyRank = hr;
+  if (hr > G._storyRank && !G.dungeon){ for (let r = G._storyRank + 1; r <= hr; r++) playStory('rank' + r, STORIES['rank' + r]); G._storyRank = hr; return; }
+  const n = (SV.legion || []).length;
+  if (n >= 100 && !G.dungeon) playStory('legion100', STORIES.legion100);
+  if (n >= 500 && !G.dungeon) playStory('legion500', STORIES.legion500);
+  // now and then, something happens in the city
+  if (G.dungeon || G.autoFight) return;
+  G.evT = (G.evT ?? rnd(150, 240)) - dt;
+  if (G.evT <= 0){ G.evT = rnd(200, 320); const k = pick(['ambush', 'rescue', 'duel', 'ambush', 'rescue', 'voice']); startEvent(k); }
+}
+function startEvent(k){
+  const E = EVENTS[k], P = G.P; if (!E || !P) return;
+  if (E.story){ playStory(null, STORIES[E.story], { again:true }); return; }
+  playStory(null, E.intro, { again:true, onEnd:() => {
+    const hr = hunterRank(), foes = [], side = () => clamp(P.x + (Math.random() < 0.5 ? -1 : 1)*rnd(380, 600), 60, G.worldW - 60);
+    const add = e => { e.alert = true; e.state = 'chase'; e.story = true; G.E.push(e); foes.push(e); return e; };
+    if (E.spawn === 'ambush'){ for (let i = 0; i < 3; i++){ const e = add(makeEnemy(pick(['fencer', 'ninja', 'assassin']), side(), G.diff, false)); e.forceSlayer = true; dressFoe(e); e.maxHp *= 1 + 0.4*hr; e.hp = e.maxHp; if (i === 0) e.foeName = 'Rhys Kalden'; else e.foeName = 'Iron Fang ' + pick(['Blade', 'Hound', 'Enforcer']); } }
+    if (E.spawn === 'rescue'){ const spec = SPECIES_BY_RANK[Math.min(5, hr)]; for (let i = 0; i < 7; i++) add(makeBeast(pick(spec), side(), Math.min(5, hr))); const c = add(makeBeast(spec[1] || spec[0], side(), Math.min(5, hr))); c.cmdr = true; c.size *= 1.3; c.maxHp *= 2.5; c.hp = c.maxHp; }
+    if (E.spawn === 'duel'){ const e = add(makeEnemy('kage', side(), G.diff, false)); e.forceSlayer = true; e.foeName = 'Masked Hunter'; dressFoe(e); e.foeName = 'Masked Hunter'; e.maxHp *= 1.5 + 0.5*hr; e.hp = e.maxHp; e.look.mask = 'oni'; }
+    G.autoFight = { foes, k, was:!!G.autoOn }; setAuto(true, true);
+    showBanner('AUTO BATTLE', { ambush:'Ambush', rescue:'Rescue', duel:'Duel' }[k], 'Your hunter fights on their own · M to take control', '#7FD3FF'); } });
+}
+function eventTick(){
+  const F = G.autoFight; if (!F) return;
+  if (F.foes.every(e => e.dead || !G.E.includes(e))){
+    const hr = hunterRank(), coins = 500*(hr + 1); SV.coins = (SV.coins || 0) + coins; sysGainXP(80*(hr + 1)); saveSoon();
+    G.autoFight = null; setAuto(F.was, false);
+    playStory(null, EVENTS[F.k].outro.concat([L_('System', '[Battle won: +' + coins + ' coins, +' + 80*(hr + 1) + ' experience.]')]), { again:true, hold:false }); }
+}
+function setAuto(on, forced){
+  G.autoOn = on; G.autoForced = !!forced && on;
+  if (!on){ held.left = false; held.right = false; held.block = false; }
+}
+/* the hunter fights alone: find the nearest foe, close in, cut; block what is coming; call the legion; use the skills */
+function autoPilot(dt){
+  const P = G.P, A = G.auto = G.auto || { atkT:0, dashT:0, thinkT:0, exT:0, goT:0 };
+  A.atkT -= dt; A.dashT -= dt; A.thinkT -= dt; A.exT -= dt;
+  held.left = false; held.right = false; held.block = false;
+  if (G.story && G.story.hold) return;
+  const foes = G.E.filter(e => !e.dead && !e.remote && !e.shadow);
+  if (A.thinkT <= 0){ A.thinkT = 0.5;
+    const out = G.allies.filter(a => !a.fade).length;
+    if (foes.length && !out && (G.stored || []).length && P.mana > CALL_COST*5 && !(G.callWait > 0)){ G.callSide = 'front'; pressed.clone = true; A.goT = 1.4; }
+    if (G.corpses.length && P.mana > SHADOW_COST*3 && (!foes.length || Math.random() < 0.3)) pressed.arise = true;
+    if (foes.filter(e => Math.abs(e.x - P.x) < 420).length >= 3 && !(P.blCd > 0) && P.mana > 80) pressed.bloodlust = true;
+    if (P.hp < P.maxHp*0.3 && !(P.stCd > 0) && P.mana > 60) pressed.stealth = true;
+    if (foes.some(e => (isBoss(e) || e.slayer) && Math.abs(e.x - P.x) < 600) && !P.monarch && P.mana > P.manaMax*0.6) pressed.monarch = true;
+    if (G.dungeon && G.dungeon.done && !G.corpses.length && !foes.length) pressed.interact = true;   // nothing left to raise: leave
+  }
+  if (A.goT > 0){ A.goT -= dt; if (A.goT <= 0 && G.allies.some(a => a.post != null)) pressed.legionGo = true; }
+  if (!foes.length) return;
+  const t = foes.reduce((b, e) => Math.abs(e.x - P.x) < Math.abs(b.x - P.x) ? e : b);
+  const dx = t.x - P.x, dist = Math.abs(dx), dir = dx > 0 ? 'right' : 'left', reach = 62*(P.size || 1) + 12*(t.size || 1);
+  if (dist > 750 && A.exT <= 0 && G.allies.some(a => !a.fade && Math.abs(a.x - t.x) < 220)){ pressed.exchange = true; A.exT = 5; return; }   // far away: trade places with a shadow near it
+  if (dist < 150 && t.state === 'windup' && (t.timer || 0) < 0.25 && Math.random() < 0.6){ held.block = true; return; }   // a blow is coming
+  if (dist > reach){ held[dir] = true; if (dist > 320 && A.dashT <= 0){ pressed.dash = true; A.dashT = 1.3; } return; }
+  if ((dx > 0 ? 1 : -1) !== P.face){ held[dir] = true; return; }
+  if (A.atkT <= 0){ pressed[Math.random() < 0.78 ? 'attack' : 'kick'] = true; A.atkT = 0.15 + Math.random()*0.12; }
+}
 /* ===== THE SYSTEM (Shadow Legion): you are the only Player. Kills give experience; every level gives 5 points for
    Strength (damage), Agility (speed), Sense (Vital Strikes), Vitality (health) and Intelligence (mana), and refills you.
    A Daily Quest every day: 100 kills, 100 jumps, 100 dashes, 10 km of running. Leave it unfinished and the next day
@@ -3432,6 +3560,8 @@ function drawBeastHead(e, L, hx, hy, r, f, s){   // the faces of the things that
     if (FXL() > 0) glowDot(ctx, ex, ey, 7*s, ctx.fillStyle, 0.6); if (L.crown) drawCrown(e, L, hx, hy, r, f); return; }
 }
 function drawFoeTalk(){
+  if (G.autoOn && G.P && !G.P.dead){ const ui = clamp(bS/S, 1, 3); ctx.save(); ctx.textAlign = 'center'; ctx.font = `600 ${Math.round(15*ui)}px Teko, sans-serif`;
+    ctx.fillStyle = G.autoForced ? '#FFD23F' : '#7FD3FF'; ctx.globalAlpha = 0.7 + 0.3*Math.sin(G.time*5); ctx.fillText(G.autoForced ? 'AUTO · STORY BATTLE' : 'AUTO', G.P.x, G.P.y - 130*(G.P.size || 1) - 10*ui); ctx.restore(); }
   for (const sp of G.spells || []){ ctx.save();
     if (!sp.hit){ ctx.globalAlpha = 0.5; ctx.strokeStyle = sp.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(sp.x, GROUND - 4, sp.w/2*(sp.t/sp.d), 8, 0, 0, 6.283); ctx.stroke(); }
     else { const k = 1 - (sp.t - sp.d)/0.4; ctx.globalAlpha = Math.max(0, k); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createLinearGradient(0, GROUND - 220, 0, GROUND);
@@ -3476,14 +3606,14 @@ function startShadow(){
     const en = document.createElement('button'); en.id = 'enterBtn'; en.className = 'tb sm'; en.dataset.k = 'interact'; en.textContent = 'Enter'; en.style.setProperty('--sc', '#3FA9FF'); en.setAttribute('aria-label', 'Enter the gate you stand at'); box.appendChild(en); bindTouch(en);
     const at = document.createElement('button'); at.id = 'cmdBtn'; at.className = 'tb sm'; at.dataset.k = 'legionCmd'; at.textContent = 'Attack'; at.style.setProperty('--sc', '#FF8A8A'); at.setAttribute('aria-label', 'Shadows: attack or guard'); box.appendChild(at); bindTouch(at);
     const r = document.createElement('button'); r.id = 'returnBtn'; r.className = 'tb sm'; r.dataset.k = 'webAll'; r.textContent = 'Return'; r.style.setProperty('--sc', '#9B6BFF'); r.setAttribute('aria-label', 'Send every shadow back into the dark'); box.appendChild(r); bindTouch(r);
-    for (const [id, k, txt, col, aria] of [['exBtn', 'exchange', 'Swap', '#B78CFF', 'Shadow Exchange: teleport to your furthest shadow'], ['rulerBtn', 'ruler', 'Ruler', '#7FD3FF', "Ruler's Authority: hold to lift enemies, let go to slam them"], ['monBtn', 'monarch', 'Monarch', '#E0C8FF', 'Monarch form on or off'], ['realmBtn', 'realm', 'Realm', '#9B6BFF', 'Shadow Realm: see your whole army'], ['sysBtn', 'system', 'System', '#7FD3FF', 'The System: level, stats, daily quest'], ['blBtn', 'bloodlust', 'Fear', '#FF3B3B', 'Bloodlust: weaker enemies freeze in fear'], ['stBtn', 'stealth', 'Hide', '#9FD3FF', 'Stealth: unseen for 6 seconds']]){
+    for (const [id, k, txt, col, aria] of [['exBtn', 'exchange', 'Swap', '#B78CFF', 'Shadow Exchange: teleport to your furthest shadow'], ['rulerBtn', 'ruler', 'Ruler', '#7FD3FF', "Ruler's Authority: hold to lift enemies, let go to slam them"], ['monBtn', 'monarch', 'Monarch', '#E0C8FF', 'Monarch form on or off'], ['realmBtn', 'realm', 'Realm', '#9B6BFF', 'Shadow Realm: see your whole army'], ['sysBtn', 'system', 'System', '#7FD3FF', 'The System: level, stats, daily quest'], ['blBtn', 'bloodlust', 'Fear', '#FF3B3B', 'Bloodlust: weaker enemies freeze in fear'], ['stBtn', 'stealth', 'Hide', '#9FD3FF', 'Stealth: unseen for 6 seconds'], ['autoBtn', 'auto', 'Auto', '#FFD23F', 'Auto battle on or off']]){
       const q = document.createElement('button'); q.id = id; q.className = 'tb sm'; q.dataset.k = k; q.textContent = txt; q.style.setProperty('--sc', col); q.setAttribute('aria-label', aria); box.appendChild(q); bindTouch(q); } } }
   G.P.manaMax = manaMaxFor(); legionStats(G.P); G.P.mana = G.P.manaMax; G.P.hp = G.P.maxHp;
   toast(G.stored.length ? G.stored.length + ' shadows wait for you · R: call them' : 'Shadow Legion', 1.8);
   G._sysKills = G.kills; G._sysX = null; sysCheckPenalty();
   setTimeout(() => { if (G.running && G.mode === 'shadow') showBanner('Shadow Legion', 'Their shadows are yours',
     isTouch ? 'Kill · Arise: the fallen rise as shadows · Return: send them back · Call: bring them back, strongest first'
-            : 'Alt: ARISE · R+A/R+D: call · Q: go · B: back · Tab · X · C · V · I: realm · Z · N: System · F: Bloodlust · 1: Stealth', '#9B6BFF'); }, 900);
+            : 'Alt: ARISE · R+A/R+D: call · Q: go · B: back · Tab · X · C · V · I · Z · N: System · F · 1 · M: auto battle', '#9B6BFF'); }, 900);
   setScreen(null); G.running = true;
 }
 const SHADOW_COST = 15, SHADOW_DRAIN = 1.6, MANA_REGEN = 7;
@@ -3494,6 +3624,7 @@ function shadowTick(dt, alive){
   gatesTick(dt, alive);
   foesTick(dt);
   sysTick(dt);
+  storyTriggers(dt); eventTick();
   S.syncT -= dt; if (S.syncT <= 0){ S.syncT = 1; syncLegion(); }
   legionStats(P);
   const legion = G.allies.filter(a => !a.fade).length;
@@ -3642,6 +3773,7 @@ function enterDungeon(g){
   P.x = 140; P.y = GROUND; P.vx = 0; G.camX = 0;
   for (const a of G.allies){ a.x = P.x + (a.slot || rnd(-60, 60)); a.tgt = null; if (a.post != null) a.post = a.x; }
   const traps = []; for (let x = 600; x < G.worldW - 400; x += rnd(420, 640)) traps.push({ x, w:70, t:rnd(0, 2.5) });
+  if (g.redGate) playStory('redgate', STORIES.redgate); else if (r === 5) playStory('srank', STORIES.srank); else if (r >= 6) playStory('monarch', STORIES.monarch);
   if (g.redGate) showBanner('RED GATE', 'A world of ice · the gate has shut behind you', 'No way out until the boss falls · ice elves and ice bears', '#FF2A2A');
   G.dungeon = { g, rank:r, kills:0, need:Math.min(30, 8 + 4*r), boss:null, spawnT:DUNGEON_CALM, calm:DUNGEON_CALM, done:false, traps };
   G.diff = diffFor(Math.min(30, 4 + 4*r));
@@ -4836,7 +4968,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
-const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth' };   // Shadow Legion only: the Monarch's powers
+const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -4848,6 +4980,7 @@ addEventListener('keydown', ev => {
   ev.preventDefault();
   if (G_ref && G_ref.mode === 'shadow' && (a === 'left' || a === 'right') && (held.clone || G_ref.callWait > 0)){ G_ref.callSide = a === 'left' ? 'back' : 'front'; return; }   // R + A: behind you, R + D: in front of you
   if (G_ref && G_ref.mode === 'shadow' && a === 'clone' && !ev.repeat && (held.left || held.right)) G_ref.callSide = held.left ? 'back' : 'front';
+  if (G_ref && G_ref.mode === 'shadow' && G_ref.autoOn && !G_ref.autoForced && ['left', 'right', 'attack', 'kick', 'jump', 'dash', 'block'].includes(a)){ setAuto(false); toast('Auto battle off', 1); }
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
@@ -5265,9 +5398,9 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
-  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
+  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -15309,7 +15442,8 @@ function frameBody(now){
   if (formNameT > 0){ formNameT -= dt; if (formNameT<=0) formNameEl.classList.remove('on'); }
   if (screens.dojo.classList.contains('on')) safeDraw(() => renderPreview(dt));
   moodT -= dt; if (moodT <= 0){ moodT = 0.5; MUS.mood = musicMood(); if (MUS.filt && AU.c && (!G.P || !G.running) && MUS.filt.frequency.value < 15000) MUS.filt.frequency.setTargetAtTime(16000, AU.c.currentTime, 0.2); }
-  if (!G.P){ demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
+  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'sysPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
+    demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
   if (pressed.pause && G.running && (!G.over || G.mode === 'duel')) togglePause();
   if (pressed.grab && G.running && !G.paused && G.mode !== 'arena'){   // T: cinematic follow cam on / off
     SV.set.cinecam = !SV.set.cinecam; save(); toast(SV.set.cinecam ? 'Cinematic cam ON' : 'Cinematic cam off', 1.4); }
@@ -15392,6 +15526,10 @@ function step(dt){
   if (!Number.isFinite(G.camX)) G.camX = G.P && Number.isFinite(G.P.x) ? clamp(G.P.x - VW*0.42, 0, Math.max(0, (G.worldW || VW) - VW)) : 0;
   if (G.mode === 'arena' && AR.p1){ arStep(dt); return; }   // the Duelist Arena runs its own fight
   const P = G.P;
+  if (G.mode === 'shadow' && P && G.running){
+    if (storyTick(dt)) return;   // a story is being told: the world holds still
+    if (pressed.auto){ setAuto(!G.autoOn, false); toast(G.autoOn ? 'AUTO BATTLE on · M to stop' : 'Auto battle off', 1.4); }
+    if (G.autoOn && !P.dead) autoPilot(dt); }
   if (G.mode === 'duel') duelFocus(dt);
   const slowOn = G.mode === 'duel' ? (NET.mySlow || NET.oppSlow) : (G.mode === 'coop' && !NET.coopCfg.slow) ? false : (held.slowHold || slowToggled || freeCheat(slowCheat)) && !P.dead && !(G.mode === 'spider' && held.kunai) && !(P.wg && P.wg.st === 'sling');
   if (freeCheat(infBreath)) P.breath = G.ST.breathMax;
