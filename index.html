@@ -3416,7 +3416,13 @@ function shadowTick(dt, alive){
   alliesTick(dt);
 }
 const CALL_COST = 10;
-const legionGap = (i, size) => i < 8 ? 30*(size || 1) : i < 40 ? 14 : 7;   // a big legion stands shoulder to shoulder
+const legionGap = (i, size) => i < 8 ? 30*(size || 1) : 16;
+/* where the i-th shadow stands: [distance from you, rank depth]. Past the first 40, they stand in files four ranks deep */
+function legionPlace(i, list){
+  if (i < 40){ let off = 50; for (let k = 0; k < i; k++) off += legionGap(k, list[k] && list[k].size); return [off, 0]; }
+  if (list._base == null){ let off = 50; for (let k = 0; k < 40; k++) off += legionGap(k, list[k] && list[k].size); list._base = off; }
+  const j = i - 40; return [list._base + Math.floor(j/4)*22 + (j % 4)*6, (j % 4) + 1];
+}
 const MAX_TRIES = 3;
 /* how likely a body is to refuse you: the weak always kneel, the strong may not (less often as your Hunter rank grows) */
 function refuseChance(c){ return c.tier === 'boss' ? 0.01 : 0; }   // the weak always kneel; a strong soul refuses one time in a hundred
@@ -3432,7 +3438,7 @@ function raiseAll(P){
       if (c.tries >= MAX_TRIES){ c.taken = true; pop(c.x, GROUND - 120*c.size, 'It rejects you for good', '#FF5A6A'); smoke(c.x, GROUND - 20, 20); }
       else pop(c.x, GROUND - 120*c.size, 'REFUSED · ' + (MAX_TRIES - c.tries) + (MAX_TRIES - c.tries === 1 ? ' try left' : ' tries left'), '#FF5A6A');
       continue; }
-    raiseShadow(P, c, true); const a = G.allies[G.allies.length - 1]; if (a) a.rise = -0.06*rose; rose++;
+    raiseShadow(P, c, true); const a = G.allies[G.allies.length - 1]; if (a) a.rise = -Math.min(0.06*rose, 2.2*rose/list.length); rose++;
     if (c.tier === 'boss') pop(c.x, GROUND - 130*c.size, 'It kneels', '#E9D8FF');
   }
   if (rose){ pop(P.x, P.y - 125, 'ARISE! ×' + rose, '#C9A8FF'); syncLegion(); }
@@ -3453,11 +3459,11 @@ function callShadows(P, side){
   G.legionBack = -face; G.legionFaceT = 0;
   let off = 50;
   back.forEach((d, i) => {   // they rise in a line behind you, one after another
-    const x = clamp(P.x + dir*off, 20, G.worldW - 20); off += legionGap(i, d.size);
+    const pl = legionPlace(i, back), x = clamp(P.x + dir*pl[0], 20, G.worldW - 20);
     const a = makeEnemy(d.type, x, G.diff, false);
-    a.shadow = true; a.species = d.spec || ''; a.size = d.size; a.dmg = d.dmg; a.pow = d.pow || 0; a.tier = d.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -0.12*i; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
+    a.shadow = true; a.species = d.spec || ''; a.size = d.size; a.dmg = d.dmg; a.pow = d.pow || 0; a.tier = d.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -Math.min(0.12*i, 2.2*i/n);   /* one after another, but the whole legion is up within about two seconds */ a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
     a.grade = d.grade; a.xp = d.xp; a.sname = d.sname; a.srole = d.srole; applyGrade(a);
-    a.post = x; a.postFace = face;   // it stands right here and does nothing until you press Q
+    a.rankT = legionPlace(i, back)[1]; a.post = x; a.postFace = face;   // it stands right here and does nothing until you press Q
     G.allies.push(a); ringFx(x, GROUND - 10, 60, '#9B6BFF', true); });
   P.mana -= n*CALL_COST; G.legionMode = 'guard';
   pop(P.x, P.y - 125, n + (side === 'front' ? ' rise in front' : ' rise behind') + (G.stored.length ? ' · ' + G.stored.length + ' wait' : '') + ' · Q: go', '#C9A8FF'); sfx('shadow'); vib(40);
@@ -3650,7 +3656,7 @@ function alliesTick(dt){
   const byPow = live.slice().sort((a, b) => (b.pow || 0) - (a.pow || 0));
   const guards = guard ? byPow.slice(0, 4) : [];   // the four strongest step out to meet anything that comes for you
   guards.forEach(a => { a.role = 'guard'; }); live.forEach(a => { if (!guards.includes(a)) a.role = guard ? 'reserve' : 'attack'; });
-  { let off = 50; byPow.forEach((a, i) => { a.slot = G.legionBack*off; off += legionGap(i, a.size); }); }
+  byPow.forEach((a, i) => { const pl = legionPlace(i, byPow); a.slot = G.legionBack*pl[0]; a.rankT = pl[1]; });
   // threats: enemies that come close to you; a guard goes out to meet them, kills them, and comes back
   const threats = guard ? G.E.filter(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 230 && Math.abs(e.y - P.y) < 160) : [];
   for (const a of guards){ if (a.tgt && (a.tgt.dead || Math.abs(a.tgt.x - P.x) > 340)) a.tgt = null; }
@@ -3662,6 +3668,7 @@ function alliesTick(dt){
     a.rise = Math.min(1, (a.rise ?? 0) + dt*2.5);
     if (a.rise < 1) continue;
     const spd = (a.T.spd || 120)*1.25*(G.diff.spd || 1)*(a.swift ? 1.5 : 1)*(1 + 0.05*(a.grade || 0));
+    a.rank = (a.rank || 0) + (((a.tgt || a.role === 'attack') && a.post == null ? 0 : (a.rankT || 0)) - (a.rank || 0))*Math.min(1, dt*4);
     if (a.post == null && a.rise >= 1 && !P.dead) shadowSkill(a, dt);
     if (a.post != null){   // standing by: not one step, not one blow, until Q
       const dx = a.post - a.x; a.tgt = null;
@@ -3701,20 +3708,21 @@ function drawShadowLegion(){
     if (c.tier === 'boss'){ ctx.globalAlpha = Math.min(1, k*2); ctx.font = '600 14px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = c.tries ? '#FF8A9A' : '#E9D8FF';   // a strong body: it may refuse you
       ctx.fillText(c.tries ? (MAX_TRIES - c.tries) + (MAX_TRIES - c.tries === 1 ? ' try left' : ' tries left') : 'Strong soul', c.x, GROUND - 24); }
     ctx.restore(); ctx.globalAlpha = 1; }
-  for (const a of G.allies){ const s = a.size || 1, rise = Math.max(0, a.rise || 0), fade = a.fade ? Math.max(0, 1 - a.fade/0.7) : 1;
+  const order = G.allies.length > 40 ? G.allies.slice().sort((p, q) => (q.rank || 0) - (p.rank || 0)) : G.allies;
+  for (const a of order){ const s0 = a.size || 1, rk = a.rank || 0, s = s0*(1 - 0.06*rk), rise = Math.max(0, a.rise || 0), fade = a.fade ? Math.max(0, 1 - a.fade/0.7) : 1;
     if (a.x < G.camX - 120 || a.x > G.camX + VW + 120) continue;   // off screen: not drawn
     const moving = rise < 1 || fade < 1;
     ctx.save(); if (moving){ ctx.beginPath(); ctx.rect(a.x - 80*s, GROUND - 200*s - 400, 160*s, 400 + 200*s*rise + 2); ctx.clip(); }   // rising up out of the ground (or sinking back)
-    const dy = (1 - rise)*90*s + (1 - fade)*90*s; a.y += dy;
+    const dy = (1 - rise)*90*s + (1 - fade)*90*s - rk*11; a.y += dy; a.size = s;
     if (G.allies.length <= 12){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 36*s, 4, a.x, a.y - 36*s, 60*s); g.addColorStop(0, `rgba(155,107,255,${0.25*fade})`); g.addColorStop(1, 'rgba(155,107,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 36*s, 60*s, 0, 6.283); ctx.fill(); ctx.restore(); }
-    const hd = drawStick(a, 0.92*fade, '#1E1438');
+    const hd = drawStick(a, (0.92 - 0.08*rk)*fade, rk > 0.5 ? (rk > 2.5 ? '#151030' : '#1A1234') : '#1E1438');
     const gc = GRADE_COL[a.grade || 0];
     if (hd){ ctx.globalAlpha = fade; ctx.fillStyle = (a.grade || 0) ? gc : 'rgb(160,200,255)'; ctx.beginPath(); ctx.arc(hd[0] + (a.face || 1)*3*s, hd[1] - 1, (2.2 + 0.3*(a.grade || 0))*s, 0, 6.283); ctx.fill();   // the eyes: their grade's colour
       if ((a.grade || 0) >= 2 && FXL() > 0) glowDot(ctx, hd[0] + (a.face || 1)*3*s, hd[1] - 1, (5 + a.grade)*s, gc, 0.6);
       if ((a.grade || 0) >= 5){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 70*s); g.addColorStop(0, 'rgba(255,230,180,0.25)'); g.addColorStop(1, 'rgba(255,230,180,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 70*s, 0, 6.283); ctx.fill(); ctx.restore(); }
       if (a.sname && rise >= 1 && fade >= 1 && !G._nameXs.some(x => Math.abs(x - a.x) < 95) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = '600 13px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade], a.x, hd[1] - 16*s); }
       ctx.globalAlpha = 1; }
-    a.y -= dy; ctx.restore(); }
+    a.y -= dy; a.size = s0; ctx.restore(); }
 }
 /* ===== HAMMER & SPIDER MODES: the enemies are built to outclass you. Their health grows with your own damage upgrades and their
    blows with your own health, so they stay above your level however strong you get; every kill pushes them further.
@@ -11362,12 +11370,13 @@ let combatTZ = 1, combatTX = null;
 function viewTargets(P){
   const Xd = G.camX + VW*0.5;                         // centre of the gameplay camera
   const mode = (G.introT > 0) ? 'default' : VIEW.mode; // boss intros keep their own framing
-  let tz = 1, tx = Xd, vy = null, rate = 5;
-  if (mode === 'default' && G.mode === 'shadow' && G.armyView !== false && G.allies && G.allies.length > 3){
+  if (G.mode === 'shadow' && G.armyView !== false && !(G.introT > 0) && G.allies && G.allies.length > 3){   // Shadow Legion: the whole army in view, whatever the camera setting
     let lo = P.x, hi = P.x; for (const a of G.allies){ if (a.fade) continue; lo = Math.min(lo, a.x); hi = Math.max(hi, a.x); }
-    const span = hi - lo + 320;
-    if (span > VW){ tz = clamp(VW/span, 0.32, 1); tx = (lo + hi)/2; rate = 2.5; } }   // Shadow Legion: the whole army in view
-  else if (mode === 'default' && G.mode === 'world' && P.inH){ tz = clamp(VW/(P.inH.w + 330), 1, 1.7); tx = P.inH.x + P.inH.w/2; vy = 'char'; rate = 4; }   // a room fills the screen
+    const span = hi - lo + 360, want = VW/span;
+    if (want < 1.02/(VIEW.zoom || 1) || VIEW.mode !== 'default') return { mode:'army', tz:clamp(want, 0.3, 1)/(VIEW.zoom || 1), tx:(lo + hi)/2, vy:null, rate:2.5 };
+  }
+  let tz = 1, tx = Xd, vy = null, rate = 5;
+  if (mode === 'default' && G.mode === 'world' && P.inH){ tz = clamp(VW/(P.inH.w + 330), 1, 1.7); tx = P.inH.x + P.inH.w/2; vy = 'char'; rate = 4; }   // a room fills the screen
   else if (mode === 'close'){ tz = 2.1; tx = P.x + P.face*12; vy = 'char'; rate = 6; }
   else if (mode === 'wide'){ tz = 0.6; tx = Xd; }
   else if (mode === 'follow'){ tz = 1; tx = P.x + P.face*VW*0.06 + clamp(P.vx, -600, 600)*0.12; vy = 'follow'; rate = 4.5; }
