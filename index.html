@@ -815,7 +815,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>V</b> Monarch form, <b>I</b> Shadow Realm &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>V</b> Monarch form, <b>I</b> Shadow Realm (merge shadows there) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -2898,16 +2898,40 @@ function gradeOfCorpse(c){
 }
 function shadowName(){ const used = new Set(legionList().map(d => d.sname).filter(Boolean)); const free = SHADOW_NAMES.filter(n => !used.has(n));
   return free.length ? pick(free) : pick(SHADOW_NAMES) + ' ' + ['II', 'III', 'IV', 'V', 'VI'][(Math.random()*5)|0]; }
+/* ===== SHADOW ARMS: every shadow carries a weapon of black steel. It starts with what it carried in life (a goblin's
+   dagger, an orc's greatsword...) and climbs this ladder each time it is merged. Damage and reach come from the weapon. ===== */
+const SHADOW_ARMS = [
+  { name:'Shadow Claws',          sw:{ len:16, w:2.0, dual:true },  dmg:1.00, reach:1.00, col:'#9B8CC8' },
+  { name:'Shadow Dagger',         sw:{ len:20, w:2.2, dual:true },  dmg:1.10, reach:1.00, col:'#7FB8FF' },
+  { name:'Dusk Katana',           sw:{ len:38, w:2.6 },             dmg:1.25, reach:1.10, col:'#8FE0FF' },
+  { name:'Twin Night Fangs',      sw:{ len:31, w:2.4, dual:true },  dmg:1.40, reach:1.10, col:'#B78CFF' },
+  { name:'Void Spear',            sw:{ len:72, w:1.7 },             dmg:1.60, reach:1.50, col:'#FF7FD3' },
+  { name:'Abyss Greatsword',      sw:{ len:60, w:3.8 },             dmg:1.90, reach:1.35, col:'#FF5A6A' },
+  { name:'Black Flame Twin Blades', sw:{ len:42, w:3.0, dual:true }, dmg:2.40, reach:1.25, col:'#FFC94A' },
+  { name:"Monarch's Fang",        sw:{ len:72, w:4.4 },             dmg:3.20, reach:1.60, col:'#FFFFFF' },
+];
+const ARM_OF_WEAPON = { dagger:1, katana:2, twin:3, spear:4, great:5 };
+function startArm(d){   // the weapon it carried in life, a little better for the higher grades
+  const SP = SPECIES[d.spec || d.species];
+  if (SP && SP.fist) return 0;
+  const t = SP && SP.weapons ? Math.max(...SP.weapons.map(w => ARM_OF_WEAPON[w] || 1)) : (d.grade >= 2 ? 2 : 1);
+  return Math.min(t, 2 + (d.grade || 0), 5);
+}
+const armOf = d => SHADOW_ARMS[clamp(d.wt ?? 1, 0, SHADOW_ARMS.length - 1)];
+const fuseStars = d => d.fuse ? ' ' + '\u2605'.repeat(Math.min(d.fuse, 5)) + (d.fuse > 5 ? '+' + (d.fuse - 5) : '') : '';
 function normalizeShadow(d){   // older shadows (made before grades existed) get a grade from what they were
   if (d.grade == null) d.grade = d.tier === 'boss' ? 2 : d.tier === 'elite' ? 1 : 0;
   d.xp = d.xp || 0; d.srole = d.srole || ROLE_OF[d.spec || d.species] || ROLE_OF[d.type] || 'blade';
+  d.fuse = d.fuse || 0; if (d.wt == null) d.wt = startArm(d);
   if (d.grade >= 2 && !d.sname) d.sname = shadowName();
   return d;
 }
-function applyGrade(a){   // what a shadow's grade and role do to it on the field
-  normalizeShadow(a);
-  a.endure = GRADE_ENDURE[a.grade]*(a.srole === 'tank' ? 2 : 1);
-  a.gradeK = GRADE_DMG[a.grade]*(a.srole === 'mage' ? 0.8 : 1);
+function applyGrade(a){   // what a shadow's grade, role, weapon and merges do to it on the field
+  normalizeShadow(a); const W = armOf(a), fk = 1 + 0.35*(a.fuse || 0);
+  a.endure = Math.round(GRADE_ENDURE[a.grade]*(a.srole === 'tank' ? 2 : 1)*(1 + 0.5*(a.fuse || 0)));
+  a.gradeK = GRADE_DMG[a.grade]*(a.srole === 'mage' ? 0.8 : 1)*W.dmg*fk;
+  a.reach = W.reach;
+  if (a.T && !a.T.ranged) a.sword = { ...W.sw };   // the blade it holds is the one you see
   a.size = Math.max(a.size || 1, 1 + 0.06*a.grade);
   if (a.srole === 'swift') a.swift = true;
   a.spellT = rnd(2, 5); a.tauntT = rnd(3, 7);
@@ -3152,7 +3176,7 @@ function drawSystem(){
 }
 /* ===== YOUR LEGION IS KEPT: every shadow you own (standing or resting in the dark) is written to the save, so it is still
    yours when you come back tomorrow. And the bigger and stronger the legion, the stronger you are. ===== */
-const legionEntry = a => ({ type:a.type, spec:a.species || '', size:a.size || 1, dmg:a.dmg, pow:a.pow || 0, tier:a.tier || '', grade:a.grade || 0, xp:Math.round(a.xp || 0), sname:a.sname || '', srole:a.srole || '' });
+const legionEntry = a => ({ type:a.type, spec:a.species || '', size:a.size || 1, dmg:a.dmg, pow:a.pow || 0, tier:a.tier || '', grade:a.grade || 0, xp:Math.round(a.xp || 0), sname:a.sname || '', srole:a.srole || '', fuse:a.fuse || 0, wt:a.wt ?? null, mb:a.mb ?? null });
 function legionList(){ return (G.stored || []).map(legionEntry).concat((G.allies || []).filter(a => !a.kept).map(legionEntry)); }
 function syncLegion(now){
   if (!G.stored) return;
@@ -3160,7 +3184,54 @@ function syncLegion(now){
   if (now) save(); else saveSoon();
 }
 /* +0.5% per shadow, +1% per elite, +3% per boss shadow; up to +300% */
-function legionBonusOf(list){ let b = 0; for (const d of list || []) b += d.grade != null ? GRADE_BONUS[d.grade] : d.tier === 'boss' ? 0.03 : d.tier === 'elite' ? 0.01 : 0.005; return Math.min(3, b); }
+const entryBonus = d => { const g = d.grade != null ? GRADE_BONUS[d.grade] : d.tier === 'boss' ? 0.03 : d.tier === 'elite' ? 0.01 : 0.005; return d.mb != null ? Math.max(d.mb, g) : g; };
+function legionBonusOf(list){ let b = 0; for (const d of list || []) b += entryBonus(d); return Math.min(3, b); }   // a merged shadow keeps the power of all it was made from (and a little more)
+/* ===== SHADOW MERGE: three shadows of the same kind and the same grade, resting in the dark, become one: a grade higher,
+   bigger, a star stronger, with a better weapon. It costs less mana to keep one giant than three small ones.
+   Open the Shadow Realm (I) to merge. Shadows on the field must be sent into the dark first (B). ===== */
+const MERGE_N = 3, MAX_FUSE = 12;
+const mergeKind = d => d.spec && SPECIES[d.spec] ? SPECIES[d.spec].name : (d.type || '?').charAt(0).toUpperCase() + (d.type || '?').slice(1);
+function mergeGroups(){
+  const by = {};
+  for (const d of G.stored || []){ normalizeShadow(d); const k = (d.spec || d.type) + '|' + d.grade; (by[k] = by[k] || { key:k, kind:mergeKind(d), grade:d.grade, list:[] }).list.push(d); }
+  return Object.values(by).filter(g => g.list.length >= MERGE_N && !g.list.every(d => d.grade >= 6 && d.fuse >= MAX_FUSE))
+    .sort((a, b) => b.grade - a.grade || b.list.length - a.list.length);
+}
+function fuseShadows(list){
+  list.sort((a, b) => (b.fuse || 0) - (a.fuse || 0) || (b.xp || 0) - (a.xp || 0));
+  const top = list[0], max = k => Math.max(...list.map(d => d[k] || 0));
+  const keep = list.find(d => d.sname);
+  const out = { ...top, grade:Math.min(6, top.grade + 1), fuse:Math.min(MAX_FUSE, max('fuse') + 1), wt:Math.min(SHADOW_ARMS.length - 1, max('wt') + 1),
+    size:Math.min(2.8, Math.max(1, max('size'))*1.12), dmg:max('dmg')*1.35, pow:list.reduce((s, d) => s + (d.pow || 0), 0), xp:0,
+    mb:list.reduce((s, d) => s + entryBonus(d), 0)*1.1, sname:keep ? keep.sname : '' };
+  if (list.some(d => d.tier === 'boss')) out.tier = 'boss'; else if (list.some(d => d.tier === 'elite')) out.tier = 'elite';
+  return out;
+}
+function mergeGroup(key, all){   // all: every triple in the group; otherwise one
+  let made = 0, best = null;
+  for (;;){
+    const g = mergeGroups().find(x => x.key === key); if (!g) break;
+    const pickN = g.list.sort((a, b) => (a.fuse || 0) - (b.fuse || 0) || (a.xp || 0) - (b.xp || 0)).slice(0, MERGE_N);   // the weakest of the kind go first
+    G.stored = G.stored.filter(d => !pickN.includes(d));
+    const m = fuseShadows(pickN); if (!m.sname) m.sname = shadowName();
+    G.stored.push(m); made++; if (!best || m.grade > best.grade || m.fuse > best.fuse) best = m;
+    if (!all) break; }
+  return { made, best };
+}
+function mergeAll(){
+  let made = 0, best = null, g;
+  while ((g = mergeGroups()[0]) && made < 5000){ const r = mergeGroup(g.key, true); made += r.made; if (r.best && (!best || r.best.grade > best.grade || r.best.fuse > best.fuse)) best = r.best; if (!r.made) break; }
+  return { made, best };
+}
+function mergeFx(r){
+  const P = G.P;
+  if (!r.made){ if (P) pop(P.x, P.y - 120, 'Nothing to merge · need ' + MERGE_N + ' of the same kind and grade in the dark', 'rgba(201,168,255,0.8)'); return; }
+  syncLegion(true);
+  if (P){ const c = GRADE_COL[r.best.grade]; flash('#1A0B33', 0.25); ringFx(P.x, P.y - 40, 160, c, true); burst(P.x, P.y - 40, 30, c, 420, 5, true);
+    pop(P.x, P.y - 140, 'MERGED \u00D7' + r.made + ' \u00B7 ' + r.best.sname + ' \u2192 ' + GRADES[r.best.grade] + fuseStars(r.best), c);
+    pop(P.x, P.y - 110, armOf(r.best).name, armOf(r.best).col); G.shake = Math.max(G.shake, 6); }
+  sfx('shadow'); sfx('boom', 0.02); vib(60);
+}
 const legionBonus = () => G.mode === 'shadow' ? (G.legionB ?? legionBonusOf(SV.legion)) : 0;
 function legionStats(P){   // your health and mana grow with the legion; the ratio of what you have left stays the same
   if (!P) return; const b = legionBonus();
@@ -3245,6 +3316,9 @@ function toggleRealm(){
   if (!el){ el = document.createElement('div'); el.id = 'realmPanel';
     el.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(440px,92vw);max-height:72vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;background:rgba(12,6,26,0.94);border:1px solid #5B3FA8;border-radius:10px;padding:14px 18px;color:#E6DCFF;font:15px/1.4 Teko,sans-serif;letter-spacing:0.5px;z-index:50;pointer-events:auto;box-shadow:0 0 40px rgba(155,107,255,0.35)';
     for (const ev of ['wheel', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation(), { passive:true });   // the game must not swallow the scroll
+    for (const ev of ['pointerdown', 'touchstart']) el.addEventListener(ev, () => { G.realmT = Math.max(G.realmT || 0, 1); }, { passive:true });   // no redraw under a finger about to press a button
+    el.addEventListener('click', e => { const b = e.target.closest('[data-merge]'); if (!b) return; e.stopPropagation();   // merge buttons
+      const k = b.dataset.merge; mergeFx(k === '*' ? mergeAll() : mergeGroup(k, b.dataset.all === '1')); drawRealm(); });
     document.body.appendChild(el); }
   G.realmT = 0; drawRealm();
 }
@@ -3257,10 +3331,21 @@ function drawRealm(){
   const byG = GRADES.map(() => 0); for (const d of all) byG[normalizeShadow(d).grade]++;
   const gradeRow = `<div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;margin:0 0 8px">${GRADES.map((g, i) => `<span style="color:${GRADE_COL[i]}">${g} <b>${byG[i]}</b></span>`).join('')}</div>`;
   const named = all.filter(d => d.sname).sort((a, b) => b.grade - a.grade || b.xp - a.xp).map(d =>
-    `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:${GRADE_COL[d.grade]}">${d.sname}</span><span style="color:#B8A8E0">${GRADES[d.grade]} · ${ROLE_NAME[d.srole] || 'Blade'} · ${d.spec && SPECIES[d.spec] ? SPECIES[d.spec].name : d.type}</span></div>`).join('');
+    `<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0"><span style="color:${GRADE_COL[d.grade]}">${d.sname}${fuseStars(d)}</span><span style="color:#B8A8E0;text-align:right">${GRADES[d.grade]} · ${ROLE_NAME[d.srole] || 'Blade'} · ${d.spec && SPECIES[d.spec] ? SPECIES[d.spec].name : d.type} · <span style="color:${armOf(d).col}">${armOf(d).name}</span></span></div>`).join('');
+  const btn = (k, all, txt) => `<button data-merge="${k}" data-all="${all ? 1 : 0}" style="font:inherit;font-size:15px;letter-spacing:0.5px;color:#F3ECFF;background:#3A2470;border:1px solid #9B6BFF;border-radius:6px;padding:2px 10px;cursor:pointer;touch-action:manipulation">${txt}</button>`;
+  const groups = mergeGroups(), onField = (G.allies || []).filter(a => !a.fade).length;
+  const mergeRows = groups.map(g => { const n = g.list.length, ng = Math.min(6, g.grade + 1);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid rgba(155,107,255,0.18);padding:4px 0"><span><span style="color:${GRADE_COL[g.grade]}">${g.kind} · ${GRADES[g.grade]}</span> <b>\u00D7${n}</b> <span style="color:#8A7AB8">\u2192 ${GRADES[ng]}</span></span><span style="display:flex;gap:6px">${btn(g.key, false, 'Merge ' + MERGE_N)}${n >= MERGE_N*2 ? btn(g.key, true, 'All \u00D7' + Math.floor(n/MERGE_N)) : ''}</span></div>`; }).join('');
+  const byW = SHADOW_ARMS.map(() => 0); for (const d of all) byW[clamp(normalizeShadow(d).wt ?? 1, 0, SHADOW_ARMS.length - 1)]++;
+  const armRow = `<div style="display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:center;margin:2px 0 8px;font-size:14px">${SHADOW_ARMS.map((w, i) => `<span style="color:${w.col};opacity:${byW[i] ? 1 : 0.4}">${w.name} <b>${byW[i]}</b></span>`).join('')}</div>`;
+  const mergeBox = `<div style="border:1px solid #5B3FA8;border-radius:8px;padding:8px 10px;margin:4px 0 10px;background:rgba(40,20,80,0.35)">
+    <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:20px;color:#E9D8FF">Merge shadows</span>${groups.length ? btn('*', true, 'Merge all') : ''}</div>
+    <div style="color:#B8A8E0;font-size:14px;margin:2px 0 6px">${MERGE_N} of the same kind and grade become one: a grade higher, bigger, a star stronger, with a better weapon. Only shadows in the dark can merge${onField ? ' · ' + onField + ' on the field (B sends them back)' : ''}.</div>
+    ${mergeRows || '<div style="text-align:center;color:#8A7AB8">Nothing to merge yet. You need ' + MERGE_N + ' of the same kind and grade in the dark.</div>'}
+    <div style="color:#C9A8FF;margin:8px 0 2px;font-size:15px">Weapons · each merge climbs one step</div>${armRow}</div>`;
   el.innerHTML = `<div style="font-size:24px;color:#C9A8FF;text-align:center">Shadow Realm</div>
     <div style="text-align:center;margin:2px 0 10px;color:#B8A8E0">${all.length.toLocaleString()} soldiers · ${field} on the field · ${(all.length - field).toLocaleString()} in the dark · power +${Math.round(legionBonus()*100)}%</div>
-    ${gradeRow}${named ? `<div style="color:#C9A8FF;margin:6px 0 2px">Named shadows · grades rise with kills, up to ${GRADES[maxGrade()]} at your rank</div>${named}<div style="color:#C9A8FF;margin:10px 0 2px">By kind</div>` : ''}
+    ${gradeRow}${mergeBox}${named ? `<div style="color:#C9A8FF;margin:6px 0 2px">Named shadows · grades rise with kills, up to ${GRADES[maxGrade()]} at your rank</div>${named}<div style="color:#C9A8FF;margin:10px 0 2px">By kind</div>` : ''}
     ${rows || '<div style="text-align:center;color:#8A7AB8">The realm is empty. Raise the fallen with Alt.</div>'}
     <div style="text-align:center;margin-top:10px;color:#8A7AB8">There is no limit to how many the realm holds · scroll for more · ${isTouch ? 'tap Realm' : 'I'} to close</div>`;
   el.scrollTop = keep;
@@ -4012,7 +4097,7 @@ function callShadows(P, side){
     const pl = legionPlace(i, back), x = clamp(P.x + dir*pl[0], 20, G.worldW - 20);
     const a = makeEnemy(d.type, x, G.diff, false);
     a.shadow = true; a.species = d.spec || ''; a.size = d.size; a.dmg = d.dmg; a.pow = d.pow || 0; a.tier = d.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = -Math.min(0.12*i, 2.2*i/n);   /* one after another, but the whole legion is up within about two seconds */ a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
-    a.grade = d.grade; a.xp = d.xp; a.sname = d.sname; a.srole = d.srole; applyGrade(a);
+    a.grade = d.grade; a.xp = d.xp; a.sname = d.sname; a.srole = d.srole; a.fuse = d.fuse || 0; a.wt = d.wt; a.mb = d.mb; applyGrade(a);
     a.rankT = legionPlace(i, back)[1]; a.idx = i; a.post = x; a.postFace = face;   // it stands right here and does nothing until you press Q
     G.allies.push(a); ringFx(x, GROUND - 10, 60, '#9B6BFF', true); });
   P.mana -= n*CALL_COST; G.legionMode = 'guard';
@@ -4251,13 +4336,13 @@ function alliesTick(dt){
     else if (a.role === 'guard') tgt = a.tgt && !a.tgt.dead ? a.tgt : null;
     else { tgt = null; a.tgt = null; }
     if (a.state === 'windup'){ a.timer -= dt*(a.swift ? 1.8 : 1); a.vx = 0; if (a.timer <= 0){ a.state = 'swing'; a.timer = 0.14;
-        if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; const hpB = tgt.hp; damageEnemy(tgt, a.dmg*(a.gradeK || 1)*(a.led ? 1.25 : 1)*(1 + legionBonus()*0.5)*(1 + 0.6*hunterRank()), { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true, unblockable:true }); G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false;
+        if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size*(a.reach || 1)){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; const hpB = tgt.hp; damageEnemy(tgt, a.dmg*(a.gradeK || 1)*(a.led ? 1.25 : 1)*(1 + legionBonus()*0.5)*(1 + 0.6*hunterRank()), { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true, unblockable:true }); G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false;
           if (tgt.dead || tgt.hp <= 0){ a.xp = (a.xp || 0) + 1 + 2*(tgt.beastRank || 0) + (tgt.slayer ? 10 : 0) + (tgt.dunBoss ? 40 : 0); promote(a); if (a.grade >= 4 && Math.random() < 0.15) allySay(a, pick(COMMAND_LINES)); } else if (hpB > tgt.hp) a.xp = (a.xp || 0) + 0.05;
           if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0}); } } }
     else if (a.state === 'swing'){ a.timer -= dt; if (a.timer <= 0){ a.state = 'recover'; a.timer = 0.3; } }
     else if (a.state === 'recover'){ a.timer -= dt; a.vx = 0; if (a.timer <= 0) a.state = 'idle'; }
     else if (tgt){ const dx = tgt.x - a.x; if (Math.abs(dx) > 8) a.face = sign(dx);
-      if (Math.abs(dx) < 55*a.size){ a.state = 'windup'; a.timer = 0.22; a.vx = 0; } else { a.vx = sign(dx)*spd; a.state = 'chase'; } }
+      if (Math.abs(dx) < 55*a.size*(a.reach || 1)){ a.state = 'windup'; a.timer = 0.22; a.vx = 0; } else { a.vx = sign(dx)*spd; a.state = 'chase'; } }
     else {   // to its spot by you, then still, facing out (no flipping back and forth)
       const home = clamp(P.x + (a.slot || 0), 20, G.worldW - 20), dx = home - a.x;
       if (Math.abs(dx) > 14){ a.vx = sign(dx)*Math.min(spd*1.4, Math.abs(dx)*5); a.state = 'chase'; a.face = sign(dx); }
@@ -4287,12 +4372,14 @@ function drawShadowLegion(){
     const dy = (1 - rise)*90*s + (1 - fade)*90*s; a.y += dy; a.size = s;   // every rank stands on the same ground; the ones further back are a little smaller and darker
     if (G.allies.length <= 12){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 36*s, 4, a.x, a.y - 36*s, 60*s); g.addColorStop(0, `rgba(155,107,255,${0.25*fade})`); g.addColorStop(1, 'rgba(155,107,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 36*s, 60*s, 0, 6.283); ctx.fill(); ctx.restore(); }
     ctx.save(); ctx.globalAlpha = 0.35*fade; ctx.fillStyle = '#05030C'; ctx.beginPath(); ctx.ellipse(a.x, a.y, 14*s, 3*s, 0, 0, 6.283); ctx.fill(); ctx.restore();   // its feet on the ground
+    if (a.fuse && rk < 0.5){ const W = armOf(a); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = fade*Math.min(0.55, 0.18 + 0.05*a.fuse)*(0.85 + 0.15*Math.sin(G.time*4 + a.x));   // merged: its weapon's light around it
+      const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 85*s); g.addColorStop(0, W.col); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 85*s, 0, 6.283); ctx.fill(); ctx.restore(); }
     const hd = drawStick(a, (0.92 - 0.1*rk)*fade, rk > 0.5 ? (rk > 2.5 ? '#120C26' : '#17102E') : '#1E1438');
     const gc = GRADE_COL[a.grade || 0];
     if (hd){ ctx.globalAlpha = fade; ctx.fillStyle = (a.grade || 0) ? gc : 'rgb(160,200,255)'; ctx.beginPath(); ctx.arc(hd[0] + (a.face || 1)*3*s, hd[1] - 1, (2.2 + 0.3*(a.grade || 0))*s*Math.sqrt(ui), 0, 6.283); ctx.fill();   // the eyes: their grade's colour
       if ((a.grade || 0) >= 2 && FXL() > 0) glowDot(ctx, hd[0] + (a.face || 1)*3*s, hd[1] - 1, (5 + a.grade)*s, gc, 0.6);
       if ((a.grade || 0) >= 5){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 70*s); g.addColorStop(0, 'rgba(255,230,180,0.25)'); g.addColorStop(1, 'rgba(255,230,180,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 70*s, 0, 6.283); ctx.fill(); ctx.restore(); }
-      if (a.sname && rise >= 1 && fade >= 1 && rk < 0.5 && !G._nameXs.some(x => Math.abs(x - a.x) < 95*ui) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = `600 ${Math.round(13*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade], a.x, hd[1] - 16*s); }
+      if (a.sname && rise >= 1 && fade >= 1 && rk < 0.5 && !G._nameXs.some(x => Math.abs(x - a.x) < 95*ui) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = `600 ${Math.round(13*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade] + fuseStars(a), a.x, hd[1] - 16*s); }
       ctx.globalAlpha = 1; }
     if (a.idx != null && (a.idx + 1) % 50 === 0 && rise >= 1 && fade >= 1){ ctx.font = `600 ${Math.round(12*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,208,255,0.85)'; ctx.fillText(String(a.idx + 1), a.x, GROUND + 26*ui); }   // a mark every fifty, to count them by
     a.y -= dy; a.size = s0; ctx.restore(); }
