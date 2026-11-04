@@ -3281,6 +3281,7 @@ function monarchTick(dt){
   // I: Shadow Realm
   if (pressed.realm) toggleRealm();
   if (pressed.forge) toggleForge();
+  forgeTick(dt);
   if (pressed.shNames){ SV.set.shNames = !SV.set.shNames; saveSoon(); toast(SV.set.shNames ? 'Shadow names: on' : 'Shadow names: off', 1.2); }   // G: show or hide the names over your shadows
   if (pressed.armyView){ G.armyView = G.armyView === false; pop(P.x, P.y - 130, G.armyView ? 'Army view: whole legion' : 'Army view: off', '#C9A8FF'); }
   if (G.realmOpen){ G.realmT = (G.realmT || 0) - dt; if (G.realmT <= 0){ G.realmT = 0.5; drawRealm(); } }
@@ -3352,6 +3353,92 @@ function drawForgeArmor(P){
   if (it.pow >= 12 && FXL() > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(0.45, 0.12 + it.pow/900); ctx.drawImage(glowSprite(forgeRarity(it.pow)[1]), -W*0.8, -H*0.8, W*1.6, H*1.6); ctx.restore(); }
   ctx.globalAlpha = P.inv > 0 && Math.floor(G.time*20) % 2 === 0 ? 0.5 : 0.96; ctx.drawImage(im, -W/2, -H/2, W, H); ctx.restore(); ctx.globalAlpha = 1;
 }
+/* ===== FORGE II: the drawing decides how it fights, and the shadows give it their nature =====
+   SHAPE: the weapon you draw is measured (how long the ink runs, how thick, how much of it sits at the tip):
+     long and thin = Spear (reach), heavy at the tip = Axe / Hammer (breaks armour, throws them back, slower),
+     short = Dagger (fast, double from behind), anything else = Blade (balanced, cuts one more each swing).
+   SOUL TRAIT: the kind of shadow that gave the most power gives its nature (Ice Elves freeze, Ants drink blood...).
+   SOUL SKILL: a boss shadow in the mix leaves its echo: every 20 s in a fight, three of its kind rise for 15 s. ===== */
+const FORGE_CLS = {
+  spear: { name:'Spear',        reach:1.4,  spd:0.9,  kb:1,   cleave:0, desc:'reach +40% \u00b7 10% slower' },
+  heavy: { name:'Axe / Hammer', reach:1.1,  spd:0.8,  kb:1.8, cleave:0, armor:3, desc:'breaks armour \u00b7 knockback \u00d71.8 \u00b7 20% slower' },
+  dagger:{ name:'Dagger',       reach:0.9,  spd:1.35, kb:0.8, cleave:0, back:2, desc:'35% faster \u00b7 \u00d72 from behind' },
+  blade: { name:'Blade',        reach:1,    spd:1,    kb:1,   cleave:1, desc:'balanced \u00b7 cuts one more enemy per swing' },
+};
+const SOUL_TRAITS = {
+  ant:     { name:'Hive Hunger',   w:{ steal:0.03 },  a:{ regen:0.006 },  wd:'heals you 3% of every hit',          ad:'heals 0.6% health every second' },
+  centipede:{ name:'Venom Coil',   w:{ bleed:0.3 },   a:{ regen:0.004 },  wd:'every hit makes them bleed',         ad:'heals 0.4% health every second' },
+  iceelf:  { name:'Rime',          w:{ freeze:0.25 }, a:{ chill:0.9 },    wd:'25% chance to freeze them 1.5 s',     ad:'whoever hits you freezes a moment' },
+  orc:     { name:'Warcry',        w:{ quake:4 },     a:{ steady:1 },     wd:'every 4th hit sends out a shockwave', ad:'nothing knocks you back' },
+  wolf:    { name:'Pounce',        w:{ dashK:2 },     a:{ dodge:0.12 },   wd:'first hit after a dash \u00d72',      ad:'12% of blows miss you' },
+  undead:  { name:'Grave Rot',     w:{ bleed:0.3 },   a:{ undying:90 },   wd:'every hit makes them bleed',         ad:'once every 90 s a killing blow leaves you at 1 HP' },
+  lizard:  { name:'Cold Blood',    w:{ crit:0.15 },   a:{ reflect:0.1 },  wd:'15% chance of a double-damage hit',   ad:'10% of the damage goes back at them' },
+  golem:   { name:'Stoneheart',    w:{ armor:3 },     a:{ reflect:0.15, dr:0.05 }, wd:'every hit breaks armour',   ad:'15% thrown back, and 5% less taken' },
+  goblin:  { name:'Quick Fingers', w:{ spd:1.2 },     a:{ dodge:0.08 },   wd:'swings 20% faster',                  ad:'8% of blows miss you' },
+  demon:   { name:'Hellfire',      w:{ burn:0.35 },   a:{ reflect:0.12 }, wd:'every hit sets them burning',        ad:'12% of the damage burns back at them' },
+  assassin:{ name:'Killer\u2019s Eye', w:{ crit:0.15 }, a:{ dodge:0.1 }, wd:'15% chance of a double-damage hit',   ad:'10% of blows miss you' },
+  fencer:  { name:'Duelist',       w:{ cleave:1 },    a:{ dr:0.05 },      wd:'cuts one more enemy per swing',      ad:'5% less damage taken' },
+  shield:  { name:'Bulwark',       w:{ dmg:1.1 },     a:{ dr:0.08 },      wd:'+10% damage',                        ad:'8% less damage taken' },
+  archer:  { name:'Far Sight',     w:{ reach:1.15 },  a:{ dodge:0.06 },   wd:'reach +15%',                         ad:'6% of blows miss you' },
+  grunt:   { name:'Steadfast',     w:{ dmg:1.1 },     a:{ dr:0.05 },      wd:'+10% damage',                        ad:'5% less damage taken' },
+};
+const TRAIT_OF = { highorc:'orc', giant:'orc', brute:'orc', ogre:'orc', zombie:'undead', runner:'undead', bloater:'undead', ninja:'assassin', gunner:'archer', asura:'demon', demonking:'demon' };
+const traitKey = d => { const k = d.spec || d.type || 'grunt'; return SOUL_TRAITS[k] ? k : TRAIT_OF[k] || (SOUL_TRAITS[d.type] ? d.type : TRAIT_OF[d.type] || 'grunt'); };
+function forgeNature(picked){   // the trait (most power by kind) and the soul (the strongest boss shadow)
+  const by = {}; let soul = null, sp = 0;
+  for (const d of picked){ const k = traitKey(d), u = forgeUnit(d); by[k] = (by[k] || 0) + u;
+    if (d.tier === 'boss' && u > sp){ sp = u; soul = { type:d.type, spec:d.spec || '', size:d.size || 1, dmg:d.dmg || 10, name:mergeKind(d) }; } }
+  const trait = Object.keys(by).sort((a, b) => by[b] - by[a])[0] || null;
+  return { trait, soul };
+}
+function forgeShape(cv){   // read the weapon drawing: Spear, Axe / Hammer, Dagger or Blade
+  const w = cv.width, h = cv.height, px = cv.getContext('2d').getImageData(0, 0, w, h).data, col = new Array(w).fill(0);
+  let lo = w, hi = -1, tot = 0;
+  for (let x = 0; x < w; x += 2){ let n = 0; for (let y = 0; y < h; y += 2) if (px[(y*w + x)*4 + 3] > 20) n++; col[x] = n*2; if (n){ lo = Math.min(lo, x); hi = Math.max(hi, x); tot += n; } }
+  if (hi < 0) return null;
+  const len = (hi - lo)/w, span = Math.max(1, hi - lo), cols = []; let head = 0, maxHead = 0;
+  for (let x = lo; x <= hi; x += 2){ const c = col[x]; if (!c) continue; const u = (x - lo)/span; if (u >= 0.65){ head += c/2; maxHead = Math.max(maxHead, c); } else cols.push(c); }
+  cols.sort((a, b) => a - b); const mid = cols.length ? cols[cols.length >> 1] : maxHead, headShare = head/Math.max(1, tot);
+  const cls = len < 0.45 ? 'dagger' : headShare >= 0.45 && maxHead >= 2.2*mid ? 'heavy' : len >= 0.72 && mid <= h*0.16 ? 'spear' : 'blade';
+  return { cls, len:Math.round(len*100), head:Math.round(headShare*100) };
+}
+/* what the worn weapon and armour bring right now (Shadow Legion only) */
+function forgeTraitHtml(kind, trait, soul, cls){
+  const T = trait && SOUL_TRAITS[trait], C = cls && FORGE_CLS[cls], out = [];
+  if (C) out.push(`<span style="color:#9FD3FF">Shape: ${C.name}</span> <span style="color:#8A7AB8">(${C.desc})</span>`);
+  if (T) out.push(`<span style="color:#C9A8FF">Soul trait: ${T.name}</span> <span style="color:#8A7AB8">(${kind === 'weapon' ? T.wd : T.ad})</span>`);
+  if (soul) out.push(`<span style="color:#FFD27F">Soul skill: ${forgeEsc(soul.name)} Echo</span> <span style="color:#8A7AB8">(in a fight, every 20 s three of them rise for 15 s)</span>`);
+  return out.join('<br>');
+}
+function forgeShapeLine(){
+  const el = document.getElementById('fgShape'), c = document.getElementById('fgPaint'); if (!el || !c) return;
+  if (G.fg.kind !== 'weapon'){ el.innerHTML = '<span style="color:#8A7AB8">Armour: draw it over the outline; it sits on your chest and turns with you.</span>'; return; }
+  const r = forgeShape(c);
+  el.innerHTML = r ? `Your drawing reads as: ${forgeTraitHtml('weapon', null, null, r.cls)} <span style="color:#6A5A9A">\u00b7 length ${r.len}% \u00b7 ${r.head}% of it at the tip</span>`
+    : '<span style="color:#8A7AB8">Draw long and thin for a Spear, heavy at the tip for an Axe / Hammer, short for a Dagger. Anything else is a Blade.</span>';
+}
+function forgeWeaponFx(){
+  if (G.mode !== 'shadow') return null; const it = forgeItem('weapon'); if (!it) return null;
+  if (!it.cls){ const im = forgeImg(it); if (im){ const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); const r = forgeShape(c); it.cls = r ? r.cls : 'blade'; saveSoon(); } }
+  const c = FORGE_CLS[it.cls] || FORGE_CLS.blade, t = (it.trait && SOUL_TRAITS[it.trait] || {}).w || {};
+  return { c, t, armor:Math.max(c.armor || 0, t.armor || 0) };
+}
+function forgeArmorTrait(){ if (G.mode !== 'shadow') return null; const it = forgeItem('armor'); return it && it.trait && SOUL_TRAITS[it.trait] ? SOUL_TRAITS[it.trait].a : null; }
+const forgeAtkK = d => { if (d.fist) return 1; const F = forgeWeaponFx(); return F ? F.c.spd*(F.t.spd || 1) : 1; };
+/* every frame in Shadow Legion: armour regen, the soul skills, and the echoes fading */
+function forgeTick(dt){
+  const P = G.P; if (!P || P.dead) return;
+  const A = forgeArmorTrait(); if (A && A.regen && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + P.maxHp*A.regen*dt);
+  for (const kind of ['weapon', 'armor']){ const it = forgeItem(kind); if (!it || !it.soul) continue;
+    G.soulT = G.soulT || {}; G.soulT[kind] = (G.soulT[kind] ?? 6) - dt;
+    if (G.soulT[kind] > 0 || !G.E.some(e => !e.dead && !e.remote && Math.abs(e.x - P.x) < 650)) continue;
+    G.soulT[kind] = 20; const S = it.soul;
+    for (let i = 0; i < 3; i++){ P.mana += SHADOW_COST;
+      raiseShadow(P, { type:S.type, spec:S.spec, x:clamp(P.x + (i - 1)*70 - P.face*40, 30, G.worldW - 30), size:S.size, dmg:S.dmg, tier:'boss', pow:0 }, true);
+      const a = G.allies[G.allies.length - 1]; if (a){ a.kept = true; a.soulLife = 15; a.grade = Math.max(a.grade || 0, 4); applyGrade(a); a.sname = ''; } }
+    ringFx(P.x, GROUND - 10, 160, forgeRarity(it.pow)[1], true); pop(P.x, P.y - 140, 'SOUL ECHO \u00b7 ' + S.name, forgeRarity(it.pow)[1]); sfx('shadow'); }
+  for (const a of G.allies || []) if (a.soulLife != null && !a.fade){ a.soulLife -= dt; if (a.soulLife <= 0) a.fade = 0.01; }
+}
 /* --- the panel --- */
 function forgeRows(){   // named shadows one by one; the rest grouped by kind, grade, stars and tier
   const rows = [], by = {};
@@ -3381,6 +3468,7 @@ function toggleForge(){
       <div style="color:#C9A8FF;font-size:18px">2 · Draw it</div>
       <div id="fgPad" style="position:relative;margin:4px auto;touch-action:none"></div>
       <div id="fgTools" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:4px 0"></div>
+      <div id="fgShape" style="font-size:14px;margin:2px 0 4px"></div>
       <div style="color:#C9A8FF;font-size:18px;margin-top:4px">3 · Name it and forge</div>
       <div style="display:flex;gap:6px;align-items:center;margin:4px 0 2px"><input id="fgName" maxlength="28" placeholder="Name (optional)" style="flex:1;font:inherit;font-size:16px;background:#1A0E36;color:#F3ECFF;border:1px solid #5B3FA8;border-radius:6px;padding:3px 8px"><button data-f="forge" class="fgB" style="background:#6A3FD0;font-size:19px;padding:3px 18px">FORGE</button></div>
       <div id="fgMsg" style="min-height:20px;color:#FF8A9A"></div></div>
@@ -3416,8 +3504,8 @@ function forgeKind(k, first){
   c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { c.setPointerCapture(e.pointerId); } catch(_){}
     F.undo.push(x.getImageData(0, 0, w, h)); if (F.undo.length > 25) F.undo.shift(); last = at(e); line(last, last); });
   c.addEventListener('pointermove', e => { if (!last) return; e.preventDefault(); const p = at(e); line(last, p); last = p; });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) c.addEventListener(ev, () => { last = null; });
-  forgeTools();
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) c.addEventListener(ev, () => { if (last) forgeShapeLine(); last = null; });
+  forgeTools(); forgeShapeLine();
 }
 function forgeTools(){
   const F = G.fg, cols = ['#FFFFFF', '#E9D8FF', '#C9A8FF', '#9B6BFF', '#5B3FA8', '#2B1D4E', '#0A0614', '#7FD3FF', '#3FA9FF', '#7FE39F', '#FFD23F', '#FF8A3A', '#FF3B5C', '#B3242B', '#8A8F96', '#5A4632'];
@@ -3442,6 +3530,7 @@ function forgeSum(){
   if (!picked.length){ el.innerHTML = '<span style="color:#8A7AB8">Pick shadows above. The stronger they are and the more you give, the stronger the ' + (F.kind === 'weapon' ? 'weapon' : 'armour') + '.</span>'; return; }
   const [rn, rc] = forgeRarity(p), lose = legionBonusOf(picked);
   el.innerHTML = `<b>${picked.length.toLocaleString()}</b> shadows \u00b7 power <b>${Math.round(p*10)/10}</b> \u00b7 <span style="color:${rc}">${rn}</span> \u00b7 <span style="color:#FFE7A8">${forgeStat(F.kind, p)}</span>
+    <div style="font-size:14px;margin-top:2px">${(() => { const N = forgeNature(picked); return forgeTraitHtml(F.kind, N.trait, N.soul, null); })()}</div>
     <div style="color:#8A7AB8;font-size:13px">They become the ${F.kind === 'weapon' ? 'weapon' : 'armour'} for good. Legion power \u2212${Math.round(lose*100)}%.</div>`;
 }
 function forgeBag(){
@@ -3450,7 +3539,7 @@ function forgeBag(){
     return `<div style="display:flex;gap:10px;align-items:center;border:1px solid ${on ? rc : '#3A2470'};border-radius:8px;padding:6px 8px;margin:5px 0;background:rgba(40,20,80,${on ? 0.5 : 0.25})">
       <img src="${it.img}" style="width:${it.kind === 'weapon' ? 120 : 56}px;height:${it.kind === 'weapon' ? 35 : 65}px;object-fit:contain;background:#140A2C;border-radius:6px;flex:none">
       <div style="flex:1;min-width:0"><div style="font-size:18px;color:${rc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${forgeEsc(it.name)}</div>
-        <div style="font-size:13px;color:#B8A8E0">${it.kind === 'weapon' ? 'Weapon' : 'Armour'} \u00b7 ${rn} \u00b7 <span style="color:#FFE7A8">${forgeStat(it.kind, it.pow)}</span> \u00b7 from ${it.n.toLocaleString()} shadows</div></div>
+        <div style="font-size:13px;color:#B8A8E0">${it.kind === 'weapon' ? 'Weapon' : 'Armour'} \u00b7 ${rn} \u00b7 <span style="color:#FFE7A8">${forgeStat(it.kind, it.pow)}</span> \u00b7 from ${it.n.toLocaleString()} shadows</div><div style="font-size:13px;line-height:1.3">${forgeTraitHtml(it.kind, it.trait, it.soul, it.kind === 'weapon' ? it.cls : null)}</div></div>
       <div style="display:flex;flex-direction:column;gap:4px;flex:none"><button data-f="eq:${it.id}" class="fgB${on ? ' on' : ''}">${on ? 'Worn' : 'Wear'}</button><button data-f="del:${it.id}" class="fgB" style="font-size:13px">${G.fg.del === it.id ? 'Sure?' : 'Shatter'}</button></div></div>`; }).join('')
     : '<div style="text-align:center;color:#8A7AB8;padding:14px">Nothing forged yet.</div>';
 }
@@ -3469,8 +3558,8 @@ function forgeClick(e){
   if (cmd === 'tool'){ F.tool = arg; forgeTools(); return; }
   if (cmd === 'mirror'){ F.mirror = !F.mirror; forgeTools(); return; }
   const c = document.getElementById('fgPaint'), x = c && c.getContext('2d');
-  if (cmd === 'undo' && x){ const u = F.undo.pop(); if (u) x.putImageData(u, 0, 0); return; }
-  if (cmd === 'clear' && x){ F.undo.push(x.getImageData(0, 0, c.width, c.height)); x.clearRect(0, 0, c.width, c.height); return; }
+  if (cmd === 'undo' && x){ const u = F.undo.pop(); if (u) x.putImageData(u, 0, 0); forgeShapeLine(); return; }
+  if (cmd === 'clear' && x){ F.undo.push(x.getImageData(0, 0, c.width, c.height)); x.clearRect(0, 0, c.width, c.height); forgeShapeLine(); return; }
   if (cmd === 'eq'){ const it = (SV.forge || []).find(f => f.id === arg); if (!it) return; SV.forgeEq = SV.forgeEq || {}; SV.forgeEq[it.kind] = SV.forgeEq[it.kind] === it.id ? null : it.id; save(); forgeBag();
     const P = G.P; if (P && SV.forgeEq[it.kind]) pop(P.x, P.y - 130, (it.kind === 'weapon' ? 'Wielding ' : 'Wearing ') + it.name, forgeRarity(it.pow)[1]); return; }
   if (cmd === 'del'){ if (F.del !== arg){ F.del = arg; forgeBag(); return; } F.del = null; SV.forge = (SV.forge || []).filter(f => f.id !== arg);
@@ -3486,6 +3575,8 @@ function forgeNow(){
   const p = picked.reduce((s, d) => s + forgeUnit(d), 0), [rn, rc] = forgeRarity(p);
   const it = { id:'f' + Date.now().toString(36) + ((Math.random()*1e5)|0).toString(36), kind:F.kind, name:(F.name || '').trim() || rn + ' Shadow ' + (F.kind === 'weapon' ? 'Blade' : 'Mail'),
     pow:Math.round(p*10)/10, n:picked.length, img:c.toDataURL('image/png'), at:Date.now() };
+  { const N = forgeNature(picked); it.trait = N.trait; it.soul = N.soul; if (F.kind === 'weapon'){ const sh = forgeShape(c); it.cls = sh ? sh.cls : 'blade'; } }
+  if (!(F.name || '').trim()){ const T = it.trait && SOUL_TRAITS[it.trait]; it.name = rn + ' ' + (T ? T.name + ' ' : '') + (F.kind === 'weapon' ? ({ spear:'Spear', heavy:'Axe', dagger:'Dagger' })[it.cls] || 'Blade' : 'Mail'); }   // a name from what it is
   G.stored = (G.stored || []).filter(d => !picked.includes(d));
   SV.forge = SV.forge || []; SV.forge.push(it); SV.forgeEq = SV.forgeEq || {}; SV.forgeEq[it.kind] = it.id;   // worn straight away
   syncLegion(true);
@@ -7049,7 +7140,7 @@ function updatePlayer(dt){
     }
     else if (pressed.dash && !(P.noDashT > 0) && P.dashCd <= 0 && (P.onG || (hasAbil('airDash') && !P.airDashUsed))){
       if (!P.onG) P.airDashUsed = true;
-      P.dashT = 0.17; P.dashCd = 0.5; P.inv = 0.24; if (mv) P.face = mv; P.atk = null; P.blockT=-1; sfx('dash'); P.dashHits = new Set();
+      P.dashT = 0.17; P.dashEndT = G.time + 0.17; P.pounced = false; P.dashCd = 0.5; P.inv = 0.24; if (mv) P.face = mv; P.atk = null; P.blockT=-1; sfx('dash'); P.dashHits = new Set();
     }
     if (pressed.ymod) P.yT = G.time;
     if (pressed.attack){   // throw break: hit punch as they reach for you
@@ -7072,7 +7163,7 @@ function updatePlayer(dt){
   }
   if (P.atk){
     const A = P.atk, d = A.d;
-    A.t += dt;
+    A.t += dt*forgeAtkK(d);   // a forged dagger is quick, an axe slow
     if (d.fist){
       const acting = A.t >= d.wind && A.t <= d.wind + d.act;
       if (d.rush && acting){ P.vx = P.face*d.rush; P.inv = Math.max(P.inv, 0.06); if (Math.random() < 0.7) G.echoes.push({ snap:{ isPlayer:true, x:P.x, y:P.y, vx:0, face:P.face, size:1, onG:P.onG, walk:P.walk, sword:P.sword, form:null, atk:null, blockT:-1, dashT:1, hurtT:0 }, life:0.14, max:0.3, col:ST.trail }); }
@@ -7306,7 +7397,8 @@ function startAttack(which){
 /* Slash hit-test for the player or the clone */
 function slashHits(who, A, mult){
   const ST = G.ST, sw = ST.sword, d = A.d;
-  const cleave = (d.cleave ? d.cleave : (sw.cleave || 2) + (d.heavy ? 1 : 0)) + ((ST.passive === 'crescent' || ST.passive === 'kaal') ? 1 : 0);
+  const FW = who.isPlayer && !who.isClone && !sw.fist ? forgeWeaponFx() : null;   // the weapon you forged: its shape and its soul
+  const cleave = (d.cleave ? d.cleave : (sw.cleave || 2) + (d.heavy ? 1 : 0)) + ((ST.passive === 'crescent' || ST.passive === 'kaal') ? 1 : 0) + (FW ? (FW.c.cleave || 0) + (FW.t.cleave || 0) : 0);
   const knuck = sw.fist && hasAbil('ironKnuckle');
   if (d.quake){
     if (!A.quaked){ A.quaked = true;
@@ -7324,7 +7416,7 @@ function slashHits(who, A, mult){
     if (e.remote && A.clashed) continue;   // duel: this cut was turned aside by the rival's blade
     const dx = (e.x - who.x) * who.face;
     const big = who.isPlayer && who.monarch ? who.size || 1 : 1;   // the Monarch reaches as far as he is tall
-    const reach = d.range*big + 12*e.size;
+    const reach = d.range*big*(FW ? FW.c.reach*(FW.t.reach || 1) : 1) + 12*e.size;
     const vtol = (46 + 20*e.size + (sw.wide ? 25 : 0) + (e.onG ? 0 : 95))*big;
     if (dx > -18 && dx < reach && Math.abs((e.y - 30*e.size) - (who.y - 34)) < vtol){
       if (sw.fist && !d.rush && !d.grab && !fistContact(who, d, e)) continue;   // the blow has not reached the body yet
@@ -7348,17 +7440,25 @@ function slashHits(who, A, mult){
       if (sw.fist && e.state === 'stun'){ dmg *= 1.5; tag = 'Crush'; }
       if (sw.reap && !isBoss(e) && e.hp/e.maxHp < 0.25){ dmg *= 2; tag = 'Reap'; }
       if (!who.isClone && hasAbil('lastStand') && G.P.hp/G.P.maxHp < 0.35) dmg *= 1.35;
+      if (FW){ if (FW.c.back && sign(who.x - e.x) !== e.face && !isBoss(e)){ dmg *= FW.c.back; tag = 'Backstab'; }
+        if (FW.t.crit && Math.random() < FW.t.crit){ dmg *= 2; tag = 'Critical'; }
+        if (FW.t.dashK && !G.P.pounced && G.time - (G.P.dashEndT || -9) < 0.8){ dmg *= FW.t.dashK; G.P.pounced = true; tag = 'Pounce'; }
+        if (FW.t.dmg) dmg *= FW.t.dmg; }
       let poisonHit = 0;
       if (!who.isClone && (ST.passive === 'serpent' || ST.passive === 'kaal')){ G.P.venomN = (G.P.venomN || 0) + 1; if (G.P.venomN % 4 === 0) poisonHit = 5; }
       if (d.grab && !who.isClone && !isBoss(e)){   // slam them over your shoulder
         e.x = who.x - who.face*46; e.face = who.face; e.vy = -320; e.onG = false;
         G.hitstop = Math.max(G.hitstop, 0.1); flash('#FFD9B0', 0.25); cameraKick(-who.face*8, -5);
       }
-      const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4*swK : d.kb*swK, lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
-        burn: sw.burn ? sw.burn : 0, bleed: sw.bleed ? sw.bleed : 0, low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
+      const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4*swK : d.kb*swK*(FW ? FW.c.kb : 1), lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
+        burn: sw.burn ? sw.burn : (FW && FW.t.burn ? dmg*FW.t.burn : 0), bleed: sw.bleed ? sw.bleed : (FW && FW.t.bleed ? dmg*FW.t.bleed : 0), low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
-        launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0) || (sw.para && Math.random() < sw.para ? 0.9 : 0), freeze: sw.frost && Math.random() < sw.frost ? 0.7 : 0, breakArmor: d.breakArmor || ((knuck && d.heavy) ? 3 : 0) || (sw.armorBane && d.heavy ? 2 : 0), poison: poisonHit });
+        launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0) || (sw.para && Math.random() < sw.para ? 0.9 : 0), freeze: FW && FW.t.freeze && Math.random() < FW.t.freeze ? 1.5 : sw.frost && Math.random() < sw.frost ? 0.7 : 0, breakArmor: (FW && FW.armor) || d.breakArmor || ((knuck && d.heavy) ? 3 : 0) || (sw.armorBane && d.heavy ? 2 : 0), poison: poisonHit });
       if (ok && !who.isClone) trainHit(d, sw);
+      if (ok && FW){ const P = G.P;
+        if (FW.t.steal && P.hp < P.maxHp){ const h = Math.min(dmg*forgeDmgK()*FW.t.steal, P.maxHp*0.03); P.hp = Math.min(P.maxHp, P.hp + h); if (Math.random() < 0.3) pop(P.x, P.y - 96, '+' + Math.round(h), '#7FE39F'); }
+        if (FW.t.quake && (P.fqN = (P.fqN || 0) + 1) % FW.t.quake === 0){ areaHit(e.x, e.y - 24, 150, 70, dmg*0.6, { kb:320, kbAway:true, src:'form', quiet:true, stun:0.35 }, new Set());
+          ringFx(e.x, GROUND - 6, 150, '#FFB347', true); cracks(e.x, 150, '#C9A27A'); G.shake = Math.max(G.shake, 7); pop(e.x, e.y - 110*e.size, 'Warcry!', '#FFB347'); } }
       if (ok && sw.fist){
         hitReact(e, d);
       }
@@ -8764,6 +8864,12 @@ function hurtPlayer(dmg, kb, e, full){
   if (G.mode === 'shadow' && P.monarch){ dmg *= 0.4; kb *= 0.2; full = false; P.flash = 0.1; }   // the Monarch hardly feels it
   if (G.mode === 'shadow' && P.hp < P.maxHp*0.3) dmg *= 0.6;   // Tenacity
   dmg *= forgeTakeK();   // your forged armour
+  const AT = forgeArmorTrait();   // and the nature the shadows gave it
+  if (AT){ if (AT.dodge && Math.random() < AT.dodge){ pop(P.x, P.y - 100, 'Missed!', '#C9A8FF'); P.inv = Math.max(P.inv || 0, 0.2); return; }
+    if (AT.dr) dmg *= 1 - AT.dr; if (AT.steady){ kb = 0; full = false; }
+    if (e && e.T && !e.dead && !e.remote && !e.shadow){ if (AT.reflect) damageEnemy(e, dmg*AT.reflect, { kb:120, src:'form', quiet:true, dir:sign(e.x - P.x) || 1 });
+      if (AT.chill && !isBoss(e)) damageEnemy(e, 1, { kb:0, src:'form', quiet:true, freeze:AT.chill }); }
+    if (AT.undying && P.hp - dmg <= 0 && G.time > (P.undyingT || 0)){ dmg = Math.max(0, P.hp - 1); P.undyingT = G.time + AT.undying; pop(P.x, P.y - 120, 'UNDYING', '#B8C4C0'); flash('#2B1D4E', 0.3); } }
   const iron = P.ironT > 0;
   if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0) && G.mode !== 'shadow'){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
   if (iron) dmg *= 0.5;
