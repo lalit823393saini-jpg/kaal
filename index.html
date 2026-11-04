@@ -815,7 +815,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>V</b> Monarch form, <b>I</b> Shadow Realm (merge shadows there) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>G</b> show / hide shadow names, <b>V</b> Monarch form, <b>I</b> Shadow Realm (merge shadows there) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -1891,7 +1891,7 @@ function webTouchBtn(){
   mk('swingBtn', 'kunai', 'Swing', 'Swing: web to a building and swing away');
   mk('webBtn', 'web', 'Mine', 'Web mine: a web trap in the air behind you');
   mk('netBtn', 'webnet', 'Wall', 'Web wall: a tall web wall behind you');
-  mk('venomBtn', 'venom', 'Venom', 'Venom Strike: kills the nearest enemy in one shot');
+  mk('venomBtn', 'venom', 'Venom', 'Venom Strike: kills every enemy in reach');
 }
 /* let go: whoever is on the line keeps the speed they had */
 function webDrop(P){
@@ -1922,8 +1922,8 @@ function webShoot(P, up){
 function webTick(P, dt){
   if (G.mode === 'spider' && !P.dead && !(G.spider && G.spider.over)){   // Spider Chase: you run on your own, always forward
     held.right = true; held.left = false;
-    for (const k of ['attack', 'kick', 'launch', 'climb', 'webAll', 'fire', 'webnet', 'web']) if (k !== 'web' && k !== 'webnet') pressed[k] = false;
-    spiderTrapKeys(P); pressed.web = false; pressed.webnet = false; held.fire = false; held.web = false; }
+    for (const k of ['climb', 'webAll', 'fire']) pressed[k] = false;   // J / U / N fight, the rest stays off
+    spiderTrapKeys(P); spiderAirFight(P); pressed.web = false; pressed.webnet = false; held.fire = false; held.web = false; }
   if (G.fc) fcTick(P, dt);
   if (!webOn() || P.dead){ if (P.wg) webDrop(P); return; }
   const W = P.wg;
@@ -2939,7 +2939,7 @@ function applyGrade(a){   // what a shadow's grade, role, weapon and merges do t
 }
 function promote(a){
   if (a.grade >= maxGrade() || a.xp < GRADE_XP[a.grade]) return;
-  a.xp -= GRADE_XP[a.grade]; a.grade++; if (a.grade >= 2 && !a.sname) a.sname = shadowName();
+  a.xp -= GRADE_XP[a.grade]; a.grade++; a.nameT = G.time + 3; if (a.grade >= 2 && !a.sname) a.sname = shadowName();
   applyGrade(a);
   ringFx(a.x, a.y - 40*a.size, 110, GRADE_COL[a.grade], true); burst(a.x, a.y - 40*a.size, 24, GRADE_COL[a.grade], 360, 5, true);
   pop(a.x, a.y - 130*a.size, 'PROMOTED · ' + (a.sname ? a.sname + ' → ' : '') + GRADES[a.grade], GRADE_COL[a.grade]); sfx('shadow'); vib(40);
@@ -3280,6 +3280,7 @@ function monarchTick(dt){
   if (Math.abs(P.size - sz) < 0.01) P.size = sz;
   // I: Shadow Realm
   if (pressed.realm) toggleRealm();
+  if (pressed.shNames){ SV.set.shNames = !SV.set.shNames; saveSoon(); toast(SV.set.shNames ? 'Shadow names: on' : 'Shadow names: off', 1.2); }   // G: show or hide the names over your shadows
   if (pressed.armyView){ G.armyView = G.armyView === false; pop(P.x, P.y - 130, G.armyView ? 'Army view: whole legion' : 'Army view: off', '#C9A8FF'); }
   if (G.realmOpen){ G.realmT = (G.realmT || 0) - dt; if (G.realmT <= 0){ G.realmT = 0.5; drawRealm(); } }
 }
@@ -4390,7 +4391,7 @@ function raiseShadow(P, c, many){
   c.taken = true; P.mana -= SHADOW_COST;
   const a = makeEnemy(c.type, c.x, G.diff, false);
   a.shadow = true; a.species = c.spec || ''; a.size = c.size; a.dmg = c.dmg*1.25; a.grade = gradeOfCorpse(c); a.xp = 0; if (c.healer) a.srole = 'healer'; a.pow = c.pow || 0; a.tier = c.tier || ''; a.face = P.face; a.state = 'idle'; a.timer = 0; a.rise = 0; a.y = GROUND; a.onG = true; a.vx = 0; a.vy = 0; a.hp = a.maxHp = 1;
-  applyGrade(a); G.allies.push(a);
+  applyGrade(a); a.nameT = G.time + 3; G.allies.push(a);
   if (a.grade >= 2) pop(c.x, GROUND - 140*c.size, a.sname + ' · ' + GRADES[a.grade], GRADE_COL[a.grade]);
   if (a.grade >= 4) allySay(a, pick(COMMAND_LINES));
   ringFx(c.x, GROUND - 10, 70, '#9B6BFF', true);
@@ -4546,7 +4547,7 @@ function drawShadowLegion(){
         if (Math.abs(a.vx || 0) > 40 && rk < 1.5){ const L = Math.min(36, Math.abs(a.vx)*0.07)*s, d = -sign(a.vx); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6*fade;   // the eye's light streaks behind it
           const lg = ctx.createLinearGradient(ex, ey, ex + d*L, ey); lg.addColorStop(0, ec); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.strokeStyle = lg; ctx.lineWidth = 2.2*s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + d*L, ey + 1.5*s); ctx.stroke(); ctx.restore(); } }
       if ((a.grade || 0) >= 5){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 70*s); g.addColorStop(0, 'rgba(255,230,180,0.25)'); g.addColorStop(1, 'rgba(255,230,180,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 70*s, 0, 6.283); ctx.fill(); ctx.restore(); }
-      if (a.sname && rise >= 1 && fade >= 1 && rk < 0.5 && !G._nameXs.some(x => Math.abs(x - a.x) < 95*ui) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = `600 ${Math.round(13*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade] + fuseStars(a), a.x, hd[1] - 16*s); }
+      if (a.sname && (SV.set.shNames || a.nameT > G.time) && rise >= 1 && fade >= 1 && rk < 0.5 && !G._nameXs.some(x => Math.abs(x - a.x) < 95*ui) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = `600 ${Math.round(13*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade] + fuseStars(a), a.x, hd[1] - 16*s); }
       ctx.globalAlpha = 1; }
     if (a.idx != null && (a.idx + 1) % 50 === 0 && rise >= 1 && fade >= 1){ ctx.font = `600 ${Math.round(12*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,208,255,0.85)'; ctx.fillText(String(a.idx + 1), a.x, GROUND + 26*ui); }   // a mark every fifty, to count them by
     a.y -= dy; a.size = s0; ctx.restore(); }
@@ -4896,14 +4897,15 @@ function startSpider(){
   G.spider = { spawnT:2.2, startX:G.P.x, trapped:0, over:false }; G.traps = [];
   toast('Spider Chase', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider Chase', 'Run. They are coming on foot.',
-    isTouch ? 'Swing: web-swing to get away · Mine: a web trap · Wall: a web wall · Venom: one-shot kill'
-            : 'You run on your own · W: jump · Q: swing · X: web trap · C: web wall · F: Venom Strike (one-shot kill)', '#E8202A'); }, 900);
+    isTouch ? 'Swing: web-swing to get away · Mine: a web trap · Wall: a web wall · Venom: kills everyone in reach'
+            : 'You run on your own · W: jump · Q: swing · J / U: punch / kick (in the air you fight on your own) · X: trap · C: wall · F: Venom Strike (kills everyone in reach)', '#E8202A'); }, 900);
   setScreen(null); G.running = true; webTouchBtn();
 }
 /* Spider Chase: you keep running, they keep coming on foot from behind, faster the farther you get */
 function spiderTick(dt, alive){
   const S = G.spider, P = G.P; if (!S || !P || S.over) return;
   talkTick(dt);
+  if (pressed.venom){ pressed.venom = false; if (!P.dead) spiderVenom(P); }   // read here, every frame: a hit or a stun on you can't swallow the key
   const dist = Math.max(0, Math.round((P.x - S.startX)/10));
   S.dist = dist; if (dist > (SV.spiderBest || 0)){ SV.spiderBest = dist; saveSoon(); }
   G.diff = diffFor(Math.min(12, 2 + Math.floor(dist/120)));
@@ -4928,7 +4930,7 @@ function spiderRunUpdate(e, dt){
   e.vy = (e.vy || 0) + 2200*dt; e.y += e.vy*dt;
   const FL = fcFloorE(e, y0, dt);
   if (e.y >= FL){ e.y = FL; e.vy = 0; e.onG = true; } else e.onG = false;
-  if (e.state === 'hurt' && e.timer > 0){ e.timer -= dt; e.x = clamp(e.x + (e.vx || 0)*dt, 30, G.worldW - 30); e.vx *= Math.pow(0.3, dt); e.walk += dt*2; return; }
+  if ((e.state === 'hurt' || e.state === 'down' || e.state === 'stun') && e.timer > 0){ e.timer -= dt; e.x = clamp(e.x + (e.vx || 0)*dt, 30, G.worldW - 30); e.vx *= Math.pow(0.3, dt); e.walk += dt*2; return; }
   const dist = (G.spider && G.spider.dist) || 0, dx = P.x - e.x, adx = Math.abs(dx), behind = dx > 0 ? dx : 0;
   const run = 470 + 60*Math.min(6, dist/150);   // faster than you run, slower than you swing
   const sprint = Math.min(1700, run + Math.max(0, behind - 260)*2.4);   // the further back, the harder they sprint
@@ -4949,26 +4951,39 @@ function spiderRunUpdate(e, dt){
   else if (close < 80 && e.atkCd <= 0){ e.atkCd = 1.2; e.flyWind = 0.28; e.flash = 0.1; }
   else e.state = 'chase';
 }
-/* F: Venom Strike. A charged venom bolt down a web line into the nearest enemy (caught in a web or not): one shot, one kill */
-const VENOM_CD = 2.5, VENOM_RANGE = 900;
+/* F: Venom Strike. A venom bolt leaps down web lines into EVERY enemy in reach (caught in a web or not): one press, all of them dead */
+const VENOM_CD = 1.5, VENOM_RANGE = 1000;
 function spiderVenom(P){
   if (G.time < (P.venomCd || 0)){ pop(P.x, P.y - 110, 'Venom: ' + (P.venomCd - G.time).toFixed(1) + ' s', 'rgba(127,227,255,0.85)'); return; }
-  let best = null, bd = VENOM_RANGE;
-  for (const e of G.E){ if (e.dead || e.remote || e.vanish) continue; const d = Math.hypot(e.x - P.x, (e.y - P.y)*0.7); if (d < bd){ bd = d; best = e; } }
-  if (!best){ pop(P.x, P.y - 110, 'No one in reach', 'rgba(255,255,255,0.75)'); return; }
-  P.venomCd = G.time + VENOM_CD; P.shotT = 0.2; P.face = sign(best.x - P.x) || P.face;
-  const h = webHandPt(P), s = best.size || 1, tx = best.x, ty = best.y - 40*s;
-  bolt(h[0], h[1], tx, ty, '#7FE3FF'); bolt(h[0], h[1], tx + rnd(-8, 8), ty + rnd(-8, 8), '#FFFFFF'); bolt(h[0], h[1] - 4, tx, ty + 6, '#3FA9FF');
-  if (best.webHeld && P.wg && P.wg.e === best) webDrop(P);
-  best.webHung = null; best.webBound = 0; best.webHeld = false;
-  best.vx = (P.face || 1)*520; best.vy = -380; best.onG = false; best.flash = 0.25; best.hp = 0; killEnemy(best);
-  ringFx(tx, ty, 90, '#7FE3FF', true); ringFx(tx, ty, 45, '#FFFFFF', true); burst(tx, ty, 26, '#7FE3FF', 520, 5, true); sparks(tx, ty);
-  pop(tx, ty - 70*s, 'VENOM STRIKE', '#7FE3FF'); flash('#BFF4FF', 0.08);
-  G.shake = Math.max(G.shake, 9); sfx('boom', 0.02); sfx('swish', 0.01); vib(45);
+  const list = G.E.filter(e => !e.dead && !e.remote && !e.vanish && Math.abs(e.x - P.x) < VENOM_RANGE && Math.abs(e.y - P.y) < 700);
+  if (!list.length){ pop(P.x, P.y - 110, 'No one in reach', 'rgba(255,255,255,0.75)'); return; }
+  P.venomCd = G.time + VENOM_CD; P.shotT = 0.2;
+  const near = list.slice().sort((a, b) => Math.abs(a.x - P.x) - Math.abs(b.x - P.x))[0]; P.face = sign(near.x - P.x) || P.face;
+  if (P.wg && P.wg.e && P.wg.st === 'hold') webDrop(P);
+  const h = webHandPt(P);
+  for (const e of list){ const s = e.size || 1, tx = e.x, ty = e.y - 40*s;
+    bolt(h[0], h[1], tx, ty, '#7FE3FF'); if (list.length <= 8) bolt(h[0], h[1], tx + rnd(-8, 8), ty + rnd(-8, 8), '#FFFFFF');
+    e.webHung = null; e.webBound = 0; e.webHeld = false; e.flyChase = false;
+    e.vx = (sign(e.x - P.x) || 1)*520; e.vy = -380; e.onG = false; e.flash = 0.25; e.hp = 0; killEnemy(e);
+    ringFx(tx, ty, 80, '#7FE3FF', true); burst(tx, ty, 16, '#7FE3FF', 480, 4, true); }
+  pop(P.x, P.y - 120, list.length > 1 ? 'VENOM STRIKE \u00d7' + list.length : 'VENOM STRIKE', '#7FE3FF'); flash('#BFF4FF', 0.1);
+  ringFx(P.x, P.y - 50, 220, '#7FE3FF', true); G.shake = Math.max(G.shake, 10); sfx('boom', 0.02); sfx('swish', 0.01); vib(55);
+}
+/* in the air (on a web line or flying off one) the hero fights on his own: anyone who gets close gets kicked and punched out of the sky */
+function spiderAirFight(P){
+  P.airFightCd = (P.airFightCd || 0) - 1/60;
+  if (P.dead || P.onG || P.atk || P.form || P.airFightCd > 0) return;
+  let best = null, bd = 125;
+  for (const e of G.E){ if (e.dead || e.remote || e.webBound > 0 || e.webHung || e.webHeld) continue;
+    const dx = Math.abs(e.x - P.x), dy = Math.abs((e.y - 40*(e.size || 1)) - (P.y - 40)); if (dx < bd && dy < 130){ bd = dx; best = e; } }
+  if (!best) return;
+  P.face = sign(best.x - P.x) || P.face; P.airFightN = (P.airFightN || 0) + 1;
+  startAttack(P.airFightN % 3 === 0 ? 'punch' : 'kick');
+  if (P.atk){ P.atk.tgt = best; P.airFightCd = 0.32; if (P.airFightN % 4 === 1) pop(P.x, P.y - 105, 'Air fight!', '#FFFFFF'); }
+  else P.airFightCd = 0.2;
 }
 /* traps: X lays a web mine on the floor under you, C throws up a web wall behind you */
 function spiderTrapKeys(P){
-  if (pressed.venom){ pressed.venom = false; if (!P.dead) spiderVenom(P); }
   P.mineCd = (P.mineCd || 0) - 1/60; P.wallCd = (P.wallCd || 0);
   G.traps = (G.traps || []).filter(t => t.life > 0);
   if (pressed.web){
@@ -5591,7 +5606,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
-const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
+const SHADOW_KEYS = { g:'shNames', x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
 const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory', v:'ghostAim' };   // Warzone only
 const SPIDER_KEYS = { f:'venom' };   // Spider Chase only: F = Venom Strike
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || (G_ref && G_ref.mode === 'spider' && SPIDER_KEYS[k]) || keyMap[k];
@@ -6457,6 +6472,7 @@ function damageEnemy(e, dmg, o){
     dmg *= 2.4; o = Object.assign({}, o, { kb:(o.kb || 120)*1.8, heavy:true, breakArmor:Math.max(o.breakArmor || 0, 2) });
     impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 2.5); }
   if (e.dead) return false;
+  if (G.mode === 'spider' && (o.fist || o.src === 'slash')) dmg *= 1.6;   // the suit hits harder than a man
   if (e.slayer && o.src === 'shadow'){ if (Math.random() < 0.45){ if (Math.random() < 0.3) sparks(e.x, e.y - 40*(e.size || 1)); return false; } dmg *= 0.5; }   // a Slayer turns many shadow blades aside
   if (!sameLayer(e)) return false;
   if (e.puppet){ coopSendHit(e, dmg, o); return true; }
@@ -6861,7 +6877,6 @@ function updatePlayer(dt){
       P.vy = -720*jb; P.onG = false; P.jumpsLeft = Math.max(0, P.jumpsLeft - 1); burst(P.x, P.y, 5, '#2a1418', 120, 3);
     }
     if (G.mode === 'hammer') pressed.launch = false;   // in Hammer mode N calls the storm instead
-    if (G.mode === 'spider'){ pressed.attack = false; pressed.kick = false; pressed.launch = false; }   // Spider Chase: no fighting, only running and traps
     if ((pressed.attack || pressed.kick || pressed.launch) && !P.vthrow && !P.gsum){   // no attacks while the vajra is being drawn
       const w = pressed.launch ? 'launch' : pressed.kick ? 'kick' : 'punch';
       if ((w === 'kick' || w === 'launch') && !ST.sword.fist){ if (G.time - (P.nkT||-9) > 1){ P.nkT = G.time; pop(P.x, P.y-90, 'Kicks need your fists — press H', '#FFD9B0'); } }
