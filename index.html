@@ -803,7 +803,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
     <button class="mode new" id="goGuns" style="--mc:#C9B27A"><span class="mn">Warzone · Armory</span><span class="md">Every real gun: pistols, SMGs, assault rifles, shotguns, snipers, machine guns, launchers. The enemies are armed too. Earn cash, unlock and buy guns here, and only here.</span><span class="mb" id="mbGuns">New</span></button>
     <button class="mode new" id="goShadow" style="--mc:#9B6BFF"><span class="mn">Shadow Legion · Hunter</span><span class="md">Gates open in the city: go in, clear the dungeon and its boss before the gate breaks, collect mana crystals, rise through the Hunter ranks. Kill them, then raise their shadows out of the ground to fight for you. Raise as many as you like; they stand as long as your mana lasts.</span><span class="mb">New</span></button>
     <button class="mode new" id="goHammer" style="--mc:#7FE3FF"><span class="mn">Hammer mode</span><span class="md">A war hammer of storm-iron. Smash with it, throw it with Z and it flies head first through everything in its path; Z again calls it back. Only you can lift it, and the more you fight with it the farther it flies.</span><span class="mb">New</span></button>
-    <button class="mode new" id="goSpider" style="--mc:#E8202A"><span class="mn">Spider Chase</span><span class="md">Run and swing through an endless city while they come flying after you. Leave web traps behind you to stop them. How far can you get?</span><span class="mb">New</span></button>
+    <button class="mode new" id="goSpider" style="--mc:#E8202A"><span class="mn">Spider Chase</span><span class="md">Run and swing through an endless city while they chase you on foot and never fall behind. Leave web traps to stop them, F for a one-shot Venom Strike. How far can you get?</span><span class="mb">New</span></button>
     <button class="mode" id="goFree" style="--mc:#F6B26B"><span class="mn">Free mode</span><span class="md">Sandbox. Spawn anything, set the strength, test your loadout.</span><span class="mb" id="mbFree"></span></button>
     <button class="mode" id="goDuel" style="--mc:#C9A8FF"><span class="mn">Online duel</span><span class="md">Fight a friend in real time, best of 3.</span><span class="mb">Your Dojo loadout comes with you</span></button>
     <button class="mode" id="goBoard" style="--mc:#FFD23F"><span class="mn">Leaderboard</span><span class="md">Top survival scores from everyone who plays.</span><span class="mb">See the top 20</span></button>
@@ -1320,7 +1320,7 @@ const isBoss = e => !!e.T.boss;
 /* hand to hand: when the player puts the sword away (H), ordinary enemies put theirs away too */
 const EFIST = { fist:true, len:0, w:2.6, edge:'#B8323C' };
 const brawlOn = () => !!(G.ST && G.ST.sword && G.ST.sword.fist) && G.mode !== 'duel';
-const brawler = e => !!e && !e.isPlayer && !e.remote && !e.puppet && !e.isClone && !e.T.boss && brawlOn();
+const brawler = e => !!e && !e.isPlayer && !e.remote && !e.puppet && !e.isClone && !e.T.boss && !e.modeArmed && brawlOn();   // a mode's armed enemies keep their weapons out
 /* enemy strings: punch = high, hkick = high, kick = mid, lkick = low */
 const BRAWL_STRINGS = [['punch','punch'], ['punch','punch','kick'], ['punch','hkick'], ['lkick','punch'], ['punch','lkick'], ['kick'], ['hkick'], ['lkick'], ['punch','punch','punch']];
 const BRAWL_LVL = { punch:'high', hkick:'high', kick:'mid', lkick:'low', throw:'throw', flykick:'mid' };
@@ -1884,13 +1884,14 @@ const webPivot = P => webHandPt(P);
 function webTarget(P){ const W = P.wg; if (!W) return null; if (W.st === 'shot') return [W.x, W.y]; if (W.st === 'swing' || W.st === 'zipL' || W.st === 'sling') return [W.ax, W.ay]; if (W.e) return [W.e.x, W.e.y - 32*(W.e.size || 1)]; return null; }
 function webTouchBtn(){
   const box = $('extraBtns'); if (!box) return;
-  const ids = ['webBtn', 'netBtn', 'climbBtn', 'swingBtn', 'stormBtn'];
+  const ids = ['webBtn', 'netBtn', 'climbBtn', 'swingBtn', 'stormBtn', 'venomBtn'];
   if (G.mode !== 'spider'){ for (const id of ids){ const nb = document.getElementById(id); if (nb) nb.remove(); } return; }
   if (document.getElementById('swingBtn')) return;
   const mk = (id, k, label, aria) => { const b = document.createElement('button'); b.id = id; b.className = 'tb sm'; b.dataset.k = k; b.textContent = label; b.style.setProperty('--sc', '#FFFFFF'); b.setAttribute('aria-label', aria); box.appendChild(b); bindTouch(b); };
   mk('swingBtn', 'kunai', 'Swing', 'Swing: web to a building and swing away');
   mk('webBtn', 'web', 'Mine', 'Web mine: a web trap in the air behind you');
   mk('netBtn', 'webnet', 'Wall', 'Web wall: a tall web wall behind you');
+  mk('venomBtn', 'venom', 'Venom', 'Venom Strike: kills the nearest enemy in one shot');
 }
 /* let go: whoever is on the line keeps the speed they had */
 function webDrop(P){
@@ -2684,7 +2685,7 @@ function fcBoundTick(e, dt){
     e.x = H.bx; e.y = H.by + 32*e.size; e.vx = H.svx = H.vx; e.vy = H.svy = H.vy; e.onG = false;
     dx = H.bx - H.ax; dy = H.by - H.ay;
     e.webRoll = (Math.PI + Math.atan2(dy, dx) - Math.PI/2)*(e.face || 1);   // upside down along the line
-    if (H.t > H.life){ e.webHung = null; e.state = 'hurt'; e.timer = 0.7; if (G.mode === 'spider') e.flyChase = true; e.juggle = Math.max(e.juggle || 0, 1); e.vy = 0; e.webRoll = 0; pop(e.x, e.y - 100*e.size, 'Web snapped', 'rgba(255,255,255,0.8)'); }
+    if (H.t > H.life){ e.webHung = null; e.state = 'hurt'; e.timer = 0.7; e.juggle = Math.max(e.juggle || 0, 1); e.vy = 0; e.webRoll = 0; pop(e.x, e.y - 100*e.size, 'Web snapped', 'rgba(255,255,255,0.8)'); }
     return;
   }
   e.webBound -= dt;
@@ -2692,7 +2693,7 @@ function fcBoundTick(e, dt){
   const FL = fcFloorE(e, y0, dt);
   if (e.y >= FL){ e.y = FL; e.vy = 0; e.onG = true; e.vx *= Math.pow(0.02, dt); } else e.onG = false;
   e.x = clamp(e.x, 30, G.worldW - 30); e.webRoll = 0;
-  if (e.webBound <= 0){ e.webBound = 0; e.state = 'hurt'; e.timer = 0.4; pop(e.x, e.y - 100*e.size, 'Broke free', 'rgba(255,255,255,0.8)'); if (G.mode === 'spider'){ e.flyChase = true; e.vy = -400; e.onG = false; } }
+  if (e.webBound <= 0){ e.webBound = 0; e.state = 'hurt'; e.timer = 0.4; pop(e.x, e.y - 100*e.size, 'Broke free', 'rgba(255,255,255,0.8)'); if (G.mode === 'spider'){ e.flyChase = false; e.vy = -300; e.onG = false; } }
 }
 /* ----- zip up to a roof edge (S + X with nobody to strike) ----- */
 function fcZipLedge(P){
@@ -3745,7 +3746,125 @@ const FOE_WEAPONS = {
   twin:    { sw:{ len:31, w:2.4, dual:true, edge:'#DDE6EE' }, combo:4, wind:0.7, range:66, spd:1.1 },
   great:   { sw:{ len:60, w:3.8, edge:'#D8D0C8' }, combo:1, wind:1.1, range:100, spd:0.95, dmg:1.35, unblock:true },
   spear:   { sw:{ len:72, w:1.7, edge:'#FFE7A8' }, combo:2, wind:0.9, range:118, spd:1.0 },
+  // Spider Chase: what a street crew carries
+  bat:     { sw:{ len:40, w:3.0, kind:'bat', edge:'#E0B07A' },     combo:2, wind:0.95, range:76,  spd:1.0,  dmg:1.1 },
+  pipe:    { sw:{ len:42, w:3.0, kind:'pipe', edge:'#B8C0C8' },    combo:2, wind:0.95, range:78,  spd:1.0,  dmg:1.1 },
+  crowbar: { sw:{ len:36, w:2.6, kind:'crowbar', edge:'#D06060' }, combo:2, wind:0.85, range:72,  spd:1.05 },
+  baton:   { sw:{ len:32, w:2.4, kind:'baton', edge:'#7FD3FF' },   combo:3, wind:0.75, range:66,  spd:1.1 },
+  chain:   { sw:{ len:56, w:2.0, kind:'chain', edge:'#C9D0D8' },   combo:1, wind:1.05, range:104, spd:0.95, dmg:1.3, unblock:true },
+  // Hammer mode: the raiders of the north
+  axe:     { sw:{ len:44, w:2.4, kind:'axe', edge:'#F4F8FF' },     combo:2, wind:0.9,  range:80,  spd:1.0,  dmg:1.2 },
+  twinaxe: { sw:{ len:34, w:2.2, kind:'axe', dual:true, edge:'#F4F8FF' }, combo:4, wind:0.7, range:68, spd:1.15 },
+  vsword:  { sw:{ len:40, w:2.6, kind:'vsword', edge:'#E8EEF4' },  combo:2, wind:0.85, range:74,  spd:1.05 },
+  iceclub: { sw:{ len:58, w:4.0, kind:'iceclub', edge:'#BFE4FF' }, combo:1, wind:1.1,  range:102, spd:0.95, dmg:1.4, unblock:true },
 };
+const FOE_BASE_WEAPONS = ['dagger', 'katana', 'twin', 'great', 'spear'];   // the Shadow Legion's own; the other modes have their own sets
+/* ===== EVERY MODE ITS OWN ENEMIES: Spider Chase is a city crew, Hammer mode the raiders of the north.
+   Same bodies underneath (the types), but their own names, clothes, heads, hats, weapons and words. ===== */
+const SKIN_N = ['#E8C4A0', '#F2D7BE', '#C99A72'], HAIR_N = ['#B8322A', '#E0B04A', '#3A2414', '#E8E4DC', '#8A5A2A'];
+const MODE_FOES = {
+  spider:{
+    lines:['There he is! Get the bug!', 'Swing all you want, we\u2019re right behind you.', 'Cut him off at the next block!', 'Nobody outruns this crew.', 'Boss wants him wrapped in his own web.', 'He\u2019s on the rooftops, move!'],
+    grunt:   { name:'Street Thug',  cloth:['#3A3A44', '#5A1E22', '#2A3A52', '#4A4A4A'], hat:['hood', 'cap', 'beanie'], hatCol:['#22242A', '#B3242B', '#1F2E4A', '#3A3A44'], mask:[['cloth', 0.3]], hairS:['short', 'spiky', 'short'], weapons:['bat', 'pipe'] },
+    fencer:  { name:'Enforcer',     cloth:['#3A2A1E', '#1E1E24', '#2E2A26'], hat:['cap', ''], hatCol:['#14141C', '#2A2A30'], mask:[['visor', 0.5]], hairS:['short', 'bald'], beard:0.4, weapons:['crowbar', 'pipe'] },
+    assassin:{ name:'Knife Runner', cloth:['#1A1A22', '#2A1430', '#22303A'], hat:['hood'], mask:[['cloth', 1]], weapons:['dagger'], edge:'#FFFFFF' },
+    ninja:   { name:'Tech Merc',    cloth:['#22262E', '#1A2430'], hat:['tech'], mask:[['visor', 1]], eye:'#7FE3FF', glow:true, weapons:['baton'] },
+    brute:   { name:'Heavy',        cloth:['#4A3A2A', '#2E2E36', '#3A2A2A'], hat:['beanie', ''], hatCol:['#5A1E22', '#22242A'], hairS:['bald'], beard:0.7, weapons:['chain'], named:true },
+  },
+  hammer:{
+    lines:['For the frost halls!', 'Storm-caller! Face me!', 'Your hammer will hang in our chief\u2019s hall.', 'Blood on the snow tonight!', 'Shields up, brothers!', 'The ravens are watching, stranger.'],
+    grunt:   { name:'Raider',      cloth:['#5A4632', '#4A3A28', '#3A4A5A', '#5A3A2A'], skin:SKIN_N, hair:HAIR_N, hairS:['long', 'topknot', 'long'], beard:0.8, hat:['helm', 'helm', ''], horned:0.3, weapons:['axe', 'vsword'] },
+    fencer:  { name:'Huscarl',     cloth:['#2A3A5A', '#4A1E1E', '#3A3A2A'], skin:SKIN_N, hair:HAIR_N, hairS:['long', 'short'], beard:0.7, hat:['helm'], weapons:['vsword', 'spear'] },
+    assassin:{ name:'Berserker',   cloth:['#3A2A1E', '#2A2018'], skin:['#E8C4A0', '#C99A72'], hair:['#B8322A', '#E0B04A'], hairS:['mohawk', 'long'], beard:0.6, eye:'#FF3B2F', weapons:['twinaxe'] },
+    ninja:   { name:'Wolf Warrior', cloth:['#3A3A40', '#4A3E32'], skin:['#6A6A72', '#8A7A68'], head:'wolf', eye:'#FFD23F', weapons:['dagger', 'axe'] },
+    runner:  { name:'Draugr',      cloth:['#2E3A3A', '#3A3A44'], skin:['#B8C4C0', '#9AA8A4'], head:'skull', eye:'#7FE3FF', glow:true, weapons:['vsword'], edge:'#8A9AA0' },
+    brute:   { name:'Jotun',       cloth:['#2A3A4A', '#3A4A5A'], skin:['#9FC4DE', '#8FB4D0'], hair:['#F4F8FF', '#DCEBFF'], hairS:['long'], beard:1, eye:'#7FE3FF', glow:true, size:1.12, weapons:['iceclub'], named:true },
+    shield:  { name:'Shield Wall', cloth:['#5A3A22', '#2A3A5A'], skin:SKIN_N, hair:HAIR_N, hairS:['long', 'short'], beard:0.8, hat:['helm'], horned:0.2 },
+    archer:  { name:'Rune Archer', cloth:['#2E4A2A', '#3A4A2A'], skin:SKIN_N, hair:HAIR_N, hairS:['long'], beard:0.5 },
+    demon:   { name:'Fire Jotun',  cloth:['#3A0E0E', '#2A0A0A'], skin:['#9A3B3B', '#7A2A2A'], hair:['#FF7A1A', '#FFB347'], hairS:['long'], beard:1, horns:true, eye:'#FFB347', glow:true, weapons:['great'], edge:'#FF7A1A', named:true },
+  },
+};
+function modeDress(e, mode){
+  const R = MODE_FOES[mode]; if (!R || !e || e.champ || e.remote) return e;
+  const D = R[e.type] || R.grunt;
+  e.noElite = true; e.beastRank = 0; e.lines = R.lines; if (D.weapons) e.wantWeapon = pick(D.weapons);
+  dressFoe(e); delete e.wantWeapon;
+  e.spd /= 1.15; e.wind /= 0.85; e.rec /= 0.8;   // dressFoe speeds everyone up for the Shadow Legion: not here
+  const L = e.look;
+  L.cloth = pick(D.cloth); if (D.skin) L.skin = pick(D.skin); if (D.hair) L.hair = pick(D.hair); if (D.hairS) L.hairS = pick(D.hairS);
+  L.head = D.head || ''; if (L.head) L.hairS = 'bald';
+  L.mask = ''; for (const [m, pr] of D.mask || []) if (Math.random() < pr) L.mask = m;
+  L.beard = D.beard != null ? Math.random() < D.beard : false; if (D.eye) L.eye = D.eye; L.glow = !!D.glow;
+  L.horns = !!D.horns; L.ears = ''; L.tusks = false; L.nose = false; L.crown = false;
+  L.hat = D.hat ? pick(D.hat) : ''; L.hatCol = D.hatCol ? pick(D.hatCol) : '#7E848B'; L.hatHorns = Math.random() < (D.horned || 0);
+  e.bodyCol = L.cloth; e.tint = null;
+  if (D.size){ e.size *= D.size; }
+  if (D.edge && e.sword) e.foeSword = e.sword = { ...e.sword, edge:D.edge };
+  e.kindName = D.name; if (D.named) e.foeName = D.name;
+  if (e.sword && e.sword !== EFIST) e.modeArmed = true;
+  return e;
+}
+function talkTick(dt){ for (const e of G.E) if (e.look) e.sayCd = (e.sayCd || 0) - dt; for (const t of G.talk || []) t.t += dt; G.talk = (G.talk || []).filter(t => t.t < t.d); }
+/* hats over the face: hood, cap, beanie, a merc's helmet, a northern helm (horned or not) */
+function drawFoeHat(e, head){
+  const L = e.look, s = e.size || 1, f = e.face || 1, r = head[6] || 7.5*s, P = Math.PI;
+  ctx.save(); ctx.translate(head[0], head[1]); ctx.scale(f, 1);
+  if (L.hat === 'hood'){ ctx.fillStyle = shadeHex(L.cloth, -0.2); ctx.beginPath(); ctx.arc(0, 0, r*1.25, -0.22*P, 0.68*P, true); ctx.arc(r*0.22, r*0.05, r*0.92, 0.68*P, 1.78*P, false); ctx.closePath(); ctx.fill(); }
+  else if (L.hat === 'cap'){ ctx.fillStyle = L.hatCol; ctx.beginPath(); ctx.arc(0, -r*0.12, r*1.04, P, 2*P); ctx.closePath(); ctx.fill(); ctx.fillRect(r*0.2, -r*0.26, r*1.25, r*0.26); }
+  else if (L.hat === 'beanie'){ ctx.fillStyle = L.hatCol; ctx.beginPath(); ctx.ellipse(0, -r*0.18, r*1.06, r*1.12, 0, P, 2*P); ctx.closePath(); ctx.fill(); ctx.fillStyle = shadeHex(L.hatCol, -0.25); ctx.fillRect(-r*1.06, -r*0.36, r*2.12, r*0.32); }
+  else if (L.hat === 'tech'){ ctx.fillStyle = '#1C2028'; ctx.beginPath(); ctx.arc(0, -r*0.05, r*1.1, P*0.92, 2.04*P); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#7FE3FF'; ctx.lineWidth = Math.max(1, 1.1*s); ctx.beginPath(); ctx.arc(0, -r*0.05, r*0.85, 1.15*P, 1.85*P); ctx.stroke(); }
+  else if (L.hat === 'helm'){
+    if (L.hatHorns){ ctx.fillStyle = '#E8E0C8'; for (const k of [-1, 1]){ ctx.beginPath(); ctx.moveTo(k*r*0.75, -r*0.45); ctx.quadraticCurveTo(k*r*1.9, -r*0.6, k*r*1.7, -r*1.75); ctx.quadraticCurveTo(k*r*1.45, -r*0.95, k*r*0.55, -r*0.8); ctx.closePath(); ctx.fill(); } }
+    const g = ctx.createLinearGradient(0, -r*1.2, 0, 0); g.addColorStop(0, '#D8DEE6'); g.addColorStop(0.6, '#8A9098'); g.addColorStop(1, '#5A6068');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, -r*0.15, r*1.08, r*1.1, 0, P, 2*P); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5A4632'; ctx.fillRect(-r*1.1, -r*0.3, r*2.2, r*0.26);   // the leather rim
+    ctx.fillStyle = '#7A8088'; ctx.fillRect(r*0.7, -r*0.3, r*0.2, r*0.85);   // the nose guard
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = Math.max(0.6, 0.6*s); ctx.beginPath(); ctx.moveTo(0, -r*1.25); ctx.lineTo(0, -r*0.3); ctx.stroke(); }
+  ctx.restore();
+}
+/* the street and northern weapons, drawn in the blade's own frame: +x from the pommel to the tip, +y the striking side */
+function drawFoeWeapon(c, kind, Lt, u, mono, warn){
+  const col = k => mono || k, P = Math.PI;
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  if (warn){ c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha *= 0.55; c.strokeStyle = warn; c.lineWidth = 8*u; c.beginPath(); c.moveTo(4*u, 0); c.lineTo(Lt, 0); c.stroke(); c.restore(); }
+  const rod = (x0, x1, w, k) => { c.strokeStyle = col(k); c.lineWidth = w; c.beginPath(); c.moveTo(x0, 0); c.lineTo(x1, 0); c.stroke(); };
+  const grad = (y0, y1, a, b, d) => { if (mono) return mono; const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, a); g.addColorStop(0.5, b); g.addColorStop(1, d); return g; };
+  if (kind === 'bat'){
+    c.beginPath(); c.moveTo(0, -1.3*u); c.lineTo(Lt*0.38, -1.5*u); c.quadraticCurveTo(Lt*0.7, -3.4*u, Lt - 1.5*u, -3.4*u); c.quadraticCurveTo(Lt + 0.6*u, -3.4*u, Lt + 0.6*u, 0);
+    c.quadraticCurveTo(Lt + 0.6*u, 3.4*u, Lt - 1.5*u, 3.4*u); c.quadraticCurveTo(Lt*0.7, 3.4*u, Lt*0.38, 1.5*u); c.lineTo(0, 1.3*u); c.closePath();
+    c.fillStyle = grad(-3.4*u, 3.4*u, '#E8BC88', '#B57A45', '#6E4424'); c.fill();
+    if (!mono){ c.strokeStyle = '#1A1A1A'; c.lineWidth = 2.9*u; c.beginPath(); c.moveTo(1*u, 0); c.lineTo(Lt*0.3, 0); c.stroke(); }   // grip tape
+    c.fillStyle = col('#4A2E18'); c.beginPath(); c.arc(0, 0, 2*u, 0, 6.283); c.fill(); }
+  else if (kind === 'pipe'){
+    rod(0, Lt, 3.2*u, '#6E747C'); if (!mono){ rod(1*u, Lt - 2*u, 0.9*u, '#C2C9D0'); c.strokeStyle = '#4A4E54'; c.lineWidth = 1*u; for (const x of [Lt*0.35, Lt*0.7]){ c.beginPath(); c.moveTo(x, -2*u); c.lineTo(x, 2*u); c.stroke(); } }
+    c.fillStyle = col('#5A6068'); c.fillRect(Lt - 3*u, -2.6*u, 5.5*u, 5.2*u); c.fillRect(Lt - 0.5*u, -7.5*u, 3*u, 5*u); }   // an elbow joint on the end
+  else if (kind === 'crowbar'){
+    rod(0, Lt*0.86, 2.4*u, '#8A1E22'); c.strokeStyle = col('#8A1E22'); c.lineWidth = 2.4*u; c.beginPath(); c.moveTo(Lt*0.86, 0); c.quadraticCurveTo(Lt + 3*u, 0, Lt + 2*u, 5*u); c.lineTo(Lt - 1*u, 6.5*u); c.stroke();
+    if (!mono) rod(1.5*u, Lt*0.84, 0.7*u, '#D86A6A'); c.strokeStyle = col('#6A1418'); c.lineWidth = 2.4*u; c.beginPath(); c.moveTo(0, 0); c.lineTo(-2*u, -2*u); c.stroke(); }
+  else if (kind === 'baton'){
+    rod(0, Lt*0.32, 3.2*u, '#1A1A1E'); rod(Lt*0.32, Lt, 2.2*u, '#2E2E36');
+    if (!mono){ c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(127,211,255,0.55)'; c.beginPath(); c.arc(Lt, 0, (3.6 + Math.sin(G.time*30))*u, 0, 6.283); c.fill();
+      c.strokeStyle = '#E6F7FF'; c.lineWidth = 0.8*u; c.beginPath(); c.moveTo(Lt, 0); for (let i = 1; i < 4; i++) c.lineTo(Lt + i*1.7*u, (Math.random() - 0.5)*6*u); c.stroke(); c.restore(); } }
+  else if (kind === 'chain'){
+    rod(0, 8*u, 3.2*u, '#2A1E14'); c.strokeStyle = col('#9AA0A8'); c.lineWidth = 1.2*u;
+    for (let x = 9*u, i = 0; x < Lt; x += 3.6*u, i++){ c.beginPath(); c.ellipse(x, 0, 2.5*u, (i % 2 ? 0.9 : 1.9)*u, 0, 0, 6.283); c.stroke(); } }
+  else if (kind === 'axe'){
+    rod(0, Lt, 2.1*u, '#6A4426'); const hx = Lt - 2*u;
+    c.beginPath(); c.moveTo(hx - 6*u, 1*u); c.lineTo(hx - 9*u, 8.5*u); c.quadraticCurveTo(hx - 2.5*u, 12.5*u, hx + 4*u, 9.5*u); c.lineTo(hx + 2*u, 1*u); c.closePath();
+    c.fillStyle = grad(1*u, 12*u, '#5E646C', '#C9D0D8', '#F4F8FF'); c.fill();
+    c.fillStyle = col('#4A4E54'); c.fillRect(hx - 6*u, -3*u, 8*u, 4.2*u); }
+  else if (kind === 'vsword'){
+    rod(0, 9*u, 2.6*u, '#3A2614'); c.fillStyle = col('#9A8F70'); c.fillRect(9*u, -5*u, 2.2*u, 10*u);
+    c.beginPath(); c.moveTo(11*u, -2.1*u); c.lineTo(Lt - 4*u, -1.8*u); c.lineTo(Lt, 0); c.lineTo(Lt - 4*u, 1.8*u); c.lineTo(11*u, 2.1*u); c.closePath();
+    c.fillStyle = grad(-2*u, 2*u, '#7A8088', '#EEF3F8', '#7A8088'); c.fill(); if (!mono) rod(12*u, Lt - 6*u, 0.6*u, '#5A6068');
+    c.fillStyle = col('#9A8F70'); c.beginPath(); c.arc(0, 0, 2*u, 0, 6.283); c.fill(); }
+  else if (kind === 'iceclub'){
+    rod(0, Lt - 6*u, 2.8*u, '#5A3E26'); const cx = Lt - 4*u;
+    if (!mono){ c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(127,211,255,0.35)'; c.beginPath(); c.arc(cx, 0, 12*u, 0, 6.283); c.fill(); c.restore(); }
+    c.fillStyle = col('#BFE4FF'); c.beginPath(); for (let i = 0; i < 10; i++){ const a = i/10*2*P, rr = (i % 2 ? 5.5 : 9.5)*u; i ? c.lineTo(cx + Math.cos(a)*rr, Math.sin(a)*rr) : c.moveTo(cx + rr, 0); } c.closePath(); c.fill();
+    if (!mono){ c.fillStyle = '#F4FBFF'; c.beginPath(); c.arc(cx - 1.5*u, -1.5*u, 2.3*u, 0, 6.283); c.fill(); } }
+}
 const FOE_LINES = {
   meet:  ['Another hunter? You will do.', 'Fresh meat.', 'You smell of the grave, hunter.', 'I will take your head to the gate.', 'Run while you can.', 'Your rank means nothing here.', 'Look at you, shaking.', 'This street is ours now.'],
   slayer:['Shadows? I cut shadows for breakfast.', 'Send your whole army. It will not be enough.', 'I have killed Monarchs before.', 'Your little dolls bore me.', 'Kneel, and I make it quick.'],
@@ -3772,7 +3891,7 @@ function dressFoe(e){
   e.bodyCol = e.look.cloth; e.tint = null;
   // a weapon of their own (not for bows, guns and the dead)
   if (SP && SP.fist){ e.foeSword = e.sword = EFIST; e.weapon = 'fists'; }
-  else if (SP ? SP.weapons : !e.T.ranged && !e.T.zombie && !e.T.shield){ const wk = SP ? pick(SP.weapons) : e.type === 'brute' || e.type === 'ogre' ? 'great' : e.type === 'assassin' || e.type === 'ninja' ? pick(['dagger', 'twin']) : pick(Object.keys(FOE_WEAPONS));
+  else if (e.wantWeapon || (SP ? SP.weapons : !e.T.ranged && !e.T.zombie && !e.T.shield)){ const wk = e.wantWeapon || (SP ? pick(SP.weapons) : e.type === 'brute' || e.type === 'ogre' ? 'great' : e.type === 'assassin' || e.type === 'ninja' ? pick(['dagger', 'twin']) : pick(FOE_BASE_WEAPONS));
     const W = FOE_WEAPONS[wk]; e.weapon = wk; e.foeSword = e.sword = { ...W.sw };
     e.T = { ...e.T, combo:Math.max(e.T.combo || 1, W.combo), unblock:e.T.unblock || W.unblock };
     e.wind *= W.wind; e.range = Math.max(e.range*0.6, W.range*(e.size || 1)); e.dmg *= W.dmg || 1; e.spd *= W.spd; }
@@ -3971,7 +4090,7 @@ function drawFoeTalk(){
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = k; ctx.strokeStyle = f.col; ctx.lineWidth = 6*k + 1; ctx.beginPath();
     ctx.arc(f.x, f.y, f.r*0.8, f.f > 0 ? -1.1 : Math.PI - 1.1, f.f > 0 ? 1.1 : Math.PI + 1.1); ctx.stroke(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2*k; ctx.stroke(); ctx.restore(); }
   ctx.save(); ctx.textAlign = 'center';
-  for (const e of G.E){ if (!e.foeName || e.dead || e.x < G.camX - 100 || e.x > G.camX + VW + 100) continue;   // the names of the strong
+  for (const e of G.E){ if (!e.foeName || !e.look || e.dead || e.x < G.camX - 100 || e.x > G.camX + VW + 100) continue;   // the names of the strong
     ctx.font = '600 14px Teko, sans-serif'; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(e.foeName, e.x + 1, e.y - 104*(e.size || 1) + 1);
     ctx.fillStyle = e.look.eye; ctx.fillText(e.foeName, e.x, e.y - 104*(e.size || 1)); }
   const placed = [];   // bubbles that would cover each other stack upwards
@@ -4352,37 +4471,86 @@ function alliesTick(dt){
   for (const a of G.allies) if (a.fade > 0.7 && !a.kept){ a.kept = true; (G.stored = G.stored || []).push(legionEntry(a)); }
   G.allies = G.allies.filter(a => !(a.fade > 0.7));
 }
+/* Shadow mode: an enemy standing inside the legion gets a red glow and a ring at its feet, so it stands out from the shadows around it */
+function foeMark(e){
+  if (!G.allies || !G.allies.length || e.vanish) return;
+  const s = e.size || 1, near = 70*s + 20; let n = 0;
+  for (const a of G.allies){ if (!a.fade && Math.abs(a.x - e.x) < near && ++n >= 2) break; }
+  if (n < 2) return;
+  const cy = e.y - 40*s, r = 80*s, pulse = 0.85 + 0.15*Math.sin(G.time*6);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(e.x, cy, 6*s, e.x, cy, r); g.addColorStop(0, `rgba(255,40,60,${0.55*pulse})`); g.addColorStop(1, 'rgba(255,40,60,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(e.x, cy, r, 0, 6.283); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.strokeStyle = `rgba(255,80,90,${0.9*pulse})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(e.x, GROUND - 2, 32*s, 7*s, 0, 0, 6.283); ctx.stroke(); ctx.restore();
+}
+/* ===== SHADOW LEGION LOOK: a pool of dark under the army, violet fog through their legs, smoke at their feet,
+   a violet rim on the front rank, burning eyes that streak when they run, and wisps rising off them ===== */
+function legionGround(vis){
+  if (!vis.length) return;
+  let lo = Infinity, hi = -Infinity; for (const a of vis){ lo = Math.min(lo, a.x); hi = Math.max(hi, a.x); }
+  lo -= 60; hi += 60; const cx = (lo + hi)/2, w = (hi - lo)/2, t = G.time;
+  ctx.save(); ctx.globalAlpha = 0.75; ctx.fillStyle = '#07030F'; ctx.beginPath(); ctx.ellipse(cx, GROUND + 2, w, 10, 0, 0, 6.283); ctx.fill();
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 + 0.2*Math.sin(t*2.3);
+  const lg = ctx.createLinearGradient(lo, 0, hi, 0); lg.addColorStop(0, 'rgba(155,107,255,0)'); lg.addColorStop(0.12, 'rgba(155,107,255,0.85)'); lg.addColorStop(0.88, 'rgba(155,107,255,0.85)'); lg.addColorStop(1, 'rgba(155,107,255,0)');
+  ctx.strokeStyle = lg; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(cx, GROUND + 2, w, 10, 0, 0.15, Math.PI - 0.15); ctx.stroke(); ctx.restore();
+  if (FXL() <= 0) return;
+  const n = Math.min(FXL() === 2 ? 36 : 22, Math.ceil((hi - lo)/80));
+  for (let i = 0; i < n; i++){ const fx = lo + (i + 0.5)*(hi - lo)/n + 28*Math.sin(t*0.6 + i*1.7), fy = GROUND - 12 - 7*Math.sin(t*0.9 + i);
+    glowDot(ctx, fx, fy, 62 + 16*Math.sin(t + i*2.1), '#5B3FB0', 0.2); }
+}
+function legionWisps(vis){
+  const dt = clamp(G.time - (G._lwT ?? G.time), 0, 0.05); G._lwT = G.time;
+  const W = G.lwisp = G.lwisp || [], cap = FXL() === 2 ? 220 : 120;
+  if (FXL() > 0 && vis.length && dt > 0){ const f = Math.min(6, vis.length*dt*1.4); let n = Math.floor(f) + (Math.random() < f % 1 ? 1 : 0);
+    while (n-- > 0 && W.length < cap){ const a = vis[(Math.random()*vis.length)|0], s = a.size || 1, g = a.grade || 0;
+      W.push({ x:a.x + rnd(-14, 14)*s, y:GROUND - rnd(10, 90)*s, vx:rnd(-12, 12), vy:-rnd(25, 70), t:0, d:rnd(0.9, 1.8), r:rnd(2, 4.5),
+        col:g >= 3 && Math.random() < 0.5 ? GRADE_COL[g] : (Math.random() < 0.5 ? '#9B6BFF' : '#6A4CFF') }); } }
+  for (const w of W){ w.t += dt; w.x += (w.vx + 10*Math.sin(G.time*3 + w.y*0.05))*dt; w.y += w.vy*dt; const k = Math.max(0, 1 - w.t/w.d);
+    glowDot(ctx, w.x, w.y, w.r*2.5*(0.5 + 0.5*k), w.col, 0.8*k); ctx.globalAlpha = 0.9*k; ctx.fillStyle = '#E9D8FF'; ctx.fillRect(w.x - 0.8, w.y - 0.8, 1.6, 1.6); }
+  ctx.globalAlpha = 1; G.lwisp = W.filter(w => w.t < w.d);
+}
 function drawShadowLegion(){
   if (!G.allies) return;
   G._nameXs = [];
   drawMonarch();
   for (const c of G.corpses){ const k = 1 - c.t/c.life;   // a fading body: a dark stain and wisps, until it is gone
     ctx.save(); ctx.globalAlpha = 0.65*k; ctx.fillStyle = '#1A1030'; ctx.beginPath(); ctx.ellipse(c.x, GROUND - 2, 34*c.size, 8*c.size, 0, 0, 6.283); ctx.fill();
-    ctx.globalAlpha = 0.5*k; ctx.fillStyle = '#9B6BFF'; for (let i = 0; i < 3; i++){ const y = GROUND - ((G.time*40 + i*20) % 50)*c.size; ctx.beginPath(); ctx.arc(c.x + (i - 1)*12*c.size, y, 3, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = 0.5*k; ctx.fillStyle = '#9B6BFF'; for (let i = 0; i < 3; i++){ const y = GROUND - ((G.time*40 + i*20) % 50)*c.size, x = c.x + (i - 1)*12*c.size + 3*Math.sin(G.time*5 + i); ctx.beginPath(); ctx.arc(x, y, 3, 0, 6.283); ctx.fill(); if (FXL() > 0){ ctx.globalAlpha = 1; glowDot(ctx, x, y, 11*c.size, c.tier === 'boss' ? '#E9D8FF' : '#9B6BFF', 0.55*k); ctx.globalAlpha = 0.5*k; } }
+    if (FXL() > 0){ ctx.globalAlpha = 1; glowDot(ctx, c.x, GROUND - 8, 46*c.size*(1 + 0.1*Math.sin(G.time*4)), c.tier === 'boss' ? '#C9A8FF' : '#6A4CFF', 0.35*k); }
     if (c.tier === 'boss'){ ctx.globalAlpha = Math.min(1, k*2); ctx.font = '600 14px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = c.tries ? '#FF8A9A' : '#E9D8FF';   // a strong body: it may refuse you
       ctx.fillText(c.tries ? (MAX_TRIES - c.tries) + (MAX_TRIES - c.tries === 1 ? ' try left' : ' tries left') : 'Strong soul', c.x, GROUND - 24); }
     ctx.restore(); ctx.globalAlpha = 1; }
   const ui = clamp(bS/S, 1, 3);   // how far the camera has pulled back: text and eyes grow so they stay readable
   const live = G.allies.filter(a => !a.fade);
   const order = G.allies.length > 40 ? G.allies.slice().sort((p, q) => (q.rank || 0) - (p.rank || 0)) : G.allies;   // back ranks first, so the front line stands over them
+  const vis = live.filter(a => (a.rise ?? 0) >= 1 && a.x > G.camX - 120 && a.x < G.camX + VW + 120), fx = FXL() > 0, rimOK = fx && (FXL() === 2 || vis.length <= 80);
+  legionGround(vis);
   for (const a of order){ const s0 = a.size || 1, rk = a.rank || 0, s = s0*(1 - 0.07*rk), rise = Math.max(0, a.rise || 0), fade = a.fade ? Math.max(0, 1 - a.fade/0.7) : 1;
     if (a.x < G.camX - 120 || a.x > G.camX + VW + 120) continue;   // off screen: not drawn
     const moving = rise < 1 || fade < 1;
+    if (rise < 1 && fade >= 1){ const k = 1 - rise; ctx.save(); ctx.globalCompositeOperation = 'lighter';   // rising: a column of violet light and a ring opening in the ground
+        const cg = ctx.createLinearGradient(0, GROUND, 0, GROUND - 170*s); cg.addColorStop(0, `rgba(155,107,255,${0.6*k})`); cg.addColorStop(1, 'rgba(155,107,255,0)'); ctx.fillStyle = cg; ctx.fillRect(a.x - 24*s, GROUND - 170*s, 48*s, 170*s);
+        ctx.strokeStyle = `rgba(201,168,255,${0.9*k})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, GROUND, (20 + 30*rise)*s, (4 + 5*rise)*s, 0, 0, 6.283); ctx.stroke(); ctx.restore(); }
     ctx.save(); if (moving){ ctx.beginPath(); ctx.rect(a.x - 80*s, GROUND - 200*s - 400, 160*s, 400 + 200*s*rise + 2 + rk*14); ctx.clip(); }   // rising up out of the ground (or sinking back)
     const dy = (1 - rise)*90*s + (1 - fade)*90*s; a.y += dy; a.size = s;   // every rank stands on the same ground; the ones further back are a little smaller and darker
     if (G.allies.length <= 12){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 36*s, 4, a.x, a.y - 36*s, 60*s); g.addColorStop(0, `rgba(155,107,255,${0.25*fade})`); g.addColorStop(1, 'rgba(155,107,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 36*s, 60*s, 0, 6.283); ctx.fill(); ctx.restore(); }
     ctx.save(); ctx.globalAlpha = 0.35*fade; ctx.fillStyle = '#05030C'; ctx.beginPath(); ctx.ellipse(a.x, a.y, 14*s, 3*s, 0, 0, 6.283); ctx.fill(); ctx.restore();   // its feet on the ground
     if (a.fuse && rk < 0.5){ const W = armOf(a); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = fade*Math.min(0.55, 0.18 + 0.05*a.fuse)*(0.85 + 0.15*Math.sin(G.time*4 + a.x));   // merged: its weapon's light around it
       const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 85*s); g.addColorStop(0, W.col); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 85*s, 0, 6.283); ctx.fill(); ctx.restore(); }
-    const hd = drawStick(a, (0.92 - 0.1*rk)*fade, rk > 0.5 ? (rk > 2.5 ? '#120C26' : '#17102E') : '#1E1438');
+    if (fx){ const wob = Math.sin(G.time*3 + a.x*0.05); ctx.globalAlpha = 0.6*fade; ctx.drawImage(glowSprite('#0C0518'), a.x - 28*s + wob*3, a.y - 16*s, 56*s, 22*s); ctx.globalAlpha = 1;   // black smoke curling at its feet
+      if (rimOK && rk < 0.5){ ctx.save(); ctx.translate(-(a.face || 1)*2.2*s, -1.2*s); drawStick(a, 0.6*fade, (a.grade || 0) >= 5 ? '#C9A8FF' : (a.grade || 0) === 4 ? GRADE_COL[4] : '#7B5CFF'); ctx.restore(); } }   // a violet rim, lit from behind
+    const hd = drawStick(a, (rimOK && rk < 0.5 ? 1 : 0.92 - 0.1*rk)*fade, rk > 0.5 ? (rk > 2.5 ? '#120C26' : '#17102E') : '#1A1132');   // with a rim the front rank is solid, so the light only shows at the edge
     const gc = GRADE_COL[a.grade || 0];
     if (hd){ ctx.globalAlpha = fade; ctx.fillStyle = (a.grade || 0) ? gc : 'rgb(160,200,255)'; ctx.beginPath(); ctx.arc(hd[0] + (a.face || 1)*3*s, hd[1] - 1, (2.2 + 0.3*(a.grade || 0))*s*Math.sqrt(ui), 0, 6.283); ctx.fill();   // the eyes: their grade's colour
-      if ((a.grade || 0) >= 2 && FXL() > 0) glowDot(ctx, hd[0] + (a.face || 1)*3*s, hd[1] - 1, (5 + a.grade)*s, gc, 0.6);
+      { const ec = (a.grade || 0) ? gc : '#A0C8FF', ex = hd[0] + (a.face || 1)*3*s, ey = hd[1] - 1; if (fx) glowDot(ctx, ex, ey, (5 + (a.grade || 0))*s, ec, (a.grade || 0) >= 2 ? 0.6 : 0.4); ctx.globalAlpha = fade;
+        if (Math.abs(a.vx || 0) > 40 && rk < 1.5){ const L = Math.min(36, Math.abs(a.vx)*0.07)*s, d = -sign(a.vx); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6*fade;   // the eye's light streaks behind it
+          const lg = ctx.createLinearGradient(ex, ey, ex + d*L, ey); lg.addColorStop(0, ec); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.strokeStyle = lg; ctx.lineWidth = 2.2*s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + d*L, ey + 1.5*s); ctx.stroke(); ctx.restore(); } }
       if ((a.grade || 0) >= 5){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(a.x, a.y - 40*s, 4, a.x, a.y - 40*s, 70*s); g.addColorStop(0, 'rgba(255,230,180,0.25)'); g.addColorStop(1, 'rgba(255,230,180,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y - 40*s, 70*s, 0, 6.283); ctx.fill(); ctx.restore(); }
       if (a.sname && rise >= 1 && fade >= 1 && rk < 0.5 && !G._nameXs.some(x => Math.abs(x - a.x) < 95*ui) && G._nameXs.push(a.x)){ /* names never pile on each other */ ctx.font = `600 ${Math.round(13*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = gc; ctx.fillText(a.sname + ' · ' + GRADES[a.grade] + fuseStars(a), a.x, hd[1] - 16*s); }
       ctx.globalAlpha = 1; }
     if (a.idx != null && (a.idx + 1) % 50 === 0 && rise >= 1 && fade >= 1){ ctx.font = `600 ${Math.round(12*ui)}px Teko, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(220,208,255,0.85)'; ctx.fillText(String(a.idx + 1), a.x, GROUND + 26*ui); }   // a mark every fifty, to count them by
     a.y -= dy; a.size = s0; ctx.restore(); }
+  legionWisps(vis);
   if (live.length > 12 && G.P){   // the count, over the army
     const by = GRADES.map(() => 0); for (const a of live) by[a.grade || 0]++;
     let lo = Infinity, hi = -Infinity; for (const a of live){ lo = Math.min(lo, a.x); hi = Math.max(hi, a.x); }
@@ -4405,7 +4573,7 @@ function outclass(e, k){
   e.dmg *= 1.35*myHp + 0.01*Math.min(k, 200); e.spd *= 1.08;
   const ranged = e.T && e.T.ranged;
   if (!ranged && !isBoss(e) && Math.random() < Math.min(0.7, 0.25 + 0.01*k)){
-    const g = ['grenade', 'net', 'hook', 'baton'][(Math.random()*4)|0]; e.gear = g; e.gearT = rnd(1.5, 3); }
+    const gs = G.mode === 'hammer' ? ['hook', 'net', 'hook'] : ['grenade', 'net', 'hook', 'baton'], g = gs[(Math.random()*gs.length)|0]; e.gear = g; e.gearT = rnd(1.5, 3); }   // the raiders carry chain hooks and nets, no bombs
   return e;
 }
 function gearTick(dt){
@@ -4516,7 +4684,7 @@ function startHammer(){
   G.worldW = 3200; resetCommon();
   G.hm = { state:'held', x:0, y:0, vx:0, vy:0, rot:0, hit:new Set() };
   G.hammerS = { spawnT:2.5 }; G.smart = 0; G.smartL = 2; G.smartAnn = false;
-  for (let i = 0; i < 3; i++) G.E.push(outclass(makeEnemy('grunt', 1000 + i*160, G.diff, false), 0));
+  for (let i = 0; i < 3; i++){ const e = makeEnemy('grunt', 1000 + i*160, G.diff, false); G.E.push(e); outclass(modeDress(e, 'hammer'), 0); }
   toast('Hammer mode', 1.2);
   setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back · M: strap swing + uppercut · N: lightning from the sky', '#7FE3FF'); }, 1200);
   setScreen(null); G.running = true;
@@ -4526,6 +4694,7 @@ const hammerRange = () => 380 + Math.min(1400, (SV.hammerXP || 0)*6);   // exper
 const hammerLevel = () => 1 + Math.floor((SV.hammerXP || 0)/25);
 function hammerTick(dt, alive){
   const S = G.hammerS, P = G.P; if (!S || !P) return;
+  talkTick(dt);
   const k = G.kills;
   if (k > (SV.hammerBest || 0)){ SV.hammerBest = k; saveSoon(); }
   G.diff = learnDiff(k);   // past 10 kills they learn: stronger, faster, sharper
@@ -4533,12 +4702,13 @@ function hammerTick(dt, alive){
   const want = Math.min(3 + Math.floor(k/5), 10);
   if (alive >= want || S.spawnT > 0) return;
   S.spawnT = Math.max(0.6, 1.8 - k*0.02);
-  const pool = ['grunt', 'grunt', 'fencer', 'assassin', 'brute', 'ninja', 'runner', 'shield', 'archer', 'gunner', 'demon'];
+  const pool = ['grunt', 'grunt', 'fencer', 'assassin', 'brute', 'ninja', 'runner', 'shield', 'archer', 'archer', 'demon'];   // no guns in the north
   const type = pool[(Math.random()*Math.min(pool.length, 3 + Math.floor(k/4)))|0];
   const side = Math.random() < 0.6 - 0.25*(G.smart || 0) ? 1 : -1;   // smarter ones come at you from behind more often
   let x = P.x + side*(VW*0.55 + rnd(60, 200));
   if (x < 60 || x > G.worldW - 60) x = P.x - side*(VW*0.55 + rnd(60, 200));
-  G.E.push(outclass(champSpawnRoll(k) ? makeChampion(clamp(x, 60, G.worldW - 60)) : makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true), k));
+  if (champSpawnRoll(k)) G.E.push(outclass(makeChampion(clamp(x, 60, G.worldW - 60)), k));
+  else { const e = makeEnemy(type, clamp(x, 60, G.worldW - 60), G.diff, true); G.E.push(e); outclass(modeDress(e, 'hammer'), k); }
 }
 /* the hammer each frame: thrown, falling, lying on the ground, or flying back to your hand */
 function hammerUpdate(P, dt){
@@ -4725,46 +4895,100 @@ function startSpider(){
   G.worldW = 2600; resetCommon(); fcNew();
   G.spider = { spawnT:2.2, startX:G.P.x, trapped:0, over:false }; G.traps = [];
   toast('Spider Chase', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider Chase', 'Run. They are coming.',
-    isTouch ? 'Swing: web-swing to get away · Mine: a web trap behind you · Wall: a web wall behind you'
-            : 'You run on your own · W: jump · Q: swing · X: web trap behind you · C: web wall behind you', '#E8202A'); }, 900);
+  setTimeout(() => { if (G.running && G.mode === 'spider') showBanner('Spider Chase', 'Run. They are coming on foot.',
+    isTouch ? 'Swing: web-swing to get away · Mine: a web trap · Wall: a web wall · Venom: one-shot kill'
+            : 'You run on your own · W: jump · Q: swing · X: web trap · C: web wall · F: Venom Strike (one-shot kill)', '#E8202A'); }, 900);
   setScreen(null); G.running = true; webTouchBtn();
 }
-/* Spider Chase: you keep running, they keep coming through the air from behind, faster the farther you get */
+/* Spider Chase: you keep running, they keep coming on foot from behind, faster the farther you get */
 function spiderTick(dt, alive){
   const S = G.spider, P = G.P; if (!S || !P || S.over) return;
+  talkTick(dt);
   const dist = Math.max(0, Math.round((P.x - S.startX)/10));
   S.dist = dist; if (dist > (SV.spiderBest || 0)){ SV.spiderBest = dist; saveSoon(); }
   G.diff = diffFor(Math.min(12, 2 + Math.floor(dist/120)));
   S.spawnT -= dt;
-  const flying = G.E.filter(e => !e.dead).length, want = Math.min(2 + Math.floor(dist/150), 8);
-  if (flying >= want || S.spawnT > 0) return;
+  const active = G.E.filter(e => !e.dead && !(e.webBound > 0) && !e.webHung).length, want = Math.min(3 + Math.floor(dist/150), 9);   // the ones caught in a web don't count: others come for you
+  if (active >= want || G.E.filter(e => !e.dead).length >= 16 || S.spawnT > 0) return;
   S.spawnT = Math.max(0.7, 2.2 - dist/600);
   const types = ['grunt', 'fencer', 'assassin', 'ninja', 'brute'];
   const e = makeEnemy(types[(Math.random()*Math.min(types.length, 2 + Math.floor(dist/200)))|0], clamp(G.camX - 80, 20, G.worldW - 20), G.diff, false);
-  e.y = clamp(P.y - rnd(40, 240), 60, GROUND); e.onG = false; e.flyChase = true; e.flySlot = (Math.random() < 0.5 ? -1 : 1)*(1 + ((Math.random()*2)|0)); e.atkCd = 0.8; e.vx = 500;
-  G.E.push(e); sfx('whoosh');
+  e.y = GROUND; e.onG = true; e.vy = 0; e.flyChase = false; e.atkCd = 0.8; e.vx = 500; e.alert = true; e.state = 'chase';   // on foot, from behind: no jetpacks
+  G.E.push(e); modeDress(e, 'spider'); sfx('whoosh');
 }
-/* traps: X lays a web mine where you are (it hangs in the air), C throws up a web wall behind you */
+/* Spider Chase on foot: they run you down along the street (no jetpacks). Fall too far behind and they sprint,
+   and if you leave them at the edge of the screen they flash-step back in, so a fast swing never loses them for long.
+   You up on a roof: they leap up after you. Close enough: a strike. */
+function spiderRunUpdate(e, dt){
+  const P = G.P; e.flyChase = false; e._spx = e.x;
+  e.flash -= dt; e.hurtBar -= dt;
+  if (e.hp <= 0){ killEnemy(e); return; }
+  if (!P){ return; }
+  const s = e.size || 1, y0 = e.y;
+  e.vy = (e.vy || 0) + 2200*dt; e.y += e.vy*dt;
+  const FL = fcFloorE(e, y0, dt);
+  if (e.y >= FL){ e.y = FL; e.vy = 0; e.onG = true; } else e.onG = false;
+  if (e.state === 'hurt' && e.timer > 0){ e.timer -= dt; e.x = clamp(e.x + (e.vx || 0)*dt, 30, G.worldW - 30); e.vx *= Math.pow(0.3, dt); e.walk += dt*2; return; }
+  const dist = (G.spider && G.spider.dist) || 0, dx = P.x - e.x, adx = Math.abs(dx), behind = dx > 0 ? dx : 0;
+  const run = 470 + 60*Math.min(6, dist/150);   // faster than you run, slower than you swing
+  const sprint = Math.min(1700, run + Math.max(0, behind - 260)*2.4);   // the further back, the harder they sprint
+  e.stepCd = (e.stepCd ?? rnd(0.3, 1)) - dt;
+  if (!P.dead && behind > VW*0.55 && e.stepCd <= 0){   // nearly off the screen behind you: a flash step back into the chase
+    afterimage(e); e.x = clamp(P.x - rnd(230, 360), 30, G.worldW - 30); e.stepCd = rnd(0.9, 1.6); e.vx = P.vx || run;
+    const fy = fcGroundAt(e.x, P.y - 10); if (e.y > fy - 4 || Math.abs(P.y - e.y) > 200){ e.y = Math.min(GROUND, fy); e.vy = 0; e.onG = true; }
+    smoke(e.x, e.y - 40*s, 8); sfx('swish', 0.01); }
+  const want = adx < 40 ? 0 : sign(dx)*(adx > 120 ? sprint : run*Math.min(1, adx/120));
+  e.vx = lerp(e.vx || 0, want, Math.min(1, dt*(e.onG ? 6 : 2)));
+  e.x = clamp(e.x + e.vx*dt, 30, G.worldW - 30);
+  if (e.onG && !P.dead && P.y < e.y - 110 && adx < 300){   // you are above them: a leap, not a flight
+    const h = Math.min(900, e.y - P.y + 70); e.vy = -Math.sqrt(2*2200*h); e.onG = false; e.vx = sign(dx)*Math.max(Math.abs(e.vx), 420); }
+  e.face = sign(dx) || e.face || 1; e.atk = null; e.walk += dt*Math.abs(e.vx)*0.045/s;
+  e.atkCd = (e.atkCd || 0) - dt;
+  const close = Math.hypot(P.x - e.x, (P.y - 30) - (e.y - 40*s));
+  if (e.flyWind > 0){ e.state = 'windup'; e.flyWind -= dt; if (e.flyWind <= 0){ e.state = 'swing'; e.timer = 0.15; if (Math.hypot(P.x - e.x, P.y - e.y) < 90 && !P.dead) hurtPlayer(e.dmg, 220, e, false); } }
+  else if (close < 80 && e.atkCd <= 0){ e.atkCd = 1.2; e.flyWind = 0.28; e.flash = 0.1; }
+  else e.state = 'chase';
+}
+/* F: Venom Strike. A charged venom bolt down a web line into the nearest enemy (caught in a web or not): one shot, one kill */
+const VENOM_CD = 2.5, VENOM_RANGE = 900;
+function spiderVenom(P){
+  if (G.time < (P.venomCd || 0)){ pop(P.x, P.y - 110, 'Venom: ' + (P.venomCd - G.time).toFixed(1) + ' s', 'rgba(127,227,255,0.85)'); return; }
+  let best = null, bd = VENOM_RANGE;
+  for (const e of G.E){ if (e.dead || e.remote || e.vanish) continue; const d = Math.hypot(e.x - P.x, (e.y - P.y)*0.7); if (d < bd){ bd = d; best = e; } }
+  if (!best){ pop(P.x, P.y - 110, 'No one in reach', 'rgba(255,255,255,0.75)'); return; }
+  P.venomCd = G.time + VENOM_CD; P.shotT = 0.2; P.face = sign(best.x - P.x) || P.face;
+  const h = webHandPt(P), s = best.size || 1, tx = best.x, ty = best.y - 40*s;
+  bolt(h[0], h[1], tx, ty, '#7FE3FF'); bolt(h[0], h[1], tx + rnd(-8, 8), ty + rnd(-8, 8), '#FFFFFF'); bolt(h[0], h[1] - 4, tx, ty + 6, '#3FA9FF');
+  if (best.webHeld && P.wg && P.wg.e === best) webDrop(P);
+  best.webHung = null; best.webBound = 0; best.webHeld = false;
+  best.vx = (P.face || 1)*520; best.vy = -380; best.onG = false; best.flash = 0.25; best.hp = 0; killEnemy(best);
+  ringFx(tx, ty, 90, '#7FE3FF', true); ringFx(tx, ty, 45, '#FFFFFF', true); burst(tx, ty, 26, '#7FE3FF', 520, 5, true); sparks(tx, ty);
+  pop(tx, ty - 70*s, 'VENOM STRIKE', '#7FE3FF'); flash('#BFF4FF', 0.08);
+  G.shake = Math.max(G.shake, 9); sfx('boom', 0.02); sfx('swish', 0.01); vib(45);
+}
+/* traps: X lays a web mine on the floor under you, C throws up a web wall behind you */
 function spiderTrapKeys(P){
+  if (pressed.venom){ pressed.venom = false; if (!P.dead) spiderVenom(P); }
   P.mineCd = (P.mineCd || 0) - 1/60; P.wallCd = (P.wallCd || 0);
   G.traps = (G.traps || []).filter(t => t.life > 0);
   if (pressed.web){
     if (P.mineCd > 0) {}
     else if (G.traps.filter(t => t.kind === 'mine').length >= 4) pop(P.x, P.y - 110, 'Max 4 mines', 'rgba(255,255,255,0.75)');
-    else { P.mineCd = 0.6; G.traps.push({ kind:'mine', x:P.x - (P.face || 1)*30, y:P.y - 50, r:48, life:9, t:0, holds:2 }); P.shotT = 0.15; sfx('swish'); } }
+    else { const mx = P.x - (P.face || 1)*30; P.mineCd = 0.6; G.traps.push({ kind:'mine', x:mx, y:fcGroundAt(mx, P.y - 10) - 46, r:52, life:9, t:0, holds:2 }); P.shotT = 0.15; sfx('swish'); } }   // the web drops to the floor under you, where they run
   if (pressed.webnet){
     if (G.time < P.wallCd) pop(P.x, P.y - 110, 'Web wall: ' + Math.ceil(P.wallCd - G.time) + ' s', 'rgba(255,255,255,0.75)');
-    else { P.wallCd = G.time + 6; G.traps.push({ kind:'wall', x:P.x - (P.face || 1)*70, y:P.y, life:4, t:0 }); pop(P.x, P.y - 110, 'Web wall!', '#FFFFFF'); sfx('whoosh'); } }
+    else { const wx = P.x - (P.face || 1)*70; P.wallCd = G.time + 6; G.traps.push({ kind:'wall', x:wx, y:GROUND, top:Math.min(GROUND - 340, fcGroundAt(wx, P.y - 10) - 340), life:4, t:0 }); pop(P.x, P.y - 110, 'Web wall!', '#FFFFFF'); sfx('whoosh'); } }   // from the street up past you
 }
 function spiderTrapTick(dt){
   const S = G.spider;
   for (const t of G.traps || []){ t.life -= dt; t.t += dt;
-    for (const e of G.E){ if (e.dead || e.remote || !e.flyChase || t.life <= 0) continue;
-      const s = e.size || 1, ex = e.x, ey = e.y - 40*s;
-      const caught = t.kind === 'mine' ? Math.hypot(ex - t.x, ey - t.y) < t.r + 14*s : Math.abs(ex - t.x) < 26 && ey > t.y - 340 && ey < t.y + 10;
+    for (const e of G.E){ if (e.dead || e.remote || e.webHeld || e.webHung || e.webBound > 0 || t.life <= 0) continue;
+      const s = e.size || 1, ex = e.x, ey = e.y - 40*s, px = e._spx ?? ex;
+      const crossed = (px - t.x)*(ex - t.x) <= 0;   // a fast runner can't skip through it between two frames
+      const caught = t.kind === 'mine' ? (Math.hypot(ex - t.x, ey - t.y) < t.r + 14*s || (crossed && Math.abs(ey - t.y) < t.r + 14*s))
+                                       : (Math.abs(ex - t.x) < 30 || crossed) && ey > (t.top ?? t.y - 340) && ey < t.y + 10;
       if (!caught) continue;
-      fcBind(e, t.kind === 'mine' ? 3.2 : 2.6, 0, 60); e.flyChase = false; e.wasChaser = true; if (S) S.trapped = (S.trapped || 0) + 1;
+      fcBind(e, t.kind === 'mine' ? 3.2 : 2.6, 0, 60); e.flyChase = false; e.wasChaser = true; if (S){ S.trapped = (S.trapped || 0) + 1; S.spawnT = Math.min(S.spawnT, 0.35); }   // one down: the next one is already on its way
       pop(e.x, e.y - 100*s, 'Trapped!', '#FFFFFF'); sfx('swish', 0.01);
       if (t.kind === 'mine'){ t.holds--; if (t.holds <= 0) t.life = 0; } }
   }
@@ -4776,7 +5000,7 @@ function drawTraps(){
       for (let k = 0; k < 8; k++){ const ang = k*Math.PI/4; ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(t.x + Math.cos(ang)*t.r, t.y + Math.sin(ang)*t.r); ctx.stroke(); }
       for (let r = 12; r <= t.r; r += 12){ ctx.beginPath(); for (let k = 0; k <= 8; k++){ const ang = k*Math.PI/4, px = t.x + Math.cos(ang)*r, py = t.y + Math.sin(ang)*r; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke(); } }
     else {   // a tall web wall
-      const top = t.y - 340; ctx.beginPath(); for (let k = -2; k <= 2; k++){ ctx.moveTo(t.x + k*8, top); ctx.lineTo(t.x + k*8, t.y); } ctx.stroke();
+      const top = t.top ?? t.y - 340; ctx.beginPath(); for (let k = -2; k <= 2; k++){ ctx.moveTo(t.x + k*8, top); ctx.lineTo(t.x + k*8, t.y); } ctx.stroke();
       ctx.beginPath(); for (let y = top; y <= t.y; y += 22){ ctx.moveTo(t.x - 18, y); ctx.lineTo(t.x + 18, y + 8); } ctx.stroke(); }
     ctx.restore(); ctx.globalAlpha = 1; }
 }
@@ -5369,7 +5593,8 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
 const held = {}, pressed = {};
 const SHADOW_KEYS = { x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
 const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory', v:'ghostAim' };   // Warzone only
-const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || keyMap[k];
+const SPIDER_KEYS = { f:'venom' };   // Spider Chase only: F = Venom Strike
+const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || (G_ref && G_ref.mode === 'spider' && SPIDER_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
   if (W3.on || W3.loading) return;
@@ -5384,7 +5609,7 @@ addEventListener('keydown', ev => {
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
-addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; for (const k in GUN_KEYS) if (ev.key.toLowerCase() === k) held[GUN_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
+addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; for (const k in GUN_KEYS) if (ev.key.toLowerCase() === k) held[GUN_KEYS[k]] = false; for (const k in SPIDER_KEYS) if (ev.key.toLowerCase() === k) held[SPIDER_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
 cv.addEventListener('mousedown', ev => { if (ev.button === 0 && G_ref && G_ref.mode === 'guns' && G_ref.running && G_ref.P){ gwDown(ev.clientX, ev.clientY, 'mouse'); return; }   // Warzone: drag to aim a ghost dash
   if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
 addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; if (ev.button === 0) gwUp(); });
@@ -7771,7 +7996,7 @@ function attackersNow(){ let n=0; for (const e of G.E) if (!e.dead && !e.T.range
 function updateEnemy(e, dt){
   const P = G.P;
   if (e.webHeld){ e.state = 'stun'; e.timer = Math.max(e.timer || 0, 0.5); e.vx = 0; e.vy = 0; e.onG = false; e.flash -= dt; e.hurtBar -= dt; return; }   // on the end of a web line: the player moves it
-  if (e.flyChase && G.mode === 'spider' && !e.webHeld && !e.webHung && !(e.webBound > 0)){ flyChaseUpdate(e, dt); return; }   // jetpack chase
+  if (G.mode === 'spider' && !e.remote && !e.webHung && !(e.webBound > 0)){ spiderRunUpdate(e, dt); return; }   // Spider Chase: on foot, they never fall far behind
   if (e.hmGrab && G.hm && G.hm.grab === e){ e.flash -= dt; e.hurtBar -= dt; if (e.hp <= 0){ killEnemy(e); return; } e.walk = 0; return; }   // holding on to the hammer
   if (e.hmSeek && G.hm && G.hm.seeker === e && G.hm.state === 'ground' && e.onG && !(e.hurtT > 0) && e.state !== 'hurt' && e.state !== 'down'){   // walking over to pick up the hammer
     const dir = sign(G.hm.x - e.x) || 1; e.face = dir; e.vx = dir*clamp(e.spd || 120, 80, 220)*Math.min(1, Math.abs(G.hm.x - e.x)/20); e.x += e.vx*dt; e.walk += dt*Math.abs(e.vx)*0.045/e.size; e.state = 'chase'; e.atk = null; e.flash -= dt; e.hurtBar -= dt;
@@ -10272,7 +10497,8 @@ function drawBlade(sg, e, pose, tint){
     const id = swordArtId(e);
     const red = !e.isPlayer && pose && pose.red ? (isUnblockable(e) ? '#FF2A2A' : '#FF6A3D') : null;
     ctx.save(); ctx.translate(sg[0], sg[1]); ctx.rotate(Math.atan2(dy, dx)); ctx.scale(1, f);
-    if (!e.isPlayer && ctx === mainCtx){   // enemies: the cached picture of their sword
+    if (!e.isPlayer && sw.kind){ drawFoeWeapon(ctx, sw.kind, Lt, u, tint || (e.flash > 0 ? '#fff' : null), red); }   // a mode's own weapon (bat, pipe, axe...)
+    else if (!e.isPlayer && ctx === mainCtx){   // enemies: the cached picture of their sword
       const m = ctx.getTransform(), sc = clamp(Math.round(Math.hypot(m.a, m.b)*2)/2, 0.5, 4);
       const spr = swordSprite(id, sw, Lt, u, red, tint || (e.flash > 0 ? '#fff' : null), sc);
       ctx.scale(Lt/spr.Lq, 1); ctx.drawImage(spr, -spr.ox, -spr.oy, spr.width/sc, spr.height/sc);
@@ -11088,6 +11314,7 @@ function drawMusket(e, hx, hy, tint){
 }
 /* hats, horns, shields and scarves that tell enemy types apart */
 function drawEnemyExtras(e, head){
+  if (e.look && e.look.hat) drawFoeHat(e, head);
   const s = e.size, f = e.face, hx = head[0], hy = head[1], t = e.type;
   ctx.fillStyle = '#000'; ctx.strokeStyle = '#000';
   if (t==='archer'){ ctx.beginPath(); ctx.moveTo(hx-14*s, hy-3*s); ctx.lineTo(hx, hy-13*s); ctx.lineTo(hx+14*s, hy-3*s); ctx.closePath(); ctx.fill(); }
@@ -12153,6 +12380,7 @@ function renderScene(){
   const heads = [];
   let onN = 0; for (const e of G.E){ if (!e.dead && e.x > G.camX - 160 && e.x < G.camX + VW + 160) onN++; }
   G.onN = onN;
+  if (G.mode === 'shadow') drawShadowLegion();   // the legion first: enemies are drawn over it, never hidden inside it
   const crowdDraw = onN > 24, fast = [];   // from about two dozen on screen, ordinary bodies take the batched path
   for (const e of G.E){
     if (e.dead) continue;
@@ -12168,11 +12396,11 @@ function renderScene(){
     if (e.vanish) continue;
     if (e.x < G.camX - 160 || e.x > G.camX + VW + 160) continue;   // off screen: the marker at the edge is enough
     if (e.remote){ if (e.down) continue; drawScarf(e, e.scarfCol || '#E0283E'); }
+    if (G.mode === 'shadow') foeMark(e);
     drawShadow(e);
     heads.push([e, e.tint ? drawStick(e, 0.85, e.tint) : drawStick(e,1)]);
   }
-  if (G.mode === 'shadow') drawShadowLegion();
-  if (fast.length) drawCrowd(fast, heads);
+  if (fast.length){ if (G.mode === 'shadow') for (const e of fast) foeMark(e); drawCrowd(fast, heads); }
   for (const [e,h] of heads){
     if (e.remote){
       if (h){ ctx.font = '600 18px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillText(NET.oppName, h[0]+1, h[1]-19); ctx.fillStyle = '#FF8A7A'; ctx.fillText(NET.oppName, h[0], h[1]-20); }
@@ -12313,7 +12541,7 @@ function renderScene(){
     drawDashFx(); drawImpacts(); drawLines();
     drawProj(); drawAstraFlight(); drawBolts(); drawRings();
     if (G.ring > 0){ ctx.strokeStyle=`rgba(255,231,168,${G.ring})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y-40,(1-G.ring)*160+20,0,Math.PI*2); ctx.stroke(); }
-    if (G.mode === 'shadow' || G.mode === 'guns') drawFoeTalk();
+    if (G.mode === 'shadow' || G.mode === 'guns' || G.mode === 'spider' || G.mode === 'hammer') drawFoeTalk();
     if (G.mode === 'guns') drawGhost();
     // floating texts
     ctx.textAlign='center';
@@ -16444,7 +16672,7 @@ function updateHUD(alive){
       : G.mode==='guns' ? gmHud(P)
       : G.mode==='shadow' ? (G.dungeon ? `${G.dungeon.penalty ? 'PENALTY ZONE' : G.dungeon.red ? RANKS[G.dungeon.rank] + '-rank RED GATE' : RANKS[G.dungeon.rank] + '-rank Dungeon'} &nbsp; Lv <span>${sysData().lv}</span> &nbsp; kills <span>${G.dungeon.kills}/${G.dungeon.need}</span> &nbsp; ${G.dungeon.boss ? (G.dungeon.done ? 'boss <span>down</span>' : 'boss <span>here</span>') : ''} &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length}</span> &nbsp; crystals <span>${SV.crystals || 0}</span>` : `Hunter <span style="color:${RANK_COL[hunterRank()]}">${RANKS[hunterRank()]}-rank</span> &nbsp; Lv <span>${sysData().lv}</span>${sysData().pts ? ' <span style="color:#FFD23F">(+' + sysData().pts + ' · N)</span>' : ''} &nbsp; gates <span>${(G.gates || []).map(g => RANKS[g.rank] + (g.red ? '!' : ' ' + Math.max(0, Math.ceil(g.timer)) + 's')).join(' · ') || 'none'}</span> &nbsp; mana <span>${Math.round(P.mana || 0).toLocaleString()}</span> &nbsp; shadows <span>${(G.allies || []).filter(a => !a.fade).length} (${G.legionMode === 'attack' ? 'attacking' : 'guarding'})</span> &nbsp; legion <span>${(SV.legion || []).length}</span> &nbsp; power <span>+${Math.round(legionBonus()*100)}%</span> &nbsp; crystals <span>${SV.crystals || 0}</span>`)
       : G.mode==='hammer' ? `Hammer mode &nbsp; kills <span>${G.kills}</span> &nbsp; hammer Lv <span>${hammerLevel()}</span> &nbsp; range <span>${Math.round(hammerRange()/10)} m</span> &nbsp; enemy Lv <span>${G.smartL || 2}</span> &nbsp; enemies <span>${alive}</span>`
-      : G.mode==='spider' ? `Spider Chase &nbsp; distance <span>${(G.spider && G.spider.dist) || 0} m</span> &nbsp; best <span>${SV.spiderBest || 0} m</span> &nbsp; trapped <span>${(G.spider && G.spider.trapped) || 0}</span> &nbsp; chasing <span>${G.E.filter(e => e.flyChase && !e.dead).length}</span>`
+      : G.mode==='spider' ? `Spider Chase &nbsp; distance <span>${(G.spider && G.spider.dist) || 0} m</span> &nbsp; best <span>${SV.spiderBest || 0} m</span> &nbsp; trapped <span>${(G.spider && G.spider.trapped) || 0}</span> &nbsp; chasing <span>${G.E.filter(e => !e.dead && !(e.webBound > 0) && !e.webHung).length}</span>`
       : G.mode==='survival' ? `Wave <span>${G.surv ? G.surv.wave : 0}</span> &nbsp; score <span>${G.surv ? G.surv.score : 0}</span>`
       : G.mode==='coop' ? `Wave <span>${NET.wave}</span>/${NET.coopCfg.waves} &nbsp; enemies <span>${G.E.filter(e => !e.dead && !e.remote).length}</span> &nbsp; with ${escH(NET.oppName || 'Ally')}`
       : G.mode==='duel' ? `Round <span>${NET.round}</span> &nbsp; you <span>${NET.wins[NET.role==='host'?0:1]}</span> : <span>${NET.wins[NET.role==='host'?1:0]}</span> rival`
