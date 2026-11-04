@@ -815,7 +815,7 @@ body.compactView canvas#c{border-radius:4px;box-shadow:0 0 0 1px rgba(251,239,22
   <h2>Controls</h2>
   <div class="keys">
     <b>A</b><b>D</b> move &nbsp; <b>W</b>/<b>Space</b> jump &nbsp; <b>J</b>/click slash &nbsp; <b>K</b>/right-click block &nbsp; <b>L</b> dash<br>
-    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>G</b> show / hide shadow names, <b>V</b> Monarch form, <b>I</b> Shadow Realm (merge shadows there) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
+    <b>Shift</b> hold to slow time &nbsp; <b>E</b> toggle slow time &nbsp; <b>Esc</b> pause &nbsp; <b>P</b> dodge every attack (on/off) &nbsp; <b>T</b> cinematic follow cam (on/off) &nbsp; Shadow Legion: <b>Alt</b> raise the shadows of the fallen, <b>R + A</b> call your kept shadows to stand behind you, <b>R + D</b> in front of you, <b>Q</b> let them fight, <b>B</b> send them into the dark, <b>X</b> Shadow Exchange, hold <b>C</b> Ruler's Authority, <b>G</b> show / hide shadow names, <b>V</b> Monarch form, <b>I</b> Shadow Realm (merge shadows there), <b>2</b> Shadow Forge (shadows into weapons & armour you draw) &nbsp; Hammer mode: <b>Z</b> throw / call back the hammer, <b>M</b> strap swing + uppercut, <b>N</b> lightning storm<br>
     <b>1</b>–<b>5</b> breathing forms (the Fourth and Fifth Forms unlock once every Body upgrade is maxed) &nbsp; <b>Q</b> throw kunai &nbsp; <b>R</b> shadow clone<br>
     <b>L</b> then <b>J</b> Dash Slash: dash, then slash to cut up to 6 enemies within 10 m. 10 s cooldown.<br>
     <b>H</b> switch between your sword and your fists (after buying Iron Fists in the Dojo).<br>
@@ -3280,6 +3280,7 @@ function monarchTick(dt){
   if (Math.abs(P.size - sz) < 0.01) P.size = sz;
   // I: Shadow Realm
   if (pressed.realm) toggleRealm();
+  if (pressed.forge) toggleForge();
   if (pressed.shNames){ SV.set.shNames = !SV.set.shNames; saveSoon(); toast(SV.set.shNames ? 'Shadow names: on' : 'Shadow names: off', 1.2); }   // G: show or hide the names over your shadows
   if (pressed.armyView){ G.armyView = G.armyView === false; pop(P.x, P.y - 130, G.armyView ? 'Army view: whole legion' : 'Army view: off', '#C9A8FF'); }
   if (G.realmOpen){ G.realmT = (G.realmT || 0) - dt; if (G.realmT <= 0){ G.realmT = 0.5; drawRealm(); } }
@@ -3312,6 +3313,188 @@ function rulerSlam(P){
     e.state = 'hurt'; e.timer = 0.8; e.vx = 0; e.vy = 1600; e.onG = false; e.rulerSlam = G.time; }
   if (R.list.length) pop(P.x, P.y - 130, 'Down!', '#7FD3FF');
 }
+/* ===== SHADOW FORGE (2, or the button in the Shadow Realm): pick any shadows resting in the dark, as many as you like, and
+   forge them into a weapon or a suit of armour that you draw yourself. The stronger the shadows and the more of them, the
+   stronger the thing they become: power = the sum of every shadow (grade doubles it, every merge star +50%, bosses x3,
+   elites x1.5). A weapon adds damage to everything you do, armour takes damage off every blow. One of each is worn at a
+   time; the arsenal keeps the rest. The shadows are gone into the steel, so the legion's power drops by what they gave. ===== */
+const FORGE_GW = [1, 2, 4, 8, 16, 32, 64], FORGE_MAX = 30;
+const FORGE_PAD = { weapon:[480, 140], armor:[260, 300] };
+const FORGE_IMG = {};
+const forgeUnit = d => FORGE_GW[clamp(d.grade || 0, 0, 6)]*(1 + 0.5*(d.fuse || 0))*(d.tier === 'boss' ? 3 : d.tier === 'elite' ? 1.5 : 1);
+const forgeRarity = p => p >= 400 ? ['Monarch-grade', '#FFFFFF'] : p >= 120 ? ['Legendary', '#FFD23F'] : p >= 40 ? ['Epic', '#FF3B9A'] : p >= 12 ? ['Rare', '#7FB8FF'] : ['Common', '#B8A8E0'];
+const forgePct = p => Math.round(15*Math.sqrt(p));                 // weapon: +% damage
+const forgeDR = p => Math.min(0.8, 0.05*Math.sqrt(p));             // armour: share of every blow it takes
+const forgeStat = (kind, p) => kind === 'weapon' ? '+' + forgePct(p) + '% damage' : '\u2212' + Math.round(forgeDR(p)*100) + '% damage taken';
+const forgeEsc = t => String(t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+function forgeItem(kind){ const id = (SV.forgeEq || {})[kind]; return id ? (SV.forge || []).find(f => f.id === id && f.kind === kind) || null : null; }
+function forgeImg(it){ if (!it || !it.img) return null; let im = FORGE_IMG[it.id]; if (!im){ im = new Image(); im.src = it.img; FORGE_IMG[it.id] = im; } return im.complete && im.naturalWidth ? im : null; }
+/* in the fight: what the worn pieces do (Shadow Legion only) */
+const forgeDmgK = () => { if (G.mode !== 'shadow') return 1; const it = forgeItem('weapon'); return it ? 1 + forgePct(it.pow)/100 : 1; };
+const forgeTakeK = () => { if (G.mode !== 'shadow') return 1; const it = forgeItem('armor'); return it ? 1 - forgeDR(it.pow) : 1; };
+/* the drawn weapon in your hand, in the blade's frame (+x from the pommel to the tip) */
+function drawForgeBlade(e, Lt, u){
+  if (G.mode !== 'shadow' || e.remote || e.isClone) return false;
+  const it = forgeItem('weapon'), im = forgeImg(it); if (!im) return false;
+  const W = Lt*1.15, H = W*im.height/im.width, rc = forgeRarity(it.pow)[1];
+  if (it.pow >= 12 && FXL() > 0){ const a = Math.min(0.55, 0.15 + it.pow/800); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= a*(0.8 + 0.2*Math.sin(G.time*5));
+    ctx.drawImage(glowSprite(rc), -Lt*0.1, -H*0.9, W*1.1, H*1.8); ctx.restore(); }
+  ctx.drawImage(im, -Lt*0.05, -H/2, W, H);
+  return true;
+}
+/* the drawn armour over your chest, turning with your body */
+function drawForgeArmor(P){
+  if (G.mode !== 'shadow' || P.dead) return;
+  const it = forgeItem('armor'), im = forgeImg(it); if (!im) return;
+  const t = stickSegments(P)[4]; if (!t) return;
+  const L = Math.hypot(t[2] - t[0], t[3] - t[1]) || 30*(P.size || 1), H = L*1.7, W = H*im.width/im.height;
+  ctx.save(); ctx.translate((t[0] + t[2])/2, (t[1] + t[3])/2 - L*0.08); ctx.rotate(Math.atan2(t[3] - t[1], t[2] - t[0]) + Math.PI/2); ctx.scale(P.face || 1, 1);
+  if (it.pow >= 12 && FXL() > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(0.45, 0.12 + it.pow/900); ctx.drawImage(glowSprite(forgeRarity(it.pow)[1]), -W*0.8, -H*0.8, W*1.6, H*1.6); ctx.restore(); }
+  ctx.globalAlpha = P.inv > 0 && Math.floor(G.time*20) % 2 === 0 ? 0.5 : 0.96; ctx.drawImage(im, -W/2, -H/2, W, H); ctx.restore(); ctx.globalAlpha = 1;
+}
+/* --- the panel --- */
+function forgeRows(){   // named shadows one by one; the rest grouped by kind, grade, stars and tier
+  const rows = [], by = {};
+  for (const d of G.stored || []){ normalizeShadow(d);
+    if (d.sname){ rows.push({ key:'N:' + rows.length + ':' + d.sname, label:d.sname + fuseStars(d), sub:GRADES[d.grade] + ' \u00b7 ' + mergeKind(d), col:GRADE_COL[d.grade], list:[d] }); continue; }
+    const k = 'G:' + (d.spec || d.type) + '|' + d.grade + '|' + (d.fuse || 0) + '|' + (d.tier || '');
+    (by[k] = by[k] || { key:k, label:mergeKind(d) + fuseStars(d), sub:GRADES[d.grade] + (d.tier ? ' \u00b7 ' + d.tier : ''), col:GRADE_COL[d.grade], list:[] }).list.push(d); }
+  return rows.concat(Object.values(by)).sort((a, b) => forgeUnit(b.list[0]) - forgeUnit(a.list[0]) || b.list.length - a.list.length);
+}
+function forgePicked(){ const F = G.fg, out = []; for (const r of F.rows || []){ const n = clamp(F.sel[r.key] || 0, 0, r.list.length); for (let i = 0; i < n; i++) out.push(r.list[i]); } return out; }
+function toggleForge(){
+  if (G.mode !== 'shadow') return;
+  G.forgeOpen = !G.forgeOpen; let el = document.getElementById('forgePanel');
+  if (!G.forgeOpen){ if (el) el.remove(); return; }
+  if (G.realmOpen) toggleRealm();
+  G.fg = G.fg || { kind:'weapon', sel:{}, tool:'brush', col:'#C9A8FF', size:7, mirror:false, undo:[], tab:'make', name:'' };
+  el = document.createElement('div'); el.id = 'forgePanel';
+  el.style.cssText = 'position:fixed;left:50%;top:4%;transform:translateX(-50%);width:min(560px,96vw);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:rgba(12,6,26,0.97);border:1px solid #9B6BFF;border-radius:12px;padding:12px 16px;color:#E6DCFF;font:15px/1.35 Teko,sans-serif;letter-spacing:0.5px;z-index:60;pointer-events:auto;box-shadow:0 0 50px rgba(155,107,255,0.45)';
+  for (const ev of ['wheel', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointermove', 'pointerup', 'mousedown', 'mouseup', 'click']) el.addEventListener(ev, e => e.stopPropagation(), { passive:true });
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:26px;color:#C9A8FF">Shadow Forge</span><button data-f="close" class="fgB">Close (2)</button></div>
+    <div style="display:flex;gap:6px;margin:4px 0 8px"><button data-f="tab:make" class="fgB" id="fgTabMake">Forge new</button><button data-f="tab:bag" class="fgB" id="fgTabBag">Your arsenal</button></div>
+    <div id="fgMake"><div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><span>Forge a</span><button data-f="kind:weapon" class="fgB" id="fgKw">Weapon</button><button data-f="kind:armor" class="fgB" id="fgKa">Armour</button></div>
+      <div style="color:#C9A8FF;font-size:18px">1 · Pick the shadows <span style="color:#8A7AB8;font-size:14px">(only shadows in the dark · B sends the field back)</span></div>
+      <div style="display:flex;gap:6px;margin:3px 0"><button data-f="all" class="fgB">All of them</button><button data-f="none" class="fgB">Clear</button></div>
+      <div id="fgRows" style="max-height:190px;overflow-y:auto;border:1px solid #3A2470;border-radius:8px;padding:4px 8px;background:rgba(40,20,80,0.25)"></div>
+      <div id="fgSum" style="margin:6px 0;padding:6px 8px;border-radius:8px;background:rgba(40,20,80,0.45)"></div>
+      <div style="color:#C9A8FF;font-size:18px">2 · Draw it</div>
+      <div id="fgPad" style="position:relative;margin:4px auto;touch-action:none"></div>
+      <div id="fgTools" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:4px 0"></div>
+      <div style="color:#C9A8FF;font-size:18px;margin-top:4px">3 · Name it and forge</div>
+      <div style="display:flex;gap:6px;align-items:center;margin:4px 0 2px"><input id="fgName" maxlength="28" placeholder="Name (optional)" style="flex:1;font:inherit;font-size:16px;background:#1A0E36;color:#F3ECFF;border:1px solid #5B3FA8;border-radius:6px;padding:3px 8px"><button data-f="forge" class="fgB" style="background:#6A3FD0;font-size:19px;padding:3px 18px">FORGE</button></div>
+      <div id="fgMsg" style="min-height:20px;color:#FF8A9A"></div></div>
+    <div id="fgBag" style="display:none"></div>
+    <style>#forgePanel .fgB{font:inherit;font-size:15px;letter-spacing:0.5px;color:#F3ECFF;background:#3A2470;border:1px solid #9B6BFF;border-radius:6px;padding:2px 10px;cursor:pointer;touch-action:manipulation}
+      #forgePanel .fgB.on{background:#9B6BFF;color:#120828}#forgePanel .sw{width:22px;height:22px;border-radius:50%;border:2px solid #3A2470;cursor:pointer;padding:0}#forgePanel .sw.on{border-color:#FFFFFF}</style>`;
+  el.addEventListener('click', forgeClick);
+  el.addEventListener('input', e => { const t = e.target;
+    if (t.dataset.n){ const r = G.fg.rows.find(x => x.key === t.dataset.n); if (r){ G.fg.sel[r.key] = clamp(Math.floor(+t.value || 0), 0, r.list.length); forgeSum(); } }
+    if (t.id === 'fgSize') G.fg.size = +t.value; if (t.id === 'fgCol'){ G.fg.col = t.value; G.fg.tool = 'brush'; forgeTools(); } if (t.id === 'fgName') G.fg.name = t.value; });
+  document.body.appendChild(el);
+  const nm = document.getElementById('fgName'); nm.value = G.fg.name || '';
+  forgeTab(G.fg.tab); forgeKind(G.fg.kind, true);
+}
+function forgeTab(t){ G.fg.tab = t; document.getElementById('fgMake').style.display = t === 'make' ? '' : 'none'; document.getElementById('fgBag').style.display = t === 'bag' ? '' : 'none';
+  document.getElementById('fgTabMake').classList.toggle('on', t === 'make'); const b = document.getElementById('fgTabBag'); b.classList.toggle('on', t === 'bag'); b.textContent = 'Your arsenal (' + (SV.forge || []).length + ')';
+  if (t === 'bag') forgeBag(); else { forgeRowsDraw(); forgeSum(); } }
+function forgeKind(k, first){
+  const F = G.fg; if (!first && k === F.kind) return;
+  F.kind = k; F.undo = []; F.mirror = k === 'armor';
+  document.getElementById('fgKw').classList.toggle('on', k === 'weapon'); document.getElementById('fgKa').classList.toggle('on', k === 'armor');
+  const [w, h] = FORGE_PAD[k], box = document.getElementById('fgPad'); box.style.width = 'min(100%,' + w + 'px)'; box.style.aspectRatio = w + ' / ' + h;
+  box.innerHTML = `<canvas id="fgGuide" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:8px;background:repeating-conic-gradient(#1A0E36 0 25%,#140A2C 0 50%) 0 0/20px 20px"></canvas><canvas id="fgPaint" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:8px;border:1px solid #5B3FA8;cursor:crosshair;touch-action:none"></canvas>`;
+  const g = document.getElementById('fgGuide').getContext('2d'); g.strokeStyle = 'rgba(201,168,255,0.35)'; g.fillStyle = 'rgba(201,168,255,0.45)'; g.lineWidth = 1.5; g.setLineDash([6, 6]); g.font = '14px Teko, sans-serif';
+  if (k === 'weapon'){ g.beginPath(); g.moveTo(0, h/2); g.lineTo(w, h/2); g.stroke(); g.strokeRect(4, h/2 - 16, w*0.17, 32); g.fillText('handle (your hand)', 6, h/2 + 32); g.fillText('tip \u2192', w - 44, h/2 - 22); }
+  else { g.beginPath(); g.moveTo(w/2, 0); g.lineTo(w/2, h); g.stroke(); g.beginPath(); g.moveTo(w*0.18, h*0.16); g.lineTo(w*0.82, h*0.16); g.lineTo(w*0.72, h*0.88); g.lineTo(w*0.28, h*0.88); g.closePath(); g.stroke();
+    g.beginPath(); g.arc(w/2, h*0.06, w*0.12, 0, Math.PI); g.stroke(); g.fillText('neck', w/2 - 12, h*0.13); g.fillText('chest', w/2 - 14, h*0.45); g.fillText('waist', w/2 - 14, h*0.95); }
+  const c = document.getElementById('fgPaint'), x = c.getContext('2d'); let last = null;
+  const at = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left)*w/r.width, (e.clientY - r.top)*h/r.height]; };
+  const line = (a, b) => { x.globalCompositeOperation = F.tool === 'erase' ? 'destination-out' : 'source-over'; x.strokeStyle = F.col; x.lineWidth = F.size; x.lineCap = 'round'; x.lineJoin = 'round';
+    x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0] + 0.01, b[1]); x.stroke();
+    if (F.mirror){ x.beginPath(); x.moveTo(w - a[0], a[1]); x.lineTo(w - b[0] - 0.01, b[1]); x.stroke(); } };
+  c.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { c.setPointerCapture(e.pointerId); } catch(_){}
+    F.undo.push(x.getImageData(0, 0, w, h)); if (F.undo.length > 25) F.undo.shift(); last = at(e); line(last, last); });
+  c.addEventListener('pointermove', e => { if (!last) return; e.preventDefault(); const p = at(e); line(last, p); last = p; });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) c.addEventListener(ev, () => { last = null; });
+  forgeTools();
+}
+function forgeTools(){
+  const F = G.fg, cols = ['#FFFFFF', '#E9D8FF', '#C9A8FF', '#9B6BFF', '#5B3FA8', '#2B1D4E', '#0A0614', '#7FD3FF', '#3FA9FF', '#7FE39F', '#FFD23F', '#FF8A3A', '#FF3B5C', '#B3242B', '#8A8F96', '#5A4632'];
+  document.getElementById('fgTools').innerHTML = cols.map(c => `<button class="sw${F.tool === 'brush' && F.col === c ? ' on' : ''}" data-f="col:${c}" style="background:${c}" aria-label="colour ${c}"></button>`).join('') +
+    `<input id="fgCol" type="color" value="${F.col}" style="width:30px;height:24px;border:none;background:none;padding:0">
+     <span style="margin-left:4px">size</span><input id="fgSize" type="range" min="2" max="40" value="${F.size}" style="width:90px">
+     <button data-f="tool:brush" class="fgB${F.tool === 'brush' ? ' on' : ''}">Brush</button><button data-f="tool:erase" class="fgB${F.tool === 'erase' ? ' on' : ''}">Eraser</button>
+     <button data-f="mirror" class="fgB${F.mirror ? ' on' : ''}">Mirror</button><button data-f="undo" class="fgB">Undo</button><button data-f="clear" class="fgB">Clear</button>`;
+}
+function forgeRowsDraw(){
+  const F = G.fg; F.rows = forgeRows(); const keep = {}; for (const r of F.rows) if (F.sel[r.key]) keep[r.key] = Math.min(F.sel[r.key], r.list.length); F.sel = keep;
+  const box = document.getElementById('fgRows'); if (!box) return;
+  box.innerHTML = F.rows.length ? F.rows.map(r => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;border-bottom:1px solid rgba(155,107,255,0.15);padding:3px 0">
+      <span><span style="color:${r.col}">${forgeEsc(r.label)}</span> <span style="color:#8A7AB8;font-size:13px">${forgeEsc(r.sub)} \u00b7 ${r.list.length} in the dark \u00b7 power ${Math.round(forgeUnit(r.list[0])*10)/10} each</span></span>
+      <span style="display:flex;gap:4px;align-items:center;flex:none"><button data-f="dec:${r.key}" class="fgB" style="padding:0 8px">\u2212</button>
+      <input data-n="${r.key}" type="number" min="0" max="${r.list.length}" value="${F.sel[r.key] || 0}" style="width:54px;font:inherit;font-size:15px;background:#1A0E36;color:#F3ECFF;border:1px solid #5B3FA8;border-radius:5px;text-align:center">
+      <button data-f="inc:${r.key}" class="fgB" style="padding:0 8px">+</button>${r.list.length > 1 ? `<button data-f="max:${r.key}" class="fgB" style="padding:0 6px">All</button>` : ''}</span></div>`).join('')
+    : `<div style="text-align:center;color:#8A7AB8;padding:8px">No shadows in the dark. Raise the fallen with Alt, then send them into the dark with B.</div>`;
+}
+function forgeSum(){
+  const F = G.fg, picked = forgePicked(), p = picked.reduce((s, d) => s + forgeUnit(d), 0), el = document.getElementById('fgSum'); if (!el) return;
+  if (!picked.length){ el.innerHTML = '<span style="color:#8A7AB8">Pick shadows above. The stronger they are and the more you give, the stronger the ' + (F.kind === 'weapon' ? 'weapon' : 'armour') + '.</span>'; return; }
+  const [rn, rc] = forgeRarity(p), lose = legionBonusOf(picked);
+  el.innerHTML = `<b>${picked.length.toLocaleString()}</b> shadows \u00b7 power <b>${Math.round(p*10)/10}</b> \u00b7 <span style="color:${rc}">${rn}</span> \u00b7 <span style="color:#FFE7A8">${forgeStat(F.kind, p)}</span>
+    <div style="color:#8A7AB8;font-size:13px">They become the ${F.kind === 'weapon' ? 'weapon' : 'armour'} for good. Legion power \u2212${Math.round(lose*100)}%.</div>`;
+}
+function forgeBag(){
+  const el = document.getElementById('fgBag'), list = (SV.forge || []).slice().reverse(), eq = SV.forgeEq || {};
+  el.innerHTML = list.length ? list.map(it => { const [rn, rc] = forgeRarity(it.pow), on = eq[it.kind] === it.id;
+    return `<div style="display:flex;gap:10px;align-items:center;border:1px solid ${on ? rc : '#3A2470'};border-radius:8px;padding:6px 8px;margin:5px 0;background:rgba(40,20,80,${on ? 0.5 : 0.25})">
+      <img src="${it.img}" style="width:${it.kind === 'weapon' ? 120 : 56}px;height:${it.kind === 'weapon' ? 35 : 65}px;object-fit:contain;background:#140A2C;border-radius:6px;flex:none">
+      <div style="flex:1;min-width:0"><div style="font-size:18px;color:${rc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${forgeEsc(it.name)}</div>
+        <div style="font-size:13px;color:#B8A8E0">${it.kind === 'weapon' ? 'Weapon' : 'Armour'} \u00b7 ${rn} \u00b7 <span style="color:#FFE7A8">${forgeStat(it.kind, it.pow)}</span> \u00b7 from ${it.n.toLocaleString()} shadows</div></div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:none"><button data-f="eq:${it.id}" class="fgB${on ? ' on' : ''}">${on ? 'Worn' : 'Wear'}</button><button data-f="del:${it.id}" class="fgB" style="font-size:13px">${G.fg.del === it.id ? 'Sure?' : 'Shatter'}</button></div></div>`; }).join('')
+    : '<div style="text-align:center;color:#8A7AB8;padding:14px">Nothing forged yet.</div>';
+}
+function forgeMsg(t, ok){ const m = document.getElementById('fgMsg'); if (m){ m.style.color = ok ? '#7FE39F' : '#FF8A9A'; m.textContent = t; } }
+function forgeClick(e){
+  const b = e.target.closest('[data-f]'); if (!b) return; const F = G.fg, [cmd, ...rest] = b.dataset.f.split(':'), arg = rest.join(':');
+  const row = () => F.rows.find(r => r.key === arg);
+  if (cmd === 'close'){ toggleForge(); return; }
+  if (cmd === 'tab'){ forgeTab(arg); return; }
+  if (cmd === 'kind'){ forgeKind(arg); forgeSum(); return; }
+  if (cmd === 'inc' || cmd === 'dec' || cmd === 'max'){ const r = row(); if (!r) return; F.sel[r.key] = clamp(cmd === 'max' ? r.list.length : (F.sel[r.key] || 0) + (cmd === 'inc' ? 1 : -1), 0, r.list.length);
+    const inp = b.parentNode.querySelector('input'); if (inp) inp.value = F.sel[r.key]; forgeSum(); return; }
+  if (cmd === 'all'){ for (const r of F.rows) F.sel[r.key] = r.list.length; forgeRowsDraw(); forgeSum(); return; }
+  if (cmd === 'none'){ F.sel = {}; forgeRowsDraw(); forgeSum(); return; }
+  if (cmd === 'col'){ F.col = arg; F.tool = 'brush'; forgeTools(); return; }
+  if (cmd === 'tool'){ F.tool = arg; forgeTools(); return; }
+  if (cmd === 'mirror'){ F.mirror = !F.mirror; forgeTools(); return; }
+  const c = document.getElementById('fgPaint'), x = c && c.getContext('2d');
+  if (cmd === 'undo' && x){ const u = F.undo.pop(); if (u) x.putImageData(u, 0, 0); return; }
+  if (cmd === 'clear' && x){ F.undo.push(x.getImageData(0, 0, c.width, c.height)); x.clearRect(0, 0, c.width, c.height); return; }
+  if (cmd === 'eq'){ const it = (SV.forge || []).find(f => f.id === arg); if (!it) return; SV.forgeEq = SV.forgeEq || {}; SV.forgeEq[it.kind] = SV.forgeEq[it.kind] === it.id ? null : it.id; save(); forgeBag();
+    const P = G.P; if (P && SV.forgeEq[it.kind]) pop(P.x, P.y - 130, (it.kind === 'weapon' ? 'Wielding ' : 'Wearing ') + it.name, forgeRarity(it.pow)[1]); return; }
+  if (cmd === 'del'){ if (F.del !== arg){ F.del = arg; forgeBag(); return; } F.del = null; SV.forge = (SV.forge || []).filter(f => f.id !== arg);
+    for (const k of ['weapon', 'armor']) if (SV.forgeEq && SV.forgeEq[k] === arg) SV.forgeEq[k] = null; delete FORGE_IMG[arg]; save(); forgeTab('bag'); return; }
+  if (cmd === 'forge') forgeNow();
+}
+function forgeNow(){
+  const F = G.fg, picked = forgePicked(), c = document.getElementById('fgPaint'); if (!c) return;
+  if (!picked.length){ forgeMsg('Pick at least one shadow first.'); return; }
+  const x = c.getContext('2d'), px = x.getImageData(0, 0, c.width, c.height).data; let ink = 0; for (let i = 3; i < px.length; i += 16) if (px[i] > 20){ ink++; if (ink > 30) break; }
+  if (ink <= 30){ forgeMsg('Draw your ' + (F.kind === 'weapon' ? 'weapon' : 'armour') + ' first.'); return; }
+  if ((SV.forge || []).length >= FORGE_MAX){ forgeMsg('The arsenal is full (' + FORGE_MAX + '). Shatter something first.'); return; }
+  const p = picked.reduce((s, d) => s + forgeUnit(d), 0), [rn, rc] = forgeRarity(p);
+  const it = { id:'f' + Date.now().toString(36) + ((Math.random()*1e5)|0).toString(36), kind:F.kind, name:(F.name || '').trim() || rn + ' Shadow ' + (F.kind === 'weapon' ? 'Blade' : 'Mail'),
+    pow:Math.round(p*10)/10, n:picked.length, img:c.toDataURL('image/png'), at:Date.now() };
+  G.stored = (G.stored || []).filter(d => !picked.includes(d));
+  SV.forge = SV.forge || []; SV.forge.push(it); SV.forgeEq = SV.forgeEq || {}; SV.forgeEq[it.kind] = it.id;   // worn straight away
+  syncLegion(true);
+  F.sel = {}; F.undo = []; F.name = ''; x.clearRect(0, 0, c.width, c.height); const nm = document.getElementById('fgName'); if (nm) nm.value = '';
+  forgeRowsDraw(); forgeSum(); forgeMsg('Forged: ' + it.name + ' (' + forgeStat(it.kind, it.pow) + ') \u2014 you are ' + (it.kind === 'weapon' ? 'wielding' : 'wearing') + ' it.', true);
+  const P = G.P; if (P){ flash('#1A0B33', 0.3); ringFx(P.x, P.y - 40, 200, rc, true); ringFx(P.x, P.y - 40, 110, '#9B6BFF', true); burst(P.x, P.y - 40, 40, rc, 480, 5, true);
+    pop(P.x, P.y - 140, 'FORGED \u00b7 ' + it.name, rc); pop(P.x, P.y - 112, picked.length + ' shadows \u2192 ' + rn, '#C9A8FF'); G.shake = Math.max(G.shake, 7); }
+  sfx('shadow'); sfx('boom', 0.02); vib(70);
+}
 function toggleRealm(){
   G.realmOpen = !G.realmOpen; let el = document.getElementById('realmPanel');
   if (!G.realmOpen){ if (el) el.remove(); return; }
@@ -3319,6 +3502,7 @@ function toggleRealm(){
     el.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);width:min(440px,92vw);max-height:72vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;background:rgba(12,6,26,0.94);border:1px solid #5B3FA8;border-radius:10px;padding:14px 18px;color:#E6DCFF;font:15px/1.4 Teko,sans-serif;letter-spacing:0.5px;z-index:50;pointer-events:auto;box-shadow:0 0 40px rgba(155,107,255,0.35)';
     for (const ev of ['wheel', 'touchstart', 'touchmove', 'touchend', 'pointerdown', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation(), { passive:true });   // the game must not swallow the scroll
     for (const ev of ['pointerdown', 'touchstart']) el.addEventListener(ev, () => { G.realmT = Math.max(G.realmT || 0, 1); }, { passive:true });   // no redraw under a finger about to press a button
+    el.addEventListener('click', e => { if (e.target.closest('[data-forge]')){ e.stopPropagation(); toggleForge(); return; } }, true);
     el.addEventListener('click', e => { const b = e.target.closest('[data-merge]'); if (!b) return; e.stopPropagation();   // merge buttons
       const k = b.dataset.merge; mergeFx(k === '*' ? mergeAll() : mergeGroup(k, b.dataset.all === '1')); drawRealm(); });
     document.body.appendChild(el); }
@@ -3347,6 +3531,7 @@ function drawRealm(){
     <div style="color:#C9A8FF;margin:8px 0 2px;font-size:15px">Weapons · each merge climbs one step</div>${armRow}</div>`;
   el.innerHTML = `<div style="font-size:24px;color:#C9A8FF;text-align:center">Shadow Realm</div>
     <div style="text-align:center;margin:2px 0 10px;color:#B8A8E0">${all.length.toLocaleString()} soldiers · ${field} on the field · ${(all.length - field).toLocaleString()} in the dark · power +${Math.round(legionBonus()*100)}%</div>
+    <div style="text-align:center;margin:0 0 8px"><button data-forge="1" style="font:inherit;font-size:17px;color:#F3ECFF;background:#6A3FD0;border:1px solid #C9A8FF;border-radius:6px;padding:3px 14px;cursor:pointer">Shadow Forge \u00b7 turn shadows into weapons & armour (2)</button></div>
     ${gradeRow}${mergeBox}${named ? `<div style="color:#C9A8FF;margin:6px 0 2px">Named shadows · grades rise with kills, up to ${GRADES[maxGrade()]} at your rank</div>${named}<div style="color:#C9A8FF;margin:10px 0 2px">By kind</div>` : ''}
     ${rows || '<div style="text-align:center;color:#8A7AB8">The realm is empty. Raise the fallen with Alt.</div>'}
     <div style="text-align:center;margin-top:10px;color:#8A7AB8">There is no limit to how many the realm holds · scroll for more · ${isTouch ? 'tap Realm' : 'I'} to close</div>`;
@@ -5606,7 +5791,7 @@ const keyMap = { a:'left', arrowleft:'left', d:'right', arrowright:'right', w:'j
   j:'attack', u:'kick', k:'block', l:'dash', shift:'slowHold', e:'slowToggle', escape:'pause', p:'dodgeAlways', tab:'legionCmd',
   '1':'form0', '2':'form1', '3':'form2', '4':'form3', '5':'form4', q:'kunai', r:'clone', h:'switch', n:'launch', y:'ymod', t:'grab', g:'fire', v:'ride', f:'astra', o:'interact', m:'map', x:'web', c:'webnet', z:'climb', b:'webAll', alt:'arise' };
 const held = {}, pressed = {};
-const SHADOW_KEYS = { g:'shNames', x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
+const SHADOW_KEYS = { '2':'forge', g:'shNames', x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
 const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory', v:'ghostAim' };   // Warzone only
 const SPIDER_KEYS = { f:'venom' };   // Spider Chase only: F = Venom Strike
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || (G_ref && G_ref.mode === 'spider' && SPIDER_KEYS[k]) || keyMap[k];
@@ -6040,9 +6225,9 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['gwBtn', 'gmRBtn', 'gmQBtn', 'gmFBtn', 'gmIBtn', 'riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['gwBtn', 'gmRBtn', 'gmQBtn', 'gmFBtn', 'gmIBtn', 'riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'forgePanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
-  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.sysOpen = false; G.armoryOpen = false; { const ap = document.getElementById('armoryPanel'); if (ap) ap.remove(); } G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
+  if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.forgeOpen = false; G.sysOpen = false; G.armoryOpen = false; { const ap = document.getElementById('armoryPanel'); if (ap) ap.remove(); } G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
   govCapped = false; govPending = null; govAcc = 0; govN = 0; govMiss = 0;   // a new run: measure again
   G.veh = null; G.zomb = G.mode === 'zomb' ? G.zomb : null; G.world = null; G.fc = null; G.camY = 0; G.snares = []; G.wounds = []; G.dragons = []; G.serpents = [];
@@ -6472,6 +6657,7 @@ function damageEnemy(e, dmg, o){
     dmg *= 2.4; o = Object.assign({}, o, { kb:(o.kb || 120)*1.8, heavy:true, breakArmor:Math.max(o.breakArmor || 0, 2) });
     impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 2.5); }
   if (e.dead) return false;
+  if (G.mode === 'shadow' && o.src !== 'shadow' && !e.shadow) dmg *= forgeDmgK();   // your forged weapon
   if (G.mode === 'spider' && (o.fist || o.src === 'slash')) dmg *= 1.6;   // the suit hits harder than a man
   if (e.slayer && o.src === 'shadow'){ if (Math.random() < 0.45){ if (Math.random() < 0.3) sparks(e.x, e.y - 40*(e.size || 1)); return false; } dmg *= 0.5; }   // a Slayer turns many shadow blades aside
   if (!sameLayer(e)) return false;
@@ -8577,6 +8763,7 @@ function hurtPlayer(dmg, kb, e, full){
   if (autoDodge(P, e)) return;
   if (G.mode === 'shadow' && P.monarch){ dmg *= 0.4; kb *= 0.2; full = false; P.flash = 0.1; }   // the Monarch hardly feels it
   if (G.mode === 'shadow' && P.hp < P.maxHp*0.3) dmg *= 0.6;   // Tenacity
+  dmg *= forgeTakeK();   // your forged armour
   const iron = P.ironT > 0;
   if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0) && G.mode !== 'shadow'){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
   if (iron) dmg *= 0.5;
@@ -10517,7 +10704,8 @@ function drawBlade(sg, e, pose, tint){
       const m = ctx.getTransform(), sc = clamp(Math.round(Math.hypot(m.a, m.b)*2)/2, 0.5, 4);
       const spr = swordSprite(id, sw, Lt, u, red, tint || (e.flash > 0 ? '#fff' : null), sc);
       ctx.scale(Lt/spr.Lq, 1); ctx.drawImage(spr, -spr.ox, -spr.oy, spr.width/sc, spr.height/sc);
-    } else drawSwordShape(ctx, id, sw, Lt, u, G.time || astraNow(), hand, { mono: tint || null, glow: red, wa:Math.atan2(dy, dx), f });
+    } else if (e.isPlayer && drawForgeBlade(e, Lt, u)){ /* the weapon you drew */ }
+    else drawSwordShape(ctx, id, sw, Lt, u, G.time || astraNow(), hand, { mono: tint || null, glow: red, wa:Math.atan2(dy, dx), f });
     ctx.restore();
     // the fist wrapped round the handle, drawn over it so the sword sits in the hand
     if (sg[7] === 'sheathed') return;   // resting in the scabbard: no hand on it
@@ -12536,6 +12724,7 @@ function renderScene(){
       if (FXL() > 0 && !P.ride && Math.random() < (P.form ? 0.3 : P.atk ? 0.6 : 0.4)){ const ac = auraCol(); G.parts.push({ x:P.x + rnd(-13,13), y:P.y - rnd(4,62), vx:rnd(-12,12) - P.vx*0.15, vy:rnd(-90,-40), life:rnd(0.35,0.7), max:0.7, col:Math.random() < 0.5 ? ac : shadeHex(ac, 0.45), size:rnd(1.5,3.2), real:true, g:-0.05 }); }
       if (P.form && !P.form.wait && !P.dead) drawFormAura(P);   // the breathing style's aura burns round you while a form is on
       drawStick(P, blink?0.45:1, P.monarch && P.size > 1.3 ? '#140A28' : undefined);   // the Monarch is all shadow
+      drawForgeArmor(P);   // the armour you drew
       if (P.ironT > 0 && !P.dead) drawGranite(P);   // stone plates over the body
       drawBloodForms(P);
       drawHammer(P);
@@ -16094,7 +16283,7 @@ function frameBody(now){
   if (formNameT > 0){ formNameT -= dt; if (formNameT<=0) formNameEl.classList.remove('on'); }
   if (screens.dojo.classList.contains('on')) safeDraw(() => renderPreview(dt));
   moodT -= dt; if (moodT <= 0){ moodT = 0.5; MUS.mood = musicMood(); if (MUS.filt && AU.c && (!G.P || !G.running) && MUS.filt.frequency.value < 15000) MUS.filt.frequency.setTargetAtTime(16000, AU.c.currentTime, 0.2); }
-  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'sysPanel', 'armoryPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
+  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'forgePanel', 'sysPanel', 'armoryPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.forgeOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
     demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
   if (pressed.pause && G.running && (!G.over || G.mode === 'duel')) togglePause();
   if (pressed.grab && G.running && !G.paused && G.mode !== 'arena'){   // T: cinematic follow cam on / off
@@ -16179,6 +16368,7 @@ function step(dt){
   if (G.mode === 'arena' && AR.p1){ arStep(dt); return; }   // the Duelist Arena runs its own fight
   const P = G.P;
   if (G.mode === 'shadow' && P && G.running){
+    if (G.forgeOpen){ if (pressed.forge) toggleForge(); return; }   // the Shadow Forge holds the fight still while you draw
     if (storyTick(dt)) return;   // a story is being told: the world holds still
     if (pressed.auto){ setAuto(!G.autoOn, false); toast(G.autoOn ? 'AUTO BATTLE on · M to stop' : 'Auto battle off', 1.4); }
     if (G.autoOn && !P.dead) autoPilot(dt); }
