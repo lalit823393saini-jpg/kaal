@@ -3340,6 +3340,9 @@ function drawForgeBlade(e, Lt, u){
   const W = Lt*1.15, H = W*im.height/im.width, rc = forgeRarity(it.pow)[1];
   if (it.pow >= 12 && FXL() > 0){ const a = Math.min(0.55, 0.15 + it.pow/800); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= a*(0.8 + 0.2*Math.sin(G.time*5));
     ctx.drawImage(glowSprite(rc), -Lt*0.1, -H*0.9, W*1.1, H*1.8); ctx.restore(); }
+  if (e === G.P && FXL() > 0){ const T = G.fgTrail = (G.fgTrail || []).filter(q => G.time - q.t < 0.11);
+    if (e.atk && (!T.length || G.time - T[T.length - 1].t > 0.012)){ T.push({ m:ctx.getTransform(), t:G.time }); if (T.length > 7) T.shift(); }
+    if (e.atk) for (const q of T){ const k = 1 - (G.time - q.t)/0.11; if (k <= 0) continue; ctx.save(); ctx.setTransform(q.m); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28*k; ctx.drawImage(im, -Lt*0.05, -H/2, W, H); ctx.restore(); } }
   ctx.drawImage(im, -Lt*0.05, -H/2, W, H);
   return true;
 }
@@ -3466,6 +3469,7 @@ function toggleForge(){
       <div id="fgRows" style="max-height:190px;overflow-y:auto;border:1px solid #3A2470;border-radius:8px;padding:4px 8px;background:rgba(40,20,80,0.25)"></div>
       <div id="fgSum" style="margin:6px 0;padding:6px 8px;border-radius:8px;background:rgba(40,20,80,0.45)"></div>
       <div style="color:#C9A8FF;font-size:18px">2 · Draw it</div>
+      <div id="fgBp"></div>
       <div id="fgPad" style="position:relative;margin:4px auto;touch-action:none"></div>
       <div id="fgTools" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:4px 0"></div>
       <div id="fgShape" style="font-size:14px;margin:2px 0 4px"></div>
@@ -3491,11 +3495,8 @@ function forgeKind(k, first){
   F.kind = k; F.undo = []; F.mirror = k === 'armor';
   document.getElementById('fgKw').classList.toggle('on', k === 'weapon'); document.getElementById('fgKa').classList.toggle('on', k === 'armor');
   const [w, h] = FORGE_PAD[k], box = document.getElementById('fgPad'); box.style.width = 'min(100%,' + w + 'px)'; box.style.aspectRatio = w + ' / ' + h;
-  box.innerHTML = `<canvas id="fgGuide" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:8px;background:repeating-conic-gradient(#1A0E36 0 25%,#140A2C 0 50%) 0 0/20px 20px"></canvas><canvas id="fgPaint" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:8px;border:1px solid #5B3FA8;cursor:crosshair;touch-action:none"></canvas>`;
-  const g = document.getElementById('fgGuide').getContext('2d'); g.strokeStyle = 'rgba(201,168,255,0.35)'; g.fillStyle = 'rgba(201,168,255,0.45)'; g.lineWidth = 1.5; g.setLineDash([6, 6]); g.font = '14px Teko, sans-serif';
-  if (k === 'weapon'){ g.beginPath(); g.moveTo(0, h/2); g.lineTo(w, h/2); g.stroke(); g.strokeRect(4, h/2 - 16, w*0.17, 32); g.fillText('handle (your hand)', 6, h/2 + 32); g.fillText('tip \u2192', w - 44, h/2 - 22); }
-  else { g.beginPath(); g.moveTo(w/2, 0); g.lineTo(w/2, h); g.stroke(); g.beginPath(); g.moveTo(w*0.18, h*0.16); g.lineTo(w*0.82, h*0.16); g.lineTo(w*0.72, h*0.88); g.lineTo(w*0.28, h*0.88); g.closePath(); g.stroke();
-    g.beginPath(); g.arc(w/2, h*0.06, w*0.12, 0, Math.PI); g.stroke(); g.fillText('neck', w/2 - 12, h*0.13); g.fillText('chest', w/2 - 14, h*0.45); g.fillText('waist', w/2 - 14, h*0.95); }
+  box.innerHTML = `<canvas id="fgGuide" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:8px;background:repeating-conic-gradient(#1A0E36 0 25%,#140A2C 0 50%) 0 0/20px 20px"></canvas><canvas id="fgPaint" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:8px;border:1px solid #5B3FA8;cursor:crosshair;touch-action:none"></canvas><canvas id="fgOver" width="${w}" height="${h}" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;border-radius:8px"></canvas>`;
+  forgeGuide();
   const c = document.getElementById('fgPaint'), x = c.getContext('2d'); let last = null;
   const at = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left)*w/r.width, (e.clientY - r.top)*h/r.height]; };
   const line = (a, b) => { x.globalCompositeOperation = F.tool === 'erase' ? 'destination-out' : 'source-over'; x.strokeStyle = F.col; x.lineWidth = F.size; x.lineCap = 'round'; x.lineJoin = 'round';
@@ -3505,7 +3506,151 @@ function forgeKind(k, first){
     F.undo.push(x.getImageData(0, 0, w, h)); if (F.undo.length > 25) F.undo.shift(); last = at(e); line(last, last); });
   c.addEventListener('pointermove', e => { if (!last) return; e.preventDefault(); const p = at(e); line(last, p); last = p; });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) c.addEventListener(ev, () => { if (last) forgeShapeLine(); last = null; });
-  forgeTools(); forgeShapeLine();
+  forgeTools(); forgeBpUI(); forgeShapeLine();
+}
+/* ===== FORGE BLUEPRINTS: designs to trace over (or to start from and change). Each is drawn on the pad as a blueprint
+   (cyan lines on a blue grid, with its parts named), or filled into the paint layer as a base you can recolour and change.
+   Weapons are laid out so that tracing them reads as the class they are meant to be. ===== */
+const bpRR = (g, x, y, w, h, r) => { g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+const FORGE_BP = {
+  weapon:[
+    { id:'nightfang', name:'Night Fang', cls:'blade', look:'A long, slightly curved katana. Pale violet steel with a wavy temper line, a round gold guard and a diamond-wrapped grip. Clean and fast: the first blade of a Monarch.',
+      pal:['#E9D8FF', '#2B1D4E', '#FFD23F', '#9B6BFF', '#C9A8FF'], parts:[
+      { f:1, p:g => bpRR(g, 10, 62, 78, 16, 4), lab:[40, 98, 'grip'] },
+      { s:2, lw:2, p:g => { for (let x = 16; x < 86; x += 10){ g.moveTo(x, 62); g.lineTo(x + 6, 78); g.moveTo(x + 6, 62); g.lineTo(x, 78); } } },
+      { f:2, p:g => g.arc(10, 70, 8, 0, 6.283), lab:[2, 54, 'pommel'] },
+      { f:2, p:g => g.ellipse(94, 70, 6, 22, 0, 0, 6.283), lab:[84, 40, 'guard'] },
+      { f:0, p:g => { g.moveTo(100, 62); g.quadraticCurveTo(220, 60, 336, 48); g.quadraticCurveTo(300, 66, 220, 74); g.quadraticCurveTo(160, 78, 100, 78); g.closePath(); }, lab:[230, 40, 'edge'] },
+      { s:3, lw:2, p:g => { g.moveTo(104, 72); for (let x = 104; x < 320; x += 14) g.quadraticCurveTo(x + 7, 66 - (x - 104)*0.045 - 3, x + 14, 71 - (x - 104)*0.05); } , lab:[180, 104, 'temper line'] } ] },
+    { id:'serpent', name:'Serpent Kris', cls:'blade', look:'A wavy, snake-like blade with five curves, a hooked asymmetric guard and a serpent-head pommel. Deep green-black steel with a poison-green edge.',
+      pal:['#1E2A22', '#7FE39F', '#3A2A1E', '#C9A8FF', '#FFD23F'], parts:[
+      { f:2, p:g => bpRR(g, 14, 63, 70, 14, 5), lab:[34, 98, 'grip'] },
+      { f:4, p:g => { g.moveTo(14, 70); g.lineTo(2, 58); g.lineTo(6, 70); g.lineTo(2, 82); g.closePath(); }, lab:[0, 50, 'serpent head'] },
+      { f:4, p:g => { g.moveTo(84, 56); g.quadraticCurveTo(100, 50, 104, 62); g.lineTo(104, 80); g.quadraticCurveTo(96, 92, 84, 86); g.closePath(); }, lab:[82, 40, 'hooked guard'] },
+      { f:0, p:g => { g.moveTo(104, 62); for (let i = 0; i < 5; i++){ const x = 104 + i*44; g.quadraticCurveTo(x + 22, 52 - i, x + 44, 62 - i*1.5); } g.lineTo(334, 70); for (let i = 4; i >= 0; i--){ const x = 104 + i*44; g.quadraticCurveTo(x + 22, 92 - i*0.5, x, 78 + 0); } g.closePath(); }, lab:[200, 40, 'five waves'] },
+      { s:1, lw:2, p:g => { g.moveTo(108, 70); for (let i = 0; i < 5; i++){ const x = 108 + i*44; g.quadraticCurveTo(x + 22, 62, x + 44, 70); } } } ] },
+    { id:'abyss', name:'Abyss Spear', cls:'spear', look:'A very long black shaft with three silver rings and a narrow leaf-shaped head that glows violet along its spine. A short ribbon hangs below the head.',
+      pal:['#14101E', '#C9D0D8', '#9B6BFF', '#E9D8FF', '#FF3B5C'], parts:[
+      { f:0, p:g => bpRR(g, 6, 66, 396, 8, 4), lab:[150, 98, 'shaft'] },
+      { f:1, p:g => { for (const x of [110, 230, 340]) bpRR(g, x, 63, 8, 14, 2); }, lab:[226, 52, 'rings'] },
+      { f:1, p:g => bpRR(g, 392, 62, 12, 16, 3) },
+      { f:3, p:g => { g.moveTo(404, 70); g.quadraticCurveTo(430, 56, 474, 70); g.quadraticCurveTo(430, 84, 404, 70); g.closePath(); }, lab:[420, 46, 'leaf head'] },
+      { s:2, lw:2, p:g => { g.moveTo(408, 70); g.lineTo(468, 70); } },
+      { f:4, p:g => { g.moveTo(396, 78); g.quadraticCurveTo(392, 92, 400, 104); g.lineTo(404, 102); g.quadraticCurveTo(398, 92, 402, 78); g.closePath(); }, lab:[370, 120, 'ribbon'] } ] },
+    { id:'rapier', name:'Frost Rapier', cls:'spear', look:'A needle-thin duelling blade of ice-blue steel with a cup guard and a swept loop of silver over the hand. Long reach, made for the lunge.',
+      pal:['#BFE4FF', '#C9D0D8', '#1F2E4A', '#7FD3FF', '#FFFFFF'], parts:[
+      { f:2, p:g => bpRR(g, 12, 64, 50, 12, 5), lab:[20, 98, 'grip'] },
+      { f:1, p:g => g.arc(8, 70, 7, 0, 6.283) },
+      { f:1, p:g => { g.moveTo(66, 50); g.quadraticCurveTo(82, 70, 66, 90); g.lineTo(62, 88); g.quadraticCurveTo(74, 70, 62, 52); g.closePath(); }, lab:[60, 36, 'cup guard'] },
+      { s:1, lw:3, p:g => { g.moveTo(66, 54); g.quadraticCurveTo(36, 40, 14, 62); } , lab:[18, 40, 'swept loop'] },
+      { f:0, p:g => { g.moveTo(74, 67); g.lineTo(470, 69.5); g.lineTo(470, 70.5); g.lineTo(74, 73); g.closePath(); }, lab:[260, 56, 'needle blade'] },
+      { s:3, lw:1, p:g => { g.moveTo(80, 70); g.lineTo(440, 70); } } ] },
+    { id:'cleaver', name:'Void Cleaver', cls:'heavy', look:'A great war-axe: a long dark haft bound in leather, and at the end a huge crescent head of black steel with a hole cut through it and a spike on the back. Slow, and it ends things.',
+      pal:['#3A2A1E', '#1A1A22', '#9B6BFF', '#C9D0D8', '#5A4632'], parts:[
+      { f:0, p:g => bpRR(g, 6, 64, 400, 12, 5), lab:[150, 98, 'haft'] },
+      { s:4, lw:3, p:g => { for (let x = 20; x < 110; x += 9){ g.moveTo(x, 64); g.lineTo(x + 6, 76); } }, lab:[30, 52, 'leather'] },
+      { f:1, p:g => { g.moveTo(352, 62); g.quadraticCurveTo(372, 8, 452, 6); g.quadraticCurveTo(478, 70, 452, 134); g.quadraticCurveTo(372, 132, 352, 78); g.closePath(); }, lab:[430, 2, 'crescent head'] },
+      { f:3, p:g => { g.moveTo(452, 8); g.quadraticCurveTo(478, 70, 452, 132); g.lineTo(446, 128); g.quadraticCurveTo(470, 70, 446, 12); g.closePath(); } },
+      { f:2, p:g => g.arc(408, 70, 12, 0, 6.283), lab:[380, 104, 'void hole'] },
+      { f:1, p:g => { g.moveTo(352, 64); g.lineTo(326, 70); g.lineTo(352, 76); g.closePath(); }, lab:[300, 56, 'back spike'] } ] },
+    { id:'gravehammer', name:'Grave Hammer', cls:'heavy', look:'A tombstone on a stick: a thick iron-shod haft and a massive square head with four spikes and a skull pressed into its face. It crushes armour.',
+      pal:['#4A4E54', '#2A1E14', '#E8E0C8', '#7FD3FF', '#8A8F96'], parts:[
+      { f:1, p:g => bpRR(g, 6, 63, 380, 14, 6), lab:[150, 98, 'haft'] },
+      { f:4, p:g => { for (const x of [60, 200, 330]) bpRR(g, x, 61, 12, 18, 2); }, lab:[196, 50, 'iron bands'] },
+      { f:0, p:g => bpRR(g, 372, 18, 92, 104, 8), lab:[392, 12, 'head'] },
+      { f:4, p:g => { for (const [x, y, dx, dy] of [[372, 26, -14, -10], [464, 26, 14, -10], [372, 114, -14, 10], [464, 114, 14, 10]]){ g.moveTo(x, y - 6); g.lineTo(x + dx, y + dy); g.lineTo(x, y + 6); g.closePath(); } }, lab:[456, 136, 'spikes'] },
+      { f:2, p:g => { g.arc(418, 62, 18, 0, 6.283); g.moveTo(410, 82); bpRR(g, 408, 78, 20, 14, 3); }, lab:[396, 108, 'skull'] },
+      { f:3, p:g => { g.arc(411, 60, 4, 0, 6.283); g.moveTo(429, 60); g.arc(425, 60, 4, 0, 6.283); } } ] },
+    { id:'scythe', name:'Reaper Scythe', cls:'heavy', look:'A long bone-white staff with a wide curved blade swinging out from its tip, sharp on the inside curve. A soul-flame burns where blade meets staff.',
+      pal:['#E8E0C8', '#14101E', '#C9A8FF', '#FF3B5C', '#5A4632'], parts:[
+      { f:0, p:g => bpRR(g, 6, 65, 440, 10, 5), lab:[150, 98, 'staff'] },
+      { f:1, p:g => { g.moveTo(446, 64); g.quadraticCurveTo(470, 20, 420, 6); g.quadraticCurveTo(360, 4, 312, 40); g.quadraticCurveTo(370, 22, 420, 30); g.quadraticCurveTo(446, 38, 436, 64); g.closePath(); }, lab:[330, 2, 'curved blade'] },
+      { f:2, p:g => { g.moveTo(436, 62); g.quadraticCurveTo(452, 46, 446, 36); g.quadraticCurveTo(464, 52, 452, 70); g.closePath(); }, lab:[452, 92, 'soul flame'] },
+      { f:2, p:g => g.arc(450, 70, 8, 0, 6.283) },
+      { s:4, lw:3, p:g => { for (const x of [40, 52, 64]){ g.moveTo(x, 64); g.lineTo(x, 76); } } } ] },
+    { id:'fang', name:'Fang Dagger', cls:'dagger', look:'A short, wickedly curved blade like a wolf\u2019s fang, with a D-shaped knuckle guard over the fingers. Quick and close: made for the back.',
+      pal:['#E9D8FF', '#2B1D4E', '#8A8F96', '#FF3B5C', '#9B6BFF'], parts:[
+      { f:1, p:g => bpRR(g, 10, 63, 58, 14, 5), lab:[18, 98, 'grip'] },
+      { f:2, p:g => { g.moveTo(70, 58); g.quadraticCurveTo(76, 100, 14, 92); g.lineTo(14, 86); g.quadraticCurveTo(66, 92, 64, 60); g.closePath(); }, lab:[30, 116, 'knuckle guard'] },
+      { f:0, p:g => { g.moveTo(72, 62); g.quadraticCurveTo(150, 50, 200, 80); g.quadraticCurveTo(140, 74, 72, 78); g.closePath(); }, lab:[126, 44, 'fang blade'] },
+      { s:3, lw:2, p:g => { g.moveTo(76, 75); g.quadraticCurveTo(140, 70, 196, 79); } } ] },
+    { id:'kunai', name:'Shadow Kunai', cls:'dagger', look:'A throwing knife: a ring pommel, a cord-wrapped grip and a flat leaf blade. Black with a single violet line down the middle.',
+      pal:['#1A1A22', '#5B3FA8', '#C9A8FF', '#8A8F96', '#FFFFFF'], parts:[
+      { s:3, lw:4, p:g => g.arc(16, 70, 10, 0, 6.283), lab:[2, 50, 'ring'] },
+      { f:1, p:g => bpRR(g, 26, 64, 54, 12, 3), lab:[34, 98, 'cord grip'] },
+      { s:2, lw:2, p:g => { for (let x = 30; x < 80; x += 6){ g.moveTo(x, 64); g.lineTo(x + 4, 76); } } },
+      { f:0, p:g => { g.moveTo(80, 66); g.quadraticCurveTo(130, 48, 190, 70); g.quadraticCurveTo(130, 92, 80, 74); g.closePath(); }, lab:[120, 44, 'leaf blade'] },
+      { s:2, lw:2, p:g => { g.moveTo(84, 70); g.lineTo(186, 70); } } ] },
+  ],
+  armor:[
+    { id:'cuirass', name:'Knight\u2019s Cuirass', look:'A polished breastplate with a raised centre ridge, two rounded shoulder plates and a belt with a gold buckle. Classic and solid.',
+      pal:['#8A9098', '#5A6068', '#FFD23F', '#3A2A1E', '#D8DEE6'], parts:[
+      { f:1, p:g => { g.ellipse(52, 62, 40, 26, -0.3, 0, 6.283); g.moveTo(248, 62); g.ellipse(208, 62, 40, 26, 0.3, 0, 6.283); }, lab:[10, 20, 'pauldrons'] },
+      { f:0, p:g => { g.moveTo(66, 50); g.lineTo(194, 50); g.quadraticCurveTo(206, 160, 180, 240); g.lineTo(80, 240); g.quadraticCurveTo(54, 160, 66, 50); g.closePath(); }, lab:[150, 30, 'breastplate'] },
+      { s:4, lw:4, p:g => { g.moveTo(130, 56); g.lineTo(130, 236); }, lab:[136, 140, 'ridge'] },
+      { f:3, p:g => bpRR(g, 76, 238, 108, 22, 4), lab:[70, 284, 'belt'] },
+      { f:2, p:g => bpRR(g, 118, 240, 24, 18, 3) } ] },
+    { id:'mantle', name:'Monarch\u2019s Mantle', look:'A tall spiked collar, a dark chest plate with a glowing violet gem at its heart, and the edges of a cape falling at the sides. The armour of a king of shadows.',
+      pal:['#1A1132', '#9B6BFF', '#E9D8FF', '#0A0614', '#C9A8FF'], parts:[
+      { f:3, p:g => { g.moveTo(30, 60); g.quadraticCurveTo(10, 180, 24, 290); g.lineTo(60, 290); g.lineTo(70, 70); g.closePath(); g.moveTo(230, 60); g.quadraticCurveTo(250, 180, 236, 290); g.lineTo(200, 290); g.lineTo(190, 70); g.closePath(); }, lab:[4, 150, 'cape'] },
+      { f:0, p:g => { g.moveTo(70, 56); g.lineTo(190, 56); g.lineTo(178, 250); g.lineTo(130, 270); g.lineTo(82, 250); g.closePath(); }, lab:[150, 210, 'chest plate'] },
+      { f:4, p:g => { for (const [x, k] of [[78, -1], [104, -1], [156, 1], [182, 1]]){ g.moveTo(x - 10, 58); g.lineTo(x + k*6, 8); g.lineTo(x + 10, 58); g.closePath(); } }, lab:[100, 4, 'spiked collar'] },
+      { f:1, p:g => { g.moveTo(130, 110); g.lineTo(150, 136); g.lineTo(130, 168); g.lineTo(110, 136); g.closePath(); }, lab:[154, 120, 'soul gem'] },
+      { s:4, lw:2, p:g => { g.moveTo(90, 90); g.lineTo(122, 120); g.moveTo(170, 90); g.lineTo(138, 120); g.moveTo(96, 210); g.lineTo(124, 170); g.moveTo(164, 210); g.lineTo(136, 170); } } ] },
+    { id:'ribcage', name:'Bone Ribcage', look:'The armour of the risen dead: a spine-like sternum and four pairs of curved bone ribs over a black body. Ghostly blue light between the bones.',
+      pal:['#E8E0C8', '#0A0614', '#7FD3FF', '#B8C4C0', '#5A6068'], parts:[
+      { f:1, p:g => { g.moveTo(70, 50); g.lineTo(190, 50); g.lineTo(178, 250); g.lineTo(82, 250); g.closePath(); }, lab:[150, 36, 'dark body'] },
+      { f:0, p:g => bpRR(g, 122, 54, 16, 190, 6), lab:[142, 270, 'sternum'] },
+      { s:0, lw:12, p:g => { for (let i = 0; i < 4; i++){ const y = 80 + i*42; g.moveTo(124, y); g.quadraticCurveTo(70, y - 6, 84, y + 30); g.moveTo(136, y); g.quadraticCurveTo(190, y - 6, 176, y + 30); } }, lab:[20, 120, 'ribs'] },
+      { s:2, lw:2, p:g => { for (let i = 0; i < 4; i++){ const y = 98 + i*42; g.moveTo(104, y); g.lineTo(116, y + 6); g.moveTo(156, y); g.lineTo(144, y + 6); } } } ] },
+    { id:'shinobi', name:'Shinobi Wrap', look:'Light and quiet: a fitted dark vest, two straps crossing in an X over the chest with a small kunai holster, and a long red sash at the waist.',
+      pal:['#22262E', '#3A3A44', '#B3242B', '#8A8F96', '#C9A8FF'], parts:[
+      { f:0, p:g => { g.moveTo(74, 52); g.lineTo(186, 52); g.lineTo(176, 244); g.lineTo(84, 244); g.closePath(); }, lab:[150, 36, 'vest'] },
+      { s:1, lw:16, p:g => { g.moveTo(80, 60); g.lineTo(180, 220); g.moveTo(180, 60); g.lineTo(80, 220); }, lab:[4, 90, 'cross straps'] },
+      { f:3, p:g => bpRR(g, 148, 96, 16, 36, 3), lab:[170, 100, 'holster'] },
+      { f:2, p:g => { bpRR(g, 80, 222, 100, 24, 4); g.moveTo(170, 246); g.lineTo(196, 296); g.lineTo(178, 296); g.lineTo(160, 246); g.closePath(); }, lab:[200, 270, 'sash'] } ] },
+    { id:'dragon', name:'Dragon Scale', look:'Rows of overlapping scales like a dragon\u2019s hide, gold at the collar fading to deep red at the waist, with a horned chest emblem.',
+      pal:['#8A1E22', '#FFB347', '#3A0E0E', '#FFD23F', '#FF7A1A'], parts:[
+      { f:2, p:g => { g.moveTo(70, 50); g.lineTo(190, 50); g.quadraticCurveTo(200, 170, 176, 248); g.lineTo(84, 248); g.quadraticCurveTo(60, 170, 70, 50); g.closePath(); }, lab:[150, 36, 'hide'] },
+      { s:0, lw:3, p:g => { for (let r = 0; r < 8; r++){ const y = 66 + r*24, off = r % 2 ? 12 : 0; for (let x = 78 + off; x < 184; x += 24){ g.moveTo(x, y); g.arc(x + 12, y, 12, Math.PI, 0, true); } } }, lab:[10, 140, 'scales'] },
+      { f:3, p:g => { g.moveTo(130, 96); g.lineTo(150, 120); g.lineTo(130, 150); g.lineTo(110, 120); g.closePath(); g.moveTo(112, 104); g.lineTo(98, 80); g.lineTo(118, 98); g.moveTo(148, 104); g.lineTo(162, 80); g.lineTo(142, 98); }, lab:[154, 150, 'horned emblem'] } ] },
+  ],
+};
+/* draw one: 'guide' = blueprint lines and labels on the guide canvas; 'base' = coloured, into the paint layer */
+function forgeBpDraw(g, bp, mode, w, h){
+  if (!bp) return;
+  g.save(); g.setLineDash([]); g.lineJoin = 'round'; g.lineCap = 'round';
+  for (const pt of bp.parts){ g.beginPath(); pt.p(g);
+    if (mode === 'guide'){ if (pt.f != null){ g.fillStyle = 'rgba(127,211,255,0.07)'; g.fill(); } g.strokeStyle = 'rgba(160,220,255,0.85)'; g.lineWidth = pt.s != null ? Math.max(1.2, (pt.lw || 2)*0.5) : 1.4; g.stroke(); }
+    else { if (pt.f != null){ g.fillStyle = bp.pal[pt.f]; g.fill(); g.strokeStyle = shadeHex(bp.pal[pt.f], -0.4); g.lineWidth = 2; g.stroke(); }
+      if (pt.s != null){ g.strokeStyle = bp.pal[pt.s]; g.lineWidth = pt.lw || 2; g.stroke(); } } }
+  if (mode === 'guide'){ g.font = '13px Teko, sans-serif'; g.fillStyle = 'rgba(200,236,255,0.9)';
+    for (const pt of bp.parts) if (pt.lab){ const [lx, ly, t] = pt.lab; g.fillText(t, clamp(lx, 2, w - g.measureText(t).width - 2), clamp(ly + 10, 12, h - 3)); } }
+  g.restore();
+}
+function forgeBpCur(){ const F = G.fg; F.bp = F.bp || {}; return (FORGE_BP[F.kind] || []).find(b => b.id === F.bp[F.kind]) || null; }
+function forgeGuide(){
+  const F = G.fg, k = F.kind, [w, h] = FORGE_PAD[k], gc = document.getElementById('fgGuide'), oc = document.getElementById('fgOver'); if (!gc || !oc) return;
+  const bp = forgeBpCur(), g = gc.getContext('2d'), o = oc.getContext('2d'); g.clearRect(0, 0, w, h); o.clearRect(0, 0, w, h);
+  gc.style.background = bp ? '#0B2447 linear-gradient(rgba(127,211,255,0.12) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, rgba(127,211,255,0.12) 1px, transparent 1px) 0 0/20px 20px'
+                           : 'repeating-conic-gradient(#1A0E36 0 25%,#140A2C 0 50%) 0 0/20px 20px';
+  if (bp){ gc.style.background = 'linear-gradient(rgba(127,211,255,0.13) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, rgba(127,211,255,0.13) 1px, transparent 1px) 0 0/20px 20px, #0B2447'; }
+  g.strokeStyle = bp ? 'rgba(127,211,255,0.25)' : 'rgba(201,168,255,0.35)'; g.fillStyle = bp ? 'rgba(127,211,255,0.4)' : 'rgba(201,168,255,0.45)'; g.lineWidth = 1.5; g.setLineDash([6, 6]); g.font = '14px Teko, sans-serif';
+  if (k === 'weapon'){ g.beginPath(); g.moveTo(0, h/2); g.lineTo(w, h/2); g.stroke(); g.strokeRect(4, h/2 - 16, w*0.17, 32); if (!bp){ g.fillText('handle (your hand)', 6, h/2 + 32); g.fillText('tip \u2192', w - 44, h/2 - 22); } }
+  else { g.beginPath(); g.moveTo(w/2, 0); g.lineTo(w/2, h); g.stroke(); if (!bp){ g.beginPath(); g.moveTo(w*0.18, h*0.16); g.lineTo(w*0.82, h*0.16); g.lineTo(w*0.72, h*0.88); g.lineTo(w*0.28, h*0.88); g.closePath(); g.stroke();
+    g.beginPath(); g.arc(w/2, h*0.06, w*0.12, 0, Math.PI); g.stroke(); g.fillText('neck', w/2 - 12, h*0.13); g.fillText('chest', w/2 - 14, h*0.45); g.fillText('waist', w/2 - 14, h*0.95); } }
+  if (bp && F.bpLines !== false){ o.globalAlpha = 0.9; forgeBpDraw(o, bp, 'guide', w, h); }
+}
+function forgeBpUI(){
+  const F = G.fg, el = document.getElementById('fgBp'); if (!el) return; const list = FORGE_BP[F.kind] || [], bp = forgeBpCur();
+  const chip = (id, t) => `<button data-f="bp:${id}" class="fgB${(F.bp[F.kind] || '') === id ? ' on' : ''}" style="font-size:14px;padding:1px 8px">${t}</button>`;
+  el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 4px"><span style="color:#7FD3FF">Blueprint:</span>${chip('', 'None (free draw)')}${list.map(b => chip(b.id, b.name)).join('')}</div>` +
+    (bp ? `<div style="border:1px solid #2E5A8A;border-radius:8px;padding:6px 9px;margin:0 0 4px;background:rgba(11,36,71,0.6)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:19px;color:#BFE4FF">${bp.name}${bp.cls ? ` <span style="font-size:14px;color:#9FD3FF">\u00b7 reads as ${FORGE_CLS[bp.cls].name}</span>` : ''}</span>
+        <span style="display:flex;gap:4px"><button data-f="bplines" class="fgB${F.bpLines !== false ? ' on' : ''}" style="font-size:13px">Lines</button><button data-f="bpbase" class="fgB" style="font-size:13px;background:#1F4E7A;border-color:#7FD3FF">Use as base</button></span></div>
+      <div style="font-size:14px;color:#C8DCF0;margin:2px 0 4px">${bp.look}</div>
+      <div style="display:flex;gap:5px;align-items:center;font-size:13px;color:#9FB8D8">Its colours:${bp.pal.map(c => `<button class="sw" data-f="col:${c}" style="background:${c}" aria-label="colour ${c}"></button>`).join('')}
+        <span style="margin-left:4px">Trace the lines, or "Use as base" to start from it filled in and change it.</span></div></div>` : '');
 }
 function forgeTools(){
   const F = G.fg, cols = ['#FFFFFF', '#E9D8FF', '#C9A8FF', '#9B6BFF', '#5B3FA8', '#2B1D4E', '#0A0614', '#7FD3FF', '#3FA9FF', '#7FE39F', '#FFD23F', '#FF8A3A', '#FF3B5C', '#B3242B', '#8A8F96', '#5A4632'];
@@ -3557,6 +3702,11 @@ function forgeClick(e){
   if (cmd === 'col'){ F.col = arg; F.tool = 'brush'; forgeTools(); return; }
   if (cmd === 'tool'){ F.tool = arg; forgeTools(); return; }
   if (cmd === 'mirror'){ F.mirror = !F.mirror; forgeTools(); return; }
+  if (cmd === 'bp'){ F.bp = F.bp || {}; F.bp[F.kind] = arg; F.bpLines = true; forgeGuide(); forgeBpUI(); return; }
+  if (cmd === 'bplines'){ F.bpLines = F.bpLines === false; forgeGuide(); forgeBpUI(); return; }
+  if (cmd === 'bpbase'){ const bp = forgeBpCur(), pc = document.getElementById('fgPaint'); if (!bp || !pc) return; const px = pc.getContext('2d');
+    F.undo.push(px.getImageData(0, 0, pc.width, pc.height)); px.globalCompositeOperation = 'source-over'; forgeBpDraw(px, bp, 'base', pc.width, pc.height);
+    if (!(F.name || '').trim() || Object.values(FORGE_BP).flat().some(b => b.name === F.name.trim())){ F.name = bp.name; const nm = document.getElementById('fgName'); if (nm) nm.value = bp.name; } forgeShapeLine(); return; }
   const c = document.getElementById('fgPaint'), x = c && c.getContext('2d');
   if (cmd === 'undo' && x){ const u = F.undo.pop(); if (u) x.putImageData(u, 0, 0); forgeShapeLine(); return; }
   if (cmd === 'clear' && x){ F.undo.push(x.getImageData(0, 0, c.width, c.height)); x.clearRect(0, 0, c.width, c.height); forgeShapeLine(); return; }
@@ -4734,7 +4884,8 @@ function alliesTick(dt){
     if (a.state === 'windup'){ a.timer -= dt*(a.swift ? 1.8 : 1); a.vx = 0; if (a.timer <= 0){ a.state = 'swing'; a.timer = 0.14;
         if (tgt && !tgt.dead && Math.abs(tgt.x - a.x) < 70*a.size*(a.reach || 1)){ G.muteHits = true; const hs = G.hitstop, zk = G.zoomK, fl = G.flashFx; const hpB = tgt.hp; damageEnemy(tgt, a.dmg*(a.gradeK || 1)*(a.led ? 1.25 : 1)*(1 + legionBonus()*0.5)*(1 + 0.6*hunterRank()), { src:'shadow', kb:180, dir:a.face, noStop:true, quiet:true, unblockable:true }); G.hitstop = hs; G.zoomK = zk; G.flashFx = fl; G.finishT = 0; G.muteHits = false;
           if (tgt.dead || tgt.hp <= 0){ a.xp = (a.xp || 0) + 1 + 2*(tgt.beastRank || 0) + (tgt.slayer ? 10 : 0) + (tgt.dunBoss ? 40 : 0); promote(a); if (a.grade >= 4 && Math.random() < 0.15) allySay(a, pick(COMMAND_LINES)); } else if (hpB > tgt.hp) a.xp = (a.xp || 0) + 0.05;
-          if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0}); } } }
+          if (FXL() > 0 && Math.random() < 0.35) emit(tgt.x, tgt.y - 40*tgt.size, {n:3, col:['#9B6BFF','#2B1D4E'], spd:200, size:3, life:0.3, kind:'star', g:0});
+          if ((a.grade || 0) >= 2 && Math.random() < 0.3 && (G.fxArc || []).length < 60) fxArc(tgt.x, tgt.y - 40*tgt.size, (26 + 4*a.grade)*(a.size || 1), a.face > 0 ? -0.4 : Math.PI + 0.4, GRADE_COL[a.grade], { w:3 + a.grade*0.5, d:0.18, span:1.8, dir:a.face }); } } }
     else if (a.state === 'swing'){ a.timer -= dt; if (a.timer <= 0){ a.state = 'recover'; a.timer = 0.3; } }
     else if (a.state === 'recover'){ a.timer -= dt; a.vx = 0; if (a.timer <= 0) a.state = 'idle'; }
     else if (tgt){ const dx = tgt.x - a.x; if (Math.abs(dx) > 8) a.face = sign(dx);
@@ -6706,6 +6857,49 @@ function echoTrail(x0, x1, P){
       life:0.22+k*0.05, max:0.42, col: P.form && P.form.col ? P.form.col : '#FFE14D' });
   }
 }
+/* ===== FIGHT FX: crescent cuts that hang in the air a moment, ice shards, claw marks, thrust streaks, and orbs that fly
+   home to you (life drunk by a Hive Hunger blade, souls of the fallen in Shadow Legion). One small system, drawn over the fight. ===== */
+function fxArc(x, y, r, ang, col, o){ if (FXL() <= 0 && !(o && o.must)) return; const A = G.fxArc = G.fxArc || []; if (A.length > 90) A.shift();
+  A.push({ x, y, r, ang, col, t:0, d:(o && o.d) || 0.22, w:(o && o.w) || 5, span:(o && o.span) || 2.2, kind:(o && o.kind) || 'arc', dir:(o && o.dir) || 1 }); }
+function fxCut(e, col, kind, dir){   // the shape of the blow, on the body it struck
+  const s = e.size || 1, x = e.x, y = e.y - 40*s, f = dir || 1;
+  if (kind === 'heavy'){ fxArc(x, y, 62*s, f > 0 ? -0.6 : Math.PI + 0.6, col, { w:10, d:0.3, span:2.6, dir:f }); emit(x, GROUND - 4, { n:8, col:['#C9A27A', '#8C6B4A'], spd:260, size:4, life:0.5, kind:'rock', g:1.6, vy:-200, real:true }); }
+  else if (kind === 'spear') fxArc(x - f*40*s, y, 90*s, f > 0 ? 0 : Math.PI, col, { kind:'thrust', w:5, d:0.18 });
+  else if (kind === 'dagger'){ fxArc(x, y, 34*s, -0.9, col, { w:4, d:0.16, span:1.6 }); fxArc(x, y, 34*s, Math.PI - 0.9, col, { w:4, d:0.16, span:1.6 }); }
+  else if (kind === 'x'){ fxArc(x, y, 58*s, 0, col, { kind:'line', w:7, d:0.32, span:0.8 }); fxArc(x, y, 58*s, Math.PI/2, col, { kind:'line', w:7, d:0.32, span:0.8 }); }
+  else if (kind === 'claw'){ for (let i = -1; i <= 1; i++) fxArc(x + i*12*s, y, 40*s, 1.15 + i*0.06, col, { kind:'line', w:4, d:0.3, span:1 }); }
+  else fxArc(x, y, 46*s, f > 0 ? -0.4 : Math.PI + 0.4, col, { w:6, d:0.22, span:2.2, dir:f });
+}
+function fxShards(x, y, n, col){ if (FXL() <= 0) return; const S = G.fxShard = G.fxShard || []; for (let i = 0; i < n && S.length < 80; i++){ const a = rnd(0, 6.283), v = rnd(160, 420);
+  S.push({ x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v - 120, rot:rnd(0, 6.283), vr:rnd(-12, 12), s:rnd(4, 9), t:0, d:rnd(0.45, 0.8), col:col || pick(['#DCF3FF', '#9FD3F0', '#FFFFFF']) }); } }
+function fxOrb(x, y, col, r){ const O = G.fxOrb = G.fxOrb || []; if (O.length > 40) return; O.push({ x, y, vx:rnd(-160, 160), vy:rnd(-260, -120), t:0, col, r:r || 5 }); }
+function drawFightFx(){
+  const dt = clamp(G.time - (G._ffT ?? G.time), 0, 0.05); G._ffT = G.time; const P = G.P;
+  const A = G.fxArc || [], S = G.fxShard || [], O = G.fxOrb || [];
+  if (!A.length && !S.length && !O.length) return;
+  ctx.save(); ctx.lineCap = 'round';
+  for (const a of A){ a.t += dt; const k = a.t/a.d; if (k >= 1) continue; const al = (1 - k)*(1 - k), grow = 0.75 + 0.35*Math.sqrt(k);
+    ctx.globalCompositeOperation = 'lighter';
+    if (a.kind === 'arc'){ const r = a.r*grow, sp = a.span, a0 = a.ang - sp/2*a.dir, a1 = a.ang + sp/2*a.dir, cut = Math.min(1, k*3.2);   // it sweeps open, then fades
+      const end = a0 + (a1 - a0)*cut;
+      ctx.strokeStyle = a.col; ctx.globalAlpha = 0.55*al; ctx.lineWidth = a.w*2.6; ctx.beginPath(); ctx.arc(a.x, a.y, r, Math.min(a0, end), Math.max(a0, end)); ctx.stroke();
+      ctx.globalAlpha = 0.8*al; ctx.lineWidth = a.w*1.1; ctx.stroke();
+      ctx.strokeStyle = '#FFFFFF'; ctx.globalAlpha = 0.9*al; ctx.lineWidth = a.w*0.55; ctx.beginPath(); ctx.arc(a.x, a.y, r, Math.min(a0, end), Math.max(a0, end)); ctx.stroke(); }
+    else { const L = a.r*(a.kind === 'thrust' ? 1 : grow), c = Math.cos(a.ang), sn = Math.sin(a.ang), cut = Math.min(1, k*4);
+      const x0 = a.kind === 'thrust' ? a.x : a.x - c*L*a.span, y0 = a.kind === 'thrust' ? a.y : a.y - sn*L*a.span, x1 = x0 + c*L*(a.kind === 'thrust' ? 2 : 2*a.span)*cut, y1 = y0 + sn*L*(a.kind === 'thrust' ? 2 : 2*a.span)*cut;
+      ctx.strokeStyle = a.col; ctx.globalAlpha = 0.4*al; ctx.lineWidth = a.w*2.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#FFFFFF'; ctx.globalAlpha = 0.95*al; ctx.lineWidth = a.w*0.5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); } }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const s of S){ s.t += dt; if (s.t >= s.d) continue; s.vy += 900*dt; s.x += s.vx*dt; s.y += s.vy*dt; s.rot += s.vr*dt; const k = 1 - s.t/s.d;
+    ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.rot); ctx.globalAlpha = k; ctx.fillStyle = s.col; ctx.beginPath(); ctx.moveTo(0, -s.s); ctx.lineTo(s.s*0.45, 0); ctx.lineTo(0, s.s*0.6); ctx.lineTo(-s.s*0.45, 0); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  for (const o of O){ o.t += dt; if (!P){ o.t = 9; continue; } const tx = P.x, ty = P.y - 45*(P.size || 1), dx = tx - o.x, dy = ty - o.y, d = Math.hypot(dx, dy) || 1;
+    const pull = 900 + o.t*2600; o.vx += dx/d*pull*dt; o.vy += dy/d*pull*dt; o.vx *= Math.pow(0.12, dt); o.vy *= Math.pow(0.12, dt); o.x += o.vx*dt; o.y += o.vy*dt;
+    if (d < 22 || o.t > 1.6){ o.t = 9; glowDot(ctx, tx, ty, 18, o.col, 0.6); continue; }
+    glowDot(ctx, o.x, o.y, o.r*3, o.col, 0.85); ctx.globalAlpha = 1; ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r*0.45, 0, 6.283); ctx.fill(); }
+  ctx.restore(); ctx.globalAlpha = 1;
+  G.fxArc = A.filter(a => a.t < a.d); G.fxShard = S.filter(s => s.t < s.d); G.fxOrb = O.filter(o => o.t < 9);
+}
+const fgRibCol = () => { const it = G.mode === 'shadow' && forgeItem('weapon'); return it ? forgeRarity(it.pow)[1] : auraCol(); };
 /* sword ribbon: store hilt-side and tip points of every blade each frame */
 function recordRibbon(who, col, edge, sid, life, w){
   for (const sg of stickSegments(who)){
@@ -6855,7 +7049,7 @@ function damageEnemy(e, dmg, o){
   }
   e.vx = dir * (o.kb||0) * (isArmored(e) ? 0.35 : 1) * (juggled ? 0.3 : 1);   // juggled enemies stay in front of you
   if (!e.alert) alertEnemy(e);
-  if (o.breakArmor){ e.armorBrokenT = o.breakArmor; pop(e.x, e.y-80*e.size, 'Armour broken', '#C9A27A'); }
+  if (o.breakArmor){ if (!(e.armorBrokenT > 0.5)) pop(e.x, e.y-80*e.size, 'Armour broken', '#C9A27A'); e.armorBrokenT = Math.max(e.armorBrokenT || 0, o.breakArmor); }   // said once, not on every blow
   const canInterrupt = !isArmored(e) || (o.heavy && !isBoss(e)) || counter;
   if (canInterrupt && !o.noInterrupt && ['windup','swing','chase','idle','approach'].includes(e.state)){ e.state='hurt'; e.timer = counter ? 0.5 : 0.28; }
   if (o.launch && !isBoss(e)){ e.vy = -o.launch*(e.type==='brute'?0.6:1); e.onG=false; e.state='hurt'; e.timer=0.9; e.juggle = 0; e.lowG = 1.6;
@@ -6923,6 +7117,7 @@ function killEnemy(e){
   if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
   if (G.mode === 'shadow' && !e.shadow && !e.remote) sysGainXP(3 + 6*(e.beastRank ?? hunterRank()) + (e.slayer ? 30 : 0) + (e.dunBoss ? 150*((e.beastRank || 0) + 1) : 0));
   if (G.mode === 'shadow' && e.look && (e.slayer || Math.random() < 0.35)) foeSay(e, 'die', true);
+  if (G.mode === 'shadow' && G.P && !e.shadow && !e.remote && !G.massKill && FXL() > 0) fxOrb(e.x, e.y - 40*(e.size || 1), isBoss(e) || e.cmdr ? '#E9D8FF' : '#9B6BFF', isBoss(e) ? 8 : 5);   // its soul flies home to you
   if (G.mode === 'shadow' && G.corpses && !e.shadow && !e.remote){ const big = isBoss(e) || e.cmdr || e.dunBoss || e.slayer, elite = !big && e.dun && G.dungeon && G.dungeon.rank >= 3;
     G.corpses.push({ x:e.x, type:e.type, spec:e.species || '', healer:!!e.healer, rank:e.beastRank ?? (G.dungeon ? G.dungeon.rank : hunterRank()), monarch:!!e.monarch, size:e.size || 1, dmg:e.dmg, pow:(e.maxHp || 100)*(e.dmg || 10)*(big ? 4 : 1), tier:big ? 'boss' : elite ? 'elite' : '', tries:0, t:0, life:big ? 14 : 5.5 }); if (G.P) G.P.mana = Math.min(G.P.manaMax || 100, (G.P.mana || 0) + 3); }
   if (G.mode === 'hammer' && G.P){ const lv = hammerLevel(); SV.hammerXP = (SV.hammerXP || 0) + (isBoss(e) ? 5 : 1); saveSoon(); if (hammerLevel() > lv){ pop(G.P.x, G.P.y - 120, 'Hammer Lv ' + hammerLevel() + '!', '#7FE3FF'); sfx('clang'); } }
@@ -7028,7 +7223,7 @@ function updatePlayer(dt){
     if (P.atk){ const A = P.atk, d = A.d; A.t += dt;
       if (A.t >= d.wind && !A.slashed){ A.slashed = true; if (!d.fist) G.slashes.push({x:P.x, y:P.y-46-VEHICLES[P.ride.kind].lift, face:P.face, d, t:0, life:0.16, col:auraCol()}); }
       if (A.t >= d.wind && A.t <= d.wind + d.act) slashHits(P, A, 1);
-      if (!d.fist && A.t >= d.wind*0.6 && A.t <= d.wind + d.act + 0.04) recordRibbon(P, auraCol(), shadeHex(auraCol(), 0.6), 'slash', 0.14, d.heavy ? 3.5 : 2.5);
+      if (!d.fist && A.t >= d.wind*0.6 && A.t <= d.wind + d.act + 0.04) recordRibbon(P, fgRibCol(), shadeHex(fgRibCol(), 0.6), 'slash', 0.14, d.heavy ? 3.5 : 2.5);
       if (A.t >= d.total){ P.atk = null; P.comboGap = 0; } }
     return;
   }
@@ -7182,7 +7377,7 @@ function updatePlayer(dt){
         G.slashes.push(sl); } }
     if (A.t >= d.wind && A.t <= d.wind + d.act) slashHits(P, A, 1);
     if (d.fist){ if (A.t >= d.wind*0.5 && A.t <= d.wind + d.act + 0.03){ const tip = fistTip(P, d); if (tip) G.trail.push({ x:tip[0], y:tip[1], life:d.kick ? 0.13 : 0.16, col:ST.trail, w:d.kick ? 3 : 2.6 }); } }
-    else if (A.t >= d.wind*0.6 && A.t <= d.wind + d.act + 0.04) recordRibbon(P, auraCol(), shadeHex(auraCol(), 0.6), 'slash', 0.14, d.heavy ? 3.5 : 2.5);
+    else if (A.t >= d.wind*0.6 && A.t <= d.wind + d.act + 0.04) recordRibbon(P, fgRibCol(), shadeHex(fgRibCol(), 0.6), 'slash', 0.14, d.heavy ? 3.5 : 2.5);
     if (A.t >= d.total){
       if (clipWeapon(P) && clipOf(P)){ const lp = getPose(P); P.clipOut = { t:0, dur:0.22, p:lp }; }   // remember the follow-through pose
       P.atk = null; P.comboGap = 0; if (P.queued){ P.queued = false; startAttack(P.queuedWhich); } }
@@ -7444,6 +7639,7 @@ function slashHits(who, A, mult){
         if (FW.t.crit && Math.random() < FW.t.crit){ dmg *= 2; tag = 'Critical'; }
         if (FW.t.dashK && !G.P.pounced && G.time - (G.P.dashEndT || -9) < 0.8){ dmg *= FW.t.dashK; G.P.pounced = true; tag = 'Pounce'; }
         if (FW.t.dmg) dmg *= FW.t.dmg; }
+      const fwFrz = !!(FW && FW.t.freeze && !isBoss(e) && Math.random() < FW.t.freeze);
       let poisonHit = 0;
       if (!who.isClone && (ST.passive === 'serpent' || ST.passive === 'kaal')){ G.P.venomN = (G.P.venomN || 0) + 1; if (G.P.venomN % 4 === 0) poisonHit = 5; }
       if (d.grab && !who.isClone && !isBoss(e)){   // slam them over your shoulder
@@ -7453,10 +7649,18 @@ function slashHits(who, A, mult){
       const ok = damageEnemy(e, dmg, { kb:(sw.fist && brawler(e) && !d.launch && !d.knockdown && !d.guardBreak) ? d.kb*0.4*swK : d.kb*swK*(FW ? FW.c.kb : 1), lvl:d.lvl, heavy:!!d.heavy, src:'slash', dir:who.face, fist:!!sw.fist, kick:!!d.kick,
         burn: sw.burn ? sw.burn : (FW && FW.t.burn ? dmg*FW.t.burn : 0), bleed: sw.bleed ? sw.bleed : (FW && FW.t.bleed ? dmg*FW.t.bleed : 0), low:!!d.low, guardBreak:!!d.guardBreak, unblockable:!!d.unblockable,
         knockdown: d.knockdown || (d.grab ? 1.5 : 0), guardBreak: !!d.guardBreak || ironNow,
-        launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0) || (sw.para && Math.random() < sw.para ? 0.9 : 0), freeze: FW && FW.t.freeze && Math.random() < FW.t.freeze ? 1.5 : sw.frost && Math.random() < sw.frost ? 0.7 : 0, breakArmor: (FW && FW.armor) || d.breakArmor || ((knuck && d.heavy) ? 3 : 0) || (sw.armorBane && d.heavy ? 2 : 0), poison: poisonHit });
+        launch: d.launch || 0, stun: d.stun || ((d.upper && knuck) ? 1.5 : 0) || (sw.para && Math.random() < sw.para ? 0.9 : 0), freeze: fwFrz ? 1.5 : sw.frost && Math.random() < sw.frost ? 0.7 : 0, breakArmor: (FW && FW.armor) || d.breakArmor || ((knuck && d.heavy) ? 3 : 0) || (sw.armorBane && d.heavy ? 2 : 0), poison: poisonHit });
       if (ok && !who.isClone) trainHit(d, sw);
-      if (ok && FW){ const P = G.P;
-        if (FW.t.steal && P.hp < P.maxHp){ const h = Math.min(dmg*forgeDmgK()*FW.t.steal, P.maxHp*0.03); P.hp = Math.min(P.maxHp, P.hp + h); if (Math.random() < 0.3) pop(P.x, P.y - 96, '+' + Math.round(h), '#7FE39F'); }
+      if (ok && !FW && !who.isClone && !sw.fist && (d.heavy || Math.random() < 0.6)) fxCut(e, auraCol(), d.heavy ? 'heavy' : 'blade', who.face);   // every blade's cut hangs in the air a moment
+      if (ok && FW){ const P = G.P, it = forgeItem('weapon'), rc = forgeRarity(it ? it.pow : 0)[1], cl = it && it.cls || 'blade';
+        fxCut(e, rc, tag === 'Critical' ? 'x' : tag === 'Pounce' ? 'claw' : cl, who.face);
+        if (cl === 'heavy'){ G.shake = Math.max(G.shake, 8); zoomPunch(1.03); G.hitstop = Math.max(G.hitstop, 0.05); }
+        if (tag === 'Critical'){ zoomPunch(1.05); G.hitstop = Math.max(G.hitstop, 0.08); flash('#FFF1B8', 0.08); }
+        if (tag === 'Pounce'){ speedLines(e.x, e.y - 40*e.size, 10, '#E9D8FF', 0.2); }
+        if (fwFrz){ fxShards(e.x, e.y - 40*e.size, 12); ringFx(e.x, e.y - 40*e.size, 60, '#DCF3FF', true); pop(e.x, e.y - 100*e.size, 'Frozen', '#DCF3FF'); }
+        if (FW.t.bleed && FXL() > 0) emit(e.x, e.y - 36*e.size, { n:5, col:['#C8102E', '#7A0A14'], spd:160, size:3, life:0.5, kind:'drop', g:1.4, real:true });
+        if (FW.t.burn && FXL() > 0) emit(e.x, e.y - 36*e.size, { n:6, col:['#FF7A1A', '#FFB347', '#FF3B2F'], spd:120, size:4, life:0.6, kind:'ember', g:-0.5, real:false });
+        if (FW.t.steal && P.hp < P.maxHp){ const h = Math.min(dmg*forgeDmgK()*FW.t.steal, P.maxHp*0.03); P.hp = Math.min(P.maxHp, P.hp + h); fxOrb(e.x, e.y - 40*e.size, '#7FE39F', 4); if (Math.random() < 0.3) pop(P.x, P.y - 96, '+' + Math.round(h), '#7FE39F'); }
         if (FW.t.quake && (P.fqN = (P.fqN || 0) + 1) % FW.t.quake === 0){ areaHit(e.x, e.y - 24, 150, 70, dmg*0.6, { kb:320, kbAway:true, src:'form', quiet:true, stun:0.35 }, new Set());
           ringFx(e.x, GROUND - 6, 150, '#FFB347', true); cracks(e.x, 150, '#C9A27A'); G.shake = Math.max(G.shake, 7); pop(e.x, e.y - 110*e.size, 'Warcry!', '#FFB347'); } }
       if (ok && sw.fist){
@@ -8865,10 +9069,11 @@ function hurtPlayer(dmg, kb, e, full){
   if (G.mode === 'shadow' && P.hp < P.maxHp*0.3) dmg *= 0.6;   // Tenacity
   dmg *= forgeTakeK();   // your forged armour
   const AT = forgeArmorTrait();   // and the nature the shadows gave it
+  { const ai = G.mode === 'shadow' && forgeItem('armor'); if (ai && G.time > (P.armFxT || 0)){ P.armFxT = G.time + 0.25; ringFx(P.x, P.y - 40*(P.size || 1), 48, forgeRarity(ai.pow)[1], false, 3); sparks(P.x + rnd(-10, 10), P.y - rnd(30, 60)); } }
   if (AT){ if (AT.dodge && Math.random() < AT.dodge){ pop(P.x, P.y - 100, 'Missed!', '#C9A8FF'); P.inv = Math.max(P.inv || 0, 0.2); return; }
     if (AT.dr) dmg *= 1 - AT.dr; if (AT.steady){ kb = 0; full = false; }
-    if (e && e.T && !e.dead && !e.remote && !e.shadow){ if (AT.reflect) damageEnemy(e, dmg*AT.reflect, { kb:120, src:'form', quiet:true, dir:sign(e.x - P.x) || 1 });
-      if (AT.chill && !isBoss(e)) damageEnemy(e, 1, { kb:0, src:'form', quiet:true, freeze:AT.chill }); }
+    if (e && e.T && !e.dead && !e.remote && !e.shadow){ if (AT.reflect){ bolt(P.x, P.y - 40, e.x, e.y - 40*(e.size || 1), '#C9A8FF'); } if (AT.reflect) damageEnemy(e, dmg*AT.reflect, { kb:120, src:'form', quiet:true, dir:sign(e.x - P.x) || 1 });
+      if (AT.chill && !isBoss(e)){ damageEnemy(e, 1, { kb:0, src:'form', quiet:true, freeze:AT.chill }); fxShards(e.x, e.y - 40*(e.size || 1), 8); } }
     if (AT.undying && P.hp - dmg <= 0 && G.time > (P.undyingT || 0)){ dmg = Math.max(0, P.hp - 1); P.undyingT = G.time + AT.undying; pop(P.x, P.y - 120, 'UNDYING', '#B8C4C0'); flash('#2B1D4E', 0.3); } }
   const iron = P.ironT > 0;
   if (!P.dead && e && e.gear === 'baton' && !(P.ironT > 0) && G.mode !== 'shadow'){ P.stunT = Math.max(P.stunT || 0, 0.6); pop(P.x, P.y - 110, 'Shocked!', '#7FCBFF'); bolt(P.x - 10, P.y - 70, P.x + 10, P.y - 20, '#7FCBFF'); sfx('zap'); }
@@ -12853,10 +13058,11 @@ function renderScene(){
     if (G.ring > 0){ ctx.strokeStyle=`rgba(255,231,168,${G.ring})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y-40,(1-G.ring)*160+20,0,Math.PI*2); ctx.stroke(); }
     if (G.mode === 'shadow' || G.mode === 'guns' || G.mode === 'spider' || G.mode === 'hammer') drawFoeTalk();
     if (G.mode === 'guns') drawGhost();
+    drawFightFx();
     // floating texts
     ctx.textAlign='center';
     for (const p of G.pops){
-      const sz = (p.size||22);   // no grow-in: numbers appear at their size
+      const sz = (p.size||22)*(p.num ? 1 + 0.45*Math.max(0, 1 - (0.75 - p.life)/0.09) : 1);   // numbers land with a punch, then sit at their size
       ctx.font = `600 ${sz.toFixed(1)}px Teko, sans-serif`;
       ctx.globalAlpha=Math.min(1,p.life*2); if (p.num){ ctx.lineJoin='round'; ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.strokeText(p.text,p.x,p.y); } ctx.fillStyle='#000'; ctx.fillText(p.text,p.x+1.5,p.y+1.5); ctx.fillStyle=p.col; ctx.fillText(p.text,p.x,p.y);
     }
