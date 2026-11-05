@@ -3334,10 +3334,15 @@ function forgeImg(it){ if (!it || !it.img) return null; let im = FORGE_IMG[it.id
 const forgeDmgK = () => { if (G.mode !== 'shadow') return 1; const it = forgeItem('weapon'); return it ? 1 + forgePct(it.pow)/100 : 1; };
 const forgeTakeK = () => { if (G.mode !== 'shadow') return 1; const it = forgeItem('armor'); return it ? 1 - forgeDR(it.pow) : 1; };
 /* the drawn weapon in your hand, in the blade's frame (+x from the pommel to the tip) */
-function drawForgeBlade(e, Lt, u){
+const forgeScale = it => ({ heavy:1.7, spear:1.85, dagger:0.8 })[it.cls] || 1.25;   // the drawing's size in the hand, by what it is
+const forgeShown = e => !!(e && e.isPlayer && !e.remote && !e.isClone && G.mode === 'shadow' && forgeImg(forgeItem('weapon')));
+function drawForgeBlade(e, Lt, u, tint, sg){
   if (G.mode !== 'shadow' || e.remote || e.isClone) return false;
   const it = forgeItem('weapon'), im = forgeImg(it); if (!im) return false;
-  const W = Lt*1.15, H = W*im.height/im.width, rc = forgeRarity(it.pow)[1];
+  if (sg){ const m = ctx.getTransform(), wm = m.scale(1, e.face || 1).rotate(-Math.atan2(sg[3] - sg[1], sg[2] - sg[0])*180/Math.PI).translate(-sg[0], -sg[1]);   // back to the world frame
+    ctx.setTransform(wm); ctx.beginPath(); ctx.rect(-1e5, -1e5, 2e5, 1e5 + GROUND + 3); ctx.setTransform(m); ctx.clip(); }   // a long hammer or spear rests on the ground, it never sinks into it
+  const W = Lt*forgeScale(it), H = W*im.height/im.width, rc = forgeRarity(it.pow)[1];
+  if (tint){ ctx.drawImage(forgeTinted(it, im, tint), -Lt*0.05, -H/2, W, H); return true; }
   if (it.pow >= 12 && FXL() > 0){ const a = Math.min(0.55, 0.15 + it.pow/800); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= a*(0.8 + 0.2*Math.sin(G.time*5));
     ctx.drawImage(glowSprite(rc), -Lt*0.1, -H*0.9, W*1.1, H*1.8); ctx.restore(); }
   if (e === G.P && FXL() > 0){ const T = G.fgTrail = (G.fgTrail || []).filter(q => G.time - q.t < 0.11);
@@ -3363,9 +3368,9 @@ function drawForgeArmor(P){
    SOUL TRAIT: the kind of shadow that gave the most power gives its nature (Ice Elves freeze, Ants drink blood...).
    SOUL SKILL: a boss shadow in the mix leaves its echo: every 20 s in a fight, three of its kind rise for 15 s. ===== */
 const FORGE_CLS = {
-  spear: { name:'Spear',        reach:1.4,  spd:0.9,  kb:1,   cleave:0, desc:'reach +40% \u00b7 10% slower' },
-  heavy: { name:'Axe / Hammer', reach:1.1,  spd:0.8,  kb:1.8, cleave:0, armor:3, desc:'breaks armour \u00b7 knockback \u00d71.8 \u00b7 20% slower' },
-  dagger:{ name:'Dagger',       reach:0.9,  spd:1.35, kb:0.8, cleave:0, back:2, desc:'35% faster \u00b7 \u00d72 from behind' },
+  spear: { name:'Spear',        reach:1.3,  spd:1,    kb:1,   cleave:0, desc:'two-handed thrusts with a step in \u00b7 reach +30%' },
+  heavy: { name:'Axe / Hammer', reach:1.1,  spd:1,    kb:1.5, cleave:1, armor:3, desc:'overhead smashes into the ground \u00b7 the third breaks the earth \u00b7 breaks armour' },
+  dagger:{ name:'Dagger',       reach:0.9,  spd:1.1,  kb:0.8, cleave:0, back:2, desc:'four quick cuts \u00b7 \u00d72 from behind' },
   blade: { name:'Blade',        reach:1,    spd:1,    kb:1,   cleave:1, desc:'balanced \u00b7 cuts one more enemy per swing' },
 };
 const SOUL_TRAITS = {
@@ -3632,9 +3637,8 @@ function forgeBpCur(){ const F = G.fg; F.bp = F.bp || {}; return (FORGE_BP[F.kin
 function forgeGuide(){
   const F = G.fg, k = F.kind, [w, h] = FORGE_PAD[k], gc = document.getElementById('fgGuide'), oc = document.getElementById('fgOver'); if (!gc || !oc) return;
   const bp = forgeBpCur(), g = gc.getContext('2d'), o = oc.getContext('2d'); g.clearRect(0, 0, w, h); o.clearRect(0, 0, w, h);
-  gc.style.background = bp ? '#0B2447 linear-gradient(rgba(127,211,255,0.12) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, rgba(127,211,255,0.12) 1px, transparent 1px) 0 0/20px 20px'
+  gc.style.background = bp ? 'linear-gradient(rgba(127,211,255,0.13) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, rgba(127,211,255,0.13) 1px, transparent 1px) 0 0/20px 20px, #0B2447'
                            : 'repeating-conic-gradient(#1A0E36 0 25%,#140A2C 0 50%) 0 0/20px 20px';
-  if (bp){ gc.style.background = 'linear-gradient(rgba(127,211,255,0.13) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, rgba(127,211,255,0.13) 1px, transparent 1px) 0 0/20px 20px, #0B2447'; }
   g.strokeStyle = bp ? 'rgba(127,211,255,0.25)' : 'rgba(201,168,255,0.35)'; g.fillStyle = bp ? 'rgba(127,211,255,0.4)' : 'rgba(201,168,255,0.45)'; g.lineWidth = 1.5; g.setLineDash([6, 6]); g.font = '14px Teko, sans-serif';
   if (k === 'weapon'){ g.beginPath(); g.moveTo(0, h/2); g.lineTo(w, h/2); g.stroke(); g.strokeRect(4, h/2 - 16, w*0.17, 32); if (!bp){ g.fillText('handle (your hand)', 6, h/2 + 32); g.fillText('tip \u2192', w - 44, h/2 - 22); } }
   else { g.beginPath(); g.moveTo(w/2, 0); g.lineTo(w/2, h); g.stroke(); if (!bp){ g.beginPath(); g.moveTo(w*0.18, h*0.16); g.lineTo(w*0.82, h*0.16); g.lineTo(w*0.72, h*0.88); g.lineTo(w*0.28, h*0.88); g.closePath(); g.stroke();
@@ -7376,6 +7380,8 @@ function updatePlayer(dt){
         if (clipWeapon(P) && clipOf(P)) sl.path = clipTipPath(P);   // the arc is drawn where the blade actually travels
         G.slashes.push(sl); } }
     if (A.t >= d.wind && A.t <= d.wind + d.act) slashHits(P, A, 1);
+    if (d.thrust && !A.thrust && A.t >= d.wind*0.8){ A.thrust = true; if (P.onG) P.vx = P.face*d.thrust; }   // the spear's step in
+    if (d.slam && !A.slamDone && A.t >= d.wind + d.act*0.55){ A.slamDone = true; forgeSlam(P, d, A); }   // the hammer meets the ground
     if (d.fist){ if (A.t >= d.wind*0.5 && A.t <= d.wind + d.act + 0.03){ const tip = fistTip(P, d); if (tip) G.trail.push({ x:tip[0], y:tip[1], life:d.kick ? 0.13 : 0.16, col:ST.trail, w:d.kick ? 3 : 2.6 }); } }
     else if (A.t >= d.wind*0.6 && A.t <= d.wind + d.act + 0.04) recordRibbon(P, fgRibCol(), shadeHex(fgRibCol(), 0.6), 'slash', 0.14, d.heavy ? 3.5 : 2.5);
     if (A.t >= d.total){
@@ -7551,7 +7557,7 @@ function startAttack(which){
     idx = P.chainN || 0;
     if (d.nm && !PUNCH_CHAIN.includes(d.nm) ) { /* name shown below for the bigger moves */ }
   } else {
-    const combo = ST.combo;
+    const combo = forgeCombo() || ST.combo;   // a forged hammer smashes, a spear thrusts, a dagger cuts fast
     P.combo = P.comboGap < 0.32 ? (P.combo+1)%combo.length : 0;
     idx = P.combo; d = combo[P.combo];
     P.chainT = null;
@@ -9165,9 +9171,84 @@ const SWORD_CLIPS = [
     { at:'a',  h:[17,-14], th:-1.3,  lean:0.25,  cr:6, pr:5,  legs:[-0.62,0.12, 0.62,0.72], two:true },
     { at:'r',  h:[15,-12], th:-1.9,  lean:0.15,  cr:5, pr:3,  legs:[-0.55,0.12, 0.55,0.60], two:true } ] },
 ];
-/* which attacks get a clip: the one-blade sword combo (not fists, not twin blades) */
-function clipWeapon(e){ const sw = e.sword; return !!(sw && !sw.fist && !sw.dual && !sw.astra); }
-function clipOf(e){ const A = e.atk; if (!A || !A.d || A.d.fist) return null; return SWORD_CLIPS[A.i] || null; }
+/* ===== FORGED WEAPONS FIGHT LIKE WHAT THEY ARE: an Axe / Hammer smashes overhead into the ground, rises, and breaks the
+   earth; a Spear thrusts with both hands; a Dagger cuts four times fast. Their own clips (same key format as the sword's),
+   their own timings. A Blade keeps the sword's kesa / gyaku / yoko. ===== */
+const HAMMER_CLIPS = [
+  // 1  OVERHEAD SMASH: raised high behind the head with both hands, brought straight down in front into the ground
+  { phi:0, keys:[
+    { at:'w', h:[-2,-34], th:-2.4,  lean:-0.12, cr:2, pr:-2, legs:[-0.40,0.15, 0.40,0.20], two:true },
+    { at:'i', h:[16,-22], th:-0.6,  lean:0.20,  cr:5, pr:3,  legs:[-0.55,0.15, 0.55,0.50], two:true },
+    { at:'a', h:[19,0],   th:0.8,   lean:0.38,  cr:9, pr:3,  legs:[-0.65,0.15, 0.65,0.80], two:true },
+    { at:'r', h:[17,-2],  th:0.7,   lean:0.30,  cr:8, pr:2,  legs:[-0.60,0.15, 0.60,0.70], two:true } ] },
+  // 2  RISING SWING: from low behind, the head comes up through the front and over: it throws them into the air
+  { phi:0.35, keys:[
+    { at:'w', h:[2,-2],   th:2.4,   lean:0.05,  cr:7, pr:-4, legs:[-0.50,0.30, 0.50,0.55], two:true },
+    { at:'i', h:[16,-12], th:0.1,   lean:0.20,  cr:4, pr:4,  legs:[-0.45,0.15, 0.50,0.40], two:true },
+    { at:'a', h:[12,-32], th:-1.5,  lean:0.02,  cr:0, pr:3,  legs:[-0.30,0.10, 0.35,0.15], two:true },
+    { at:'r', h:[10,-28], th:-1.3,  lean:0.02,  cr:1, pr:2,  legs:[-0.30,0.10, 0.34,0.14], two:true } ] },
+  // 3  EARTH BREAKER: stretched tall, the hammer straight back over the head, then the whole body comes down behind it
+  { phi:0, keys:[
+    { at:'w',  h:[-6,-36], th:-2.9, lean:-0.22, cr:0, pr:-4, legs:[-0.30,0.10, 0.30,0.12], two:true },
+    { at:'wi', h:[4,-38],  th:-1.9, lean:-0.05, cr:1, pr:0,  legs:[-0.35,0.10, 0.40,0.15], two:true },
+    { at:'i',  h:[18,-20], th:-0.2, lean:0.30,  cr:6, pr:5,  legs:[-0.60,0.15, 0.62,0.60], two:true },
+    { at:'a',  h:[20,2],   th:0.85, lean:0.45,  cr:11, pr:4, legs:[-0.72,0.15, 0.70,0.95], two:true },
+    { at:'r',  h:[18,0],   th:0.75, lean:0.36,  cr:10, pr:3, legs:[-0.68,0.15, 0.66,0.85], two:true } ] },
+];
+const SPEAR_CLIPS = [
+  // 1  THRUST: drawn back at the hip with both hands, driven straight out, a long step in
+  { phi:0, keys:[
+    { at:'w', h:[0,-14],  th:0.05,  lean:-0.10, cr:4, pr:-5, legs:[-0.35,0.15, 0.35,0.25], two:true },
+    { at:'i', h:[22,-14], th:0,     lean:0.30,  cr:5, pr:6,  legs:[-0.65,0.10, 0.62,0.55], two:true },
+    { at:'a', h:[24,-14], th:0,     lean:0.32,  cr:5, pr:6,  legs:[-0.65,0.10, 0.62,0.55], two:true },
+    { at:'r', h:[14,-14], th:0.02,  lean:0.15,  cr:4, pr:2,  legs:[-0.50,0.12, 0.50,0.40], two:true } ] },
+  // 2  HIGH THRUST: up and out, at the throat
+  { phi:0, keys:[
+    { at:'w', h:[-1,-11], th:-0.35, lean:-0.08, cr:5, pr:-5, legs:[-0.40,0.20, 0.40,0.35], two:true },
+    { at:'i', h:[21,-21], th:-0.3,  lean:0.25,  cr:3, pr:6,  legs:[-0.60,0.10, 0.58,0.45], two:true },
+    { at:'a', h:[22,-22], th:-0.3,  lean:0.26,  cr:3, pr:6,  legs:[-0.60,0.10, 0.58,0.45], two:true },
+    { at:'r', h:[13,-17], th:-0.15, lean:0.12,  cr:3, pr:2,  legs:[-0.48,0.12, 0.48,0.35], two:true } ] },
+];
+SPEAR_CLIPS.push(SWORD_CLIPS[2]);   // 3: the wide turning sweep, with a spear's reach
+const DAGGER_CLIPS = [SWORD_CLIPS[0], SWORD_CLIPS[1], SPEAR_CLIPS[0], SWORD_CLIPS[0]];
+const FORGE_COMBOS = {
+  heavy:[
+    { wind:0.16, act:0.10, total:0.50, dmg:48, kb:320, range:96,  from:[-2.9,-3.1], to:[1.3,1.6],   heavy:true, slam:'small', clips:HAMMER_CLIPS },
+    { wind:0.12, act:0.10, total:0.44, dmg:40, kb:120, range:90,  from:[1.3,1.6],   to:[-2.2,-2.6], launch:520,             clips:HAMMER_CLIPS },
+    { wind:0.24, act:0.12, total:0.66, dmg:85, kb:480, range:112, from:[-3.0,-3.2], to:[1.5,1.8],   heavy:true, slam:'big', clips:HAMMER_CLIPS } ],
+  spear:[
+    { wind:0.07, act:0.08, total:0.30, dmg:30, kb:200, range:92,  from:[0.1,0.05],  to:[0,0], thrust:260,               clips:SPEAR_CLIPS },
+    { wind:0.06, act:0.08, total:0.30, dmg:30, kb:200, range:92,  from:[-0.3,-0.3], to:[-0.3,-0.3], thrust:240,         clips:SPEAR_CLIPS },
+    { wind:0.10, act:0.12, total:0.46, dmg:52, kb:420, range:100, from:[-2.7,-3.0], to:[1.4,1.6], heavy:true,           clips:SPEAR_CLIPS } ],
+  dagger:[
+    { wind:0.03, act:0.07, total:0.17, dmg:18, kb:80,  range:72, from:[-1.8,-2.3], to:[1.0,1.2],   clips:DAGGER_CLIPS },
+    { wind:0.03, act:0.07, total:0.17, dmg:18, kb:80,  range:72, from:[1.2,1.5],   to:[-1.6,-2.0], clips:DAGGER_CLIPS },
+    { wind:0.03, act:0.07, total:0.18, dmg:20, kb:90,  range:76, from:[0.1,0.05],  to:[0,0], thrust:200, clips:DAGGER_CLIPS },
+    { wind:0.05, act:0.08, total:0.28, dmg:32, kb:300, range:78, from:[-2.0,-2.5], to:[1.0,1.3], heavy:true, clips:DAGGER_CLIPS } ],
+};
+function forgeCombo(){
+  if (G.mode !== 'shadow' || !G.ST || !G.ST.sword || G.ST.sword.fist) return null;
+  const it = forgeItem('weapon'); if (!it) return null; forgeWeaponFx();   // (reads the class off the drawing if it was never read)
+  const base = FORGE_COMBOS[it.cls]; if (!base) return null; const sw = G.ST.sword, key = it.cls + '|' + (sw.id || sw.name) + '|' + sw.spd + '|' + sw.reach;
+  if (G._fgComboK !== key){ G._fgComboK = key; G._fgCombo = base.map(h => ({ ...h, wind:h.wind/sw.spd, act:h.act/sw.spd, total:h.total/sw.spd, range:h.range*sw.reach, kb:h.kb*(sw.kb || 1) })); }
+  return G._fgCombo;
+}
+/* the hammer hits the ground: cracks, dust, a ring, and on the Earth Breaker a shockwave that throws them */
+function forgeSlam(P, d, A){
+  const s = P.size || 1, x = P.x + P.face*d.range*0.75*s, big = d.slam === 'big', it = forgeItem('weapon'), rc = forgeRarity(it ? it.pow : 0)[1];
+  cracks(x, big ? 190 : 90, '#C9A27A'); ringFx(x, GROUND - 4, big ? 200 : 110, rc, true); ringFx(x, GROUND - 4, big ? 120 : 60, '#E5D3BC', true);
+  emit(x, GROUND - 4, { n:big ? 26 : 12, col:['#C9A27A', '#8C6B4A', '#E5D3BC'], spd:big ? 420 : 280, size:big ? 6 : 4, life:0.8, kind:'rock', g:1.7, vy:-300, real:true });
+  G.shake = Math.max(G.shake, big ? 18 : 9); zoomPunch(big ? 1.07 : 1.03); G.hitstop = Math.max(G.hitstop, big ? 0.1 : 0.05); sfx('stone'); if (big){ sfx('boom', 0.03); flash('#FFE7C8', 0.12); speedLines(x, GROUND - 30, 16, '#E5D3BC', 0.25); } vib(big ? 70 : 35);
+  if (big) areaHit(x, GROUND - 24, 190, 80, d.dmg*G.ST.slashMult*0.6, { kb:380, kbAway:true, heavy:true, src:'slash', stun:0.5, launch:320 }, A.hit);
+}
+/* a forged weapon in a tinted pass (outline / silhouette): the drawing in that one colour */
+const FORGE_TINT = {};
+function forgeTinted(it, im, col){ const k = it.id + '|' + col; let c = FORGE_TINT[k]; if (c) return c;
+  c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d');
+  x.drawImage(im, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return FORGE_TINT[k] = c; }
+/* which attacks get a clip: the one-blade sword combo (not fists, not twin blades), and a forged weapon's own */
+function clipWeapon(e){ const sw = e.sword; return !!(sw && !sw.fist && !sw.astra && (!sw.dual || (e.atk && e.atk.d && e.atk.d.clips))); }
+function clipOf(e){ const A = e.atk; if (!A || !A.d || A.d.fist) return null; return (A.d.clips || SWORD_CLIPS)[A.i] || null; }
 /* the hand position (hip frame) of a pose computed by getPose(), as stickSegmentsRaw would place it */
 function poseHandOf(p){
   if (p.mainT) return p.mainT.slice();
@@ -11015,7 +11096,7 @@ function drawBlade(sg, e, pose, tint){
       const m = ctx.getTransform(), sc = clamp(Math.round(Math.hypot(m.a, m.b)*2)/2, 0.5, 4);
       const spr = swordSprite(id, sw, Lt, u, red, tint || (e.flash > 0 ? '#fff' : null), sc);
       ctx.scale(Lt/spr.Lq, 1); ctx.drawImage(spr, -spr.ox, -spr.oy, spr.width/sc, spr.height/sc);
-    } else if (e.isPlayer && drawForgeBlade(e, Lt, u)){ /* the weapon you drew */ }
+    } else if (e.isPlayer && drawForgeBlade(e, Lt, u, tint, sg)){ /* the weapon you drew */ }
     else drawSwordShape(ctx, id, sw, Lt, u, G.time || astraNow(), hand, { mono: tint || null, glow: red, wa:Math.atan2(dy, dx), f });
     ctx.restore();
     // the fist wrapped round the handle, drawn over it so the sword sits in the hand
@@ -11134,7 +11215,7 @@ function drawHero(e, segs, pose, flat, grow){
   const part = (sg) => {
     if (sg[5] === 'blade'){ if (flat && grow) return;
       const clip = scab && bladeAtMouth(e.sheath); if (clip){ ctx.save(); scabClip(scab, s); }
-      if (flat) drawBlade(sg, e, pose, flat); else { drawBlade(sg, e, pose, null); heroBladeEnergy(sg, s); }
+      if (flat) drawBlade(sg, e, pose, flat); else { drawBlade(sg, e, pose, null); if (!forgeShown(e)) heroBladeEnergy(sg, s); }   // a drawn weapon shows itself, not the katana's energy
       if (clip) ctx.restore(); return; }
     if (sg[5] === 'fist'){ const ar = lastArm || [sg[0] - f, sg[1], sg[0], sg[1]]; armFrame(sg[0], sg[1], ar[2] - ar[0], ar[3] - ar[1], f, 1); handPunch(paint, detail, sg[6]); ctx.restore(); if (detail){ const striking = (sg[7]==='main' ? pose.ext : pose.ext2) > 1.3; if (striking){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha *= 0.5; ctx.fillStyle = HERO.gold; ctx.beginPath(); ctx.arc(sg[0], sg[1], sg[6]*2.2, 0, 6.283); ctx.fill(); ctx.restore(); } } return; }
     if (sg[5] === 'sheath'){ taper(sg[0], sg[1], sg[2], sg[3], 1.5*s, 1.3*s); paint(HERO.armorLo); if (detail){ ctx.strokeStyle = HERO.gold; ctx.lineWidth = 0.7*s; ctx.beginPath(); ctx.moveTo(sg[0], sg[1]); ctx.lineTo(sg[2], sg[3]); ctx.stroke(); } return; }
