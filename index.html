@@ -5120,7 +5120,7 @@ function startHammer(){
     const side = i % 2 ? 1 : -1, x = clamp(1000 + side*(260 + (i >> 1)*70 + rnd(0, 40)), 60, G.worldW - 60);
     const e = makeEnemy(i < 14 ? 'grunt' : pick(['grunt', 'fencer', 'archer']), x, G.diff, true); G.E.push(e); outclass(modeDress(e, 'hammer'), 0); }
   toast('Hammer mode', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back (fists keep its lightning) · M: strap swing · N: lightning · F: GODSTORM (ultimate, any time)', '#7FE3FF'); }, 1200);
+  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back (fists keep its lightning) · M: strap swing · N: lightning · F: GODSTORM (ultimate, any time) · hold G: eye beams', '#7FE3FF'); }, 1200);
   setScreen(null); G.running = true;
 }
 const HM_SPEED = 1450, HM_HORDE = 20;   // how many come at you at once
@@ -5153,7 +5153,9 @@ function hammerUpdate(P, dt){
   const H = G.hm; if (!H || G.mode !== 'hammer') return;
   P.throwT = (P.throwT || 0) - dt; P.catchT = (P.catchT || 0) - dt;
   if (pressed.godstorm){ pressed.godstorm = false; hammerUltStart(P, H); }
-  if (H.ult){ hammerUltTick(P, H, dt); pressed.climb = pressed.launch = pressed.map = pressed.attack = pressed.kick = false; return; }
+  if (H.ult){ H.laser = null; hammerUltTick(P, H, dt); pressed.climb = pressed.launch = pressed.map = pressed.attack = pressed.kick = false; return; }
+  hammerLaserTick(P, H, dt);
+  if (H.laser){ pressed.attack = pressed.kick = false; }   // no swinging while your eyes burn
   if (pressed.climb && !P.dead){
     if (H.state === 'held' && !(P.throwT > 0)){   // Z: wind the arm back over the shoulder, then the throw
       P.throwT = 0.34; H.dir = P.face || 1; H.windT = 0.15;
@@ -5334,7 +5336,55 @@ function drawHammerAt(x, y, ang, a, sc){
   ctx.beginPath(); ctx.moveTo(31, -10); ctx.lineTo(34, -2); ctx.lineTo(30, 3); ctx.lineTo(33, 10); ctx.stroke();   // a seam of light
   ctx.restore(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
 }
+/* ===== G (hold): EYE BEAMS. Two beams of white-hot light from your eyes, as long as you hold G, as often as you like.
+   They find the nearest enemy in front and sweep onto it; anyone the beam crosses is cut through and falls in pieces
+   (a beam at head height takes the head). Champions and bosses don't fall at once: the beam burns them down fast. ===== */
+const LASER_LEN = 1150;
+function laserEye(P){ const hd = stickSegments(P).find(q => q[5] === 'head'), f = P.face || 1, s = P.size || 1;
+  return hd ? [hd[0] + f*hd[6]*0.45, hd[1] - hd[6]*0.1] : [P.x + f*6*s, P.y - 62*s]; }
+function hammerLaserTick(P, H, dt){
+  const L = H.laser;
+  if (!held.eyebeam || P.dead || H.ult){ if (L){ H.laser = null; } return; }
+  if (!L){ H.laser = { t:0, ang:0, tick:0, snd:0, cut:0 }; sfx('storm', 0.01); vib(20); }
+  const B = H.laser, f = P.face || 1; B.t += dt; B.tick -= dt; B.snd -= dt;
+  P.vx *= Math.pow(0.05, dt);   // you plant your feet while you burn
+  const [ex, ey] = laserEye(P);
+  let want = f > 0 ? 0.06 : Math.PI - 0.06, bd = 1e9;   // a little down, unless someone is in front to aim at
+  for (const e of G.E){ if (e.dead || e.remote) continue; const dx = (e.x - ex)*f; if (dx < 20 || dx > LASER_LEN) continue;
+    const ty = e.y - 50*(e.size || 1), a = Math.atan2(ty - ey, e.x - ex), off = Math.abs(Math.atan2(Math.sin(a - (f > 0 ? 0 : Math.PI)), Math.cos(a - (f > 0 ? 0 : Math.PI))));
+    if (off < 0.5 && dx < bd){ bd = dx; want = a; } }
+  B.ang = B.t < 0.05 ? want : B.ang + Math.atan2(Math.sin(want - B.ang), Math.cos(want - B.ang))*Math.min(1, dt*9);   // it sweeps onto them
+  const c = Math.cos(B.ang), sn = Math.sin(B.ang);
+  let len = LASER_LEN; if (sn > 0.01) len = Math.min(len, (GROUND - ey)/sn);   // it stops where it meets the ground
+  B.ex = ex; B.ey = ey; B.x2 = ex + c*len; B.y2 = ey + sn*len; B.len = len;
+  // anyone the beam crosses
+  for (const e of G.E){ if (e.dead || e.remote) continue; const s = e.size || 1, k = (e.x - ex)/(c*len || 1e-6); if (k < 0 || k > 1) continue;
+    const by = ey + sn*len*k; if (by < e.y - 92*s || by > e.y + 2) continue;
+    if (isBoss(e) || e.champ){ if (B.tick <= 0) damageEnemy(e, Math.max(70*FM(), (e.maxHp || 100)*0.05), { kb:40, dir:f, src:'form', unblockable:true, noStop:true, quiet:true, burn:10 }); continue; }
+    e.astraBehead = by < e.y - 62*s; e.astraDir = f; e.hp = 0; e.vx = f*160; killEnemy(e); B.cut++;   // cut through
+    G.cuts.push({ x:e.x, y:by, s, life:0.3, col:'#FF5A3D' });
+    emit(e.x, by, { n:12, col:['#FFE7A8', '#FF5A3D', '#FFFFFF'], spd:320, size:3, life:0.5, kind:'ember', g:0.6, real:false });
+    if (B.cut % 3 === 1) pop(e.x, e.y - 100*s, 'Cut!', '#FF8A5A'); }
+  if (B.tick <= 0) B.tick = 0.1;
+  if (B.snd <= 0){ B.snd = 0.22; sfx('storm', 0.005); }
+  G.shake = Math.max(G.shake, 1.6);
+  if (sn > 0.01 && FXL() > 0){ emit(B.x2, GROUND - 2, { n:2, col:['#FFE7A8', '#FF5A3D', '#3A2A2A'], spd:220, size:3, life:0.45, kind:'ember', g:1, vy:-160, real:false });   // the ground it touches smokes
+  }
+}
+function drawEyeBeam(P){
+  const B = G.hm && G.hm.laser; if (!B || B.x2 == null || P.dead) return;
+  const t = G.time, w = 1 + 0.18*Math.sin(t*60) + 0.1*Math.sin(t*23), on = Math.min(1, B.t/0.06);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+  for (const k of [-1, 1]){   // two beams, one from each eye, meeting at the far end
+    const sx = B.ex + k*1.6, sy = B.ey + k*0.8;
+    const L = (lw, col, a) => { ctx.globalAlpha = a*on; ctx.strokeStyle = col; ctx.lineWidth = lw*w; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(B.x2, B.y2); ctx.stroke(); };
+    L(16, '#FF2A1A', 0.18); L(8, '#FF5A3D', 0.45); L(3.4, '#FFB070', 0.9); L(1.3, '#FFFFFF', 1); }
+  glowDot(ctx, B.ex, B.ey, 22*w, '#FF5A3D', 0.9*on); glowDot(ctx, B.ex, B.ey, 8, '#FFFFFF', on);   // the eyes blaze
+  ctx.globalCompositeOperation = 'lighter'; glowDot(ctx, B.x2, B.y2, 34*w, '#FF8A3A', 0.8*on); glowDot(ctx, B.x2, B.y2, 12, '#FFFFFF', on);   // where it burns
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function drawHammer(P){
+  drawEyeBeam(P);
   const H = G.hm; if (!H || G.mode !== 'hammer') return;
   if (H.state === 'held' && H.ult && !P.dead){ const U = H.ult, h = hammerHand(P), f = P.face || 1, up = -Math.PI/2, dn = f > 0 ? 0.6 : Math.PI - 0.6, ang = U.t < 1.1 ? up : dn;
     const q = Math.min(1, U.t/0.25)*(1 - clamp((U.t - 1.2)/0.3, 0, 1));
@@ -6093,7 +6143,7 @@ const held = {}, pressed = {};
 const SHADOW_KEYS = { '2':'forge', g:'shNames', x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
 const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory', v:'ghostAim' };   // Warzone only
 const SPIDER_KEYS = { f:'venom' };   // Spider Chase only: F = Venom Strike
-const HAMMER_KEYS = { f:'godstorm' };   // Hammer mode only: F = Godstorm
+const HAMMER_KEYS = { f:'godstorm', g:'eyebeam' };   // Hammer mode only: F = Godstorm
 const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || (G_ref && G_ref.mode === 'spider' && SPIDER_KEYS[k]) || (G_ref && G_ref.mode === 'hammer' && HAMMER_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
@@ -7501,6 +7551,7 @@ function updatePlayer(dt){
     P.flyPose = lerp(P.flyPose || 0, P.fly ? 1 : 0, P.onG && !P.fly ? 1 - Math.exp(-14*dt) : 1 - Math.exp(-5*dt));
     if (!P.fly) P.thrust = Math.max(0, (P.thrust || 0) - dt*3.5);
     P.boostT = (P.boostT||0) - dt; P.boostCd = (P.boostCd||0) - dt; }
+  sprintTick(P, dt);   // hold L: run on at full speed (and hold J too: fight as you run)
   const preY = P.y; P.vy += grav*dt; P.x += P.vx*dt; P.y += P.vy*dt; webSwingStep(P, dt);
   const FL = G.world ? worldFloor(P, preY) : G.fc ? fcFloor(P, preY, dt) : GROUND;
   if (!P.onG && P.vy > 450 && !P.atk && !P.fly && !P.form && FXL() > 0){ if (!P.fallRib){ G.ribbonSeq++; P.fallRib = true; } recordRibbon(P, '#FFB020', '#FFE38A', 'slash', 0.12, 2); } else P.fallRib = false;   // blade trails on a long fall
@@ -7528,6 +7579,35 @@ function nearestFoe(range){
   const P = G.P; let best = null, bd = range;
   for (const e of G.E){ if (e.dead || !sameLayer(e) || (e.remote && G.mode === 'coop')) continue; const d = Math.abs(e.x - P.x); if (d < bd && Math.abs(e.y - P.y) < 120){ bd = d; best = e; } }
   return best;
+}
+/* ===== HOLD L: SPRINT. Tap L is still the dash; keep holding it and you run on at full speed (A / D steer it), in every mode.
+   Anyone in your path is shoved aside. HOLD L + J: you fight as you run: every enemy you reach gets hit without you slowing
+   down, and the shoulder that hits them first hurts too. ===== */
+const SPRINT_SPD = 860;
+function sprintTick(P, dt){
+  P.dashHeldT = held.dash ? (P.dashHeldT || 0) + dt : 0;
+  const ok = held.dash && !P.dead && !P.form && !P.ride && !P.fly && !P.wg && !(P.webFly > 0) && !(P.stunT > 0) && !P.vthrow && !P.gsum && !P.flip && !(G.hm && G.hm.ult) && !(P.hurtT > 0.1) && !P.sheath;
+  if (!(ok && P.dashHeldT > 0.16 && !(P.dashT > 0))){ if (P.sprint){ P.sprint = false; P.atk && P.atk.rush && (P.atk.rush = false); } return; }
+  const mv = (held.right ? 1 : 0) - (held.left ? 1 : 0);
+  if (!P.sprint){ P.sprint = true; P.sprintDir = mv || P.face || 1; P.sprFx = 0; P.sprV = P.vx; sfx('whoosh'); } else if (mv) P.sprintDir = mv;
+  const dir = P.sprintDir, fight = !!held.attack, spd = SPRINT_SPD*(G.ST.spd || 1)*(fight ? 0.92 : 1);
+  P.sprV = lerp(P.sprV ?? P.vx, dir*spd, Math.min(1, dt*(P.onG ? 10 : 4))); P.vx = P.sprV; P.blockT = -1;   // its own speed: the walk code can't pull it back
+  if (!P.atk) P.face = dir;
+  // the path ahead: shoved aside, or (holding J) struck
+  for (const e of G.E){ if (e.dead || e.remote || e.webHeld || e.hmGrab) continue; const ahead = (e.x - P.x)*dir, s = e.size || 1;
+    if (ahead < -6 || ahead > 44*s || Math.abs((e.y - 40*s) - (P.y - 40)) > 70*s) continue;
+    if (G.time < (e.sprHitT || 0)) continue; e.sprHitT = G.time + 0.35;
+    if (fight) damageEnemy(e, 14*FM(), { kb:420, dir, src:'slash', stun:0.4, noStop:true, quiet:true, launch:isBoss(e) ? 0 : 260 });
+    else if (!isBoss(e)){ e.vx = dir*380; e.vy = -200; e.onG = false; e.state = 'hurt'; e.timer = Math.max(e.timer || 0, 0.35); e.atk = null; }
+    impactFx(e.x - dir*14*s, e.y - 40*s, fight ? '#FFE7A8' : '#FFFFFF', 0.8); G.shake = Math.max(G.shake, fight ? 3 : 2); sfx(fight ? 'hit' : 'swish', 0.01); }
+  if (fight && !P.atk){   // swing at whoever is next, without breaking stride
+    let tgt = null, bd = 130; for (const e of G.E){ if (e.dead || e.remote) continue; const a = (e.x - P.x)*dir; if (a > -10 && a < bd && Math.abs(e.y - P.y) < 130){ bd = a; tgt = e; } }
+    if (tgt){ P.face = dir; startAttack('punch'); if (P.atk){ P.atk.rush = true; P.atk.tgt = null; } } }
+  // how it looks: afterimages, streaks, dust thrown back
+  P.sprFx -= dt;
+  if (FXL() > 0){ if (Math.random() < (FXL() === 2 ? 0.55 : 0.3)) G.echoes.push({ snap:heroSnap(P, { vx:0, form:null, blockT:-1, dashT:0, hurtT:0 }), life:0.12, max:0.24, col:fight ? '#FFE7A8' : G.ST.trail });
+    if (P.sprFx <= 0){ P.sprFx = 0.1; speedLines(P.x - dir*30, P.y - 40, 6, fight ? '#FFE7A8' : '#FFFFFF', 0.18); }
+    if (P.onG && Math.random() < 0.5) emit(P.x - dir*12, GROUND - 3, { n:1, col:['rgba(120,90,80,0.55)', 'rgba(80,60,55,0.5)'], spd:180, size:9, life:0.4, kind:'mist', g:-0.2 }); }
 }
 function tryDashSlash(){
   const P = G.P;
