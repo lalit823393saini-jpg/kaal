@@ -5116,12 +5116,14 @@ function startHammer(){
   G.worldW = 3200; resetCommon();
   G.hm = { state:'held', x:0, y:0, vx:0, vy:0, rot:0, hit:new Set() };
   G.hammerS = { spawnT:2.5 }; G.smart = 0; G.smartL = 2; G.smartAnn = false;
-  for (let i = 0; i < 3; i++){ const e = makeEnemy('grunt', 1000 + i*160, G.diff, false); G.E.push(e); outclass(modeDress(e, 'hammer'), 0); }
+  for (let i = 0; i < HM_HORDE; i++){   // the horde: twenty of them from the start, from both sides
+    const side = i % 2 ? 1 : -1, x = clamp(1000 + side*(260 + (i >> 1)*70 + rnd(0, 40)), 60, G.worldW - 60);
+    const e = makeEnemy(i < 14 ? 'grunt' : pick(['grunt', 'fencer', 'archer']), x, G.diff, true); G.E.push(e); outclass(modeDress(e, 'hammer'), 0); }
   toast('Hammer mode', 1.2);
-  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back · M: strap swing + uppercut · N: lightning from the sky', '#7FE3FF'); }, 1200);
+  setTimeout(() => { if (G.running && G.mode === 'hammer') showBanner('Hammer mode', 'Storm-iron', 'J: smash · Z: throw / call back (fists keep its lightning) · M: strap swing · N: lightning · F: GODSTORM (ultimate, any time)', '#7FE3FF'); }, 1200);
   setScreen(null); G.running = true;
 }
-const HM_SPEED = 1450;
+const HM_SPEED = 1450, HM_HORDE = 20;   // how many come at you at once
 const hammerRange = () => 380 + Math.min(1400, (SV.hammerXP || 0)*6);   // experience = how far you can throw it
 const hammerLevel = () => 1 + Math.floor((SV.hammerXP || 0)/25);
 function hammerTick(dt, alive){
@@ -5131,9 +5133,13 @@ function hammerTick(dt, alive){
   if (k > (SV.hammerBest || 0)){ SV.hammerBest = k; saveSoon(); }
   G.diff = learnDiff(k);   // past 10 kills they learn: stronger, faster, sharper
   S.spawnT -= dt;
-  const want = Math.min(3 + Math.floor(k/5), 10);
+  const want = HM_HORDE;   // always twenty on the field: kill some and more pour in
   if (alive >= want || S.spawnT > 0) return;
-  S.spawnT = Math.max(0.6, 1.8 - k*0.02);
+  S.spawnT = 0.35;
+  for (let n = Math.min(4, want - alive); n > 1; n--) hammerSpawnOne(P, k);   // they come in groups
+  hammerSpawnOne(P, k);
+}
+function hammerSpawnOne(P, k){
   const pool = ['grunt', 'grunt', 'fencer', 'assassin', 'brute', 'ninja', 'runner', 'shield', 'archer', 'archer', 'demon'];   // no guns in the north
   const type = pool[(Math.random()*Math.min(pool.length, 3 + Math.floor(k/4)))|0];
   const side = Math.random() < 0.6 - 0.25*(G.smart || 0) ? 1 : -1;   // smarter ones come at you from behind more often
@@ -5146,6 +5152,8 @@ function hammerTick(dt, alive){
 function hammerUpdate(P, dt){
   const H = G.hm; if (!H || G.mode !== 'hammer') return;
   P.throwT = (P.throwT || 0) - dt; P.catchT = (P.catchT || 0) - dt;
+  if (pressed.godstorm){ pressed.godstorm = false; hammerUltStart(P, H); }
+  if (H.ult){ hammerUltTick(P, H, dt); pressed.climb = pressed.launch = pressed.map = pressed.attack = pressed.kick = false; return; }
   if (pressed.climb && !P.dead){
     if (H.state === 'held' && !(P.throwT > 0)){   // Z: wind the arm back over the shoulder, then the throw
       P.throwT = 0.34; H.dir = P.face || 1; H.windT = 0.15;
@@ -5162,7 +5170,7 @@ function hammerUpdate(P, dt){
   if (H.strap) hammerStrapTick(P, H, dt);
   if (H.state === 'held' && H.windT > 0){ H.windT -= dt;
     if (H.windT <= 0){   // the arm comes through: it leaves the hand here
-      H.id = (H.id || 0) + 1; H.state = 'fly'; H.dir = P.face || H.dir || 1; H.x = P.x + H.dir*30; H.y = P.y - 56; H.vx = H.dir*HM_SPEED; H.vy = 0; H.trav = 0; H.max = hammerRange(); H.hit = new Set();
+      H.id = (H.id || 0) + 1; H.state = 'fly'; pop(P.x, P.y - 120, 'Storm Fists!', '#7FE3FF'); H.dir = P.face || H.dir || 1; H.x = P.x + H.dir*30; H.y = P.y - 56; H.vx = H.dir*HM_SPEED; H.vy = 0; H.trav = 0; H.max = hammerRange(); H.hit = new Set();
       sfx('whoosh'); G.shake = Math.max(G.shake, 2); vib(20); } }
   if (H.state === 'fly'){
     if (H.trav < H.max && H.x > 20 && H.x < G.worldW - 20){ H.x += H.vx*dt; H.trav += Math.abs(H.vx)*dt; }   // straight and level until its strength runs out
@@ -5204,6 +5212,44 @@ function hammerUpdate(P, dt){
       H.strainT = (H.strainT || 0) + dt; if (H.strainT > 1.6){ H.strainT = 0; pop(e.x, e.y - 100*(e.size || 1), ['Hnnngh!', "It won't move", 'So heavy...'][(Math.random()*3)|0], '#FF8A5A'); }
       if (Math.random() < 0.25) emit(H.x, GROUND - 4, {n:1, col:['#5a4a40'], spd:40, size:3, life:0.4, kind:'rock', g:1.2, vy:-40}); }
   }
+}
+/* ===== F: GODSTORM, the hammer's ultimate. No cooldown, no cost: use it as often as you like (one at a time).
+   The hammer flies back to your hand wherever it is, you rise into the air with it held to the sky, lightning rains on every
+   enemy in sight, then you come down hammer-first and the ground breaks in a shockwave across the screen. You can't be hurt
+   while it lasts. ===== */
+function hammerUltStart(P, H){
+  if (H.ult || P.dead) return;
+  if (H.state !== 'held'){ ringFx(H.x, H.y, 60, '#7FE3FF'); bolt(H.x, H.y, P.x, P.y - 48, '#DFF6FF');   // wherever it was, it is in your hand
+    if (H.grab && !H.grab.dead){ H.grab.hmGrab = false; H.grab.hmCarry = false; } H.grab = null; if (H.seeker){ H.seeker.hmSeek = false; H.seeker = null; }
+    H.state = 'held'; H.windT = 0; P.throwT = 0; }
+  H.strap = null; H.storm = null; P.atk = null;
+  H.ult = { t:0, y0:P.y, tick:0, n:0, slam:false, landed:false };
+  pop(P.x, P.y - 130, 'GODSTORM', '#DFF6FF'); sfx('storm'); sfx('whoosh', 0.01); vib(40); zoomPunch(1.04);
+}
+function hammerUltTick(P, H, dt){
+  const U = H.ult; U.t += dt; P.inv = Math.max(P.inv || 0, 0.15); P.vx *= Math.pow(0.02, dt); P.atk = null;
+  const top = (G.camY || 0) - 40, inView = e => !e.dead && !e.remote && e.x > G.camX - 40 && e.x < G.camX + VW + 40;
+  if (U.t < 1.1){   // up, and held there
+    const want = U.y0 - 150*FC_EASE(Math.min(1, U.t/0.35)); P.y = lerp(P.y, want, Math.min(1, dt*14)); P.vy = 0; P.onG = false;
+    if (U.t < 0.35){ if (Math.random() < 0.6){ const h = hammerHand(P); bolt(h[0] + rnd(-40, 40), top, h[0], h[1] - 40, '#DFF6FF'); } }   // the sky pours into the hammer
+    else { U.tick -= dt; if (U.tick <= 0){ U.tick = 0.05;   // lightning on everyone in sight, one after another
+        const foes = G.E.filter(inView), e = foes.length ? foes[U.n++ % foes.length] : null;
+        const x = e ? e.x + rnd(-6, 6) : G.camX + rnd(60, VW - 60), y = e ? e.y - 30*(e.size || 1) : GROUND;
+        bolt(x + rnd(-40, 40), top, x, y, '#DFF6FF'); bolt(x + rnd(-60, 60), top, x, y, '#7FE3FF'); ringFx(x, GROUND, 46, '#7FE3FF', true);
+        if (e) damageEnemy(e, 90*FM(), { kb:60, dir:sign(e.x - P.x) || 1, src:'form', stun:1.2, noStop:true, burn:8, unblockable:true });
+        if (U.n % 3 === 0){ flash('#DFF6FF', 0.06); sfx('storm', 0.01); } } } }
+  else if (!U.landed){ P.vy = 2400; P.onG = false;   // down, hammer first
+    if (P.y >= GROUND - 2 || P.onG){ U.landed = true; P.y = GROUND; P.vy = 0; P.onG = true;
+      const R = VW*0.75;
+      for (const e of G.E){ if (e.dead || e.remote) continue; const dx = e.x - P.x, dd = Math.abs(dx); if (dd > R) continue; const fall = 1 - dd/R*0.6;
+        damageEnemy(e, 240*FM()*fall, { kb:620*fall, dir:sign(dx) || 1, src:'form', heavy:true, knockdown:1.6, launch:420*fall, unblockable:true, noStop:true, breakArmor:3 }); }
+      for (let k = 1; k <= 4; k++) ringFx(P.x, GROUND - 4, 90*k, k % 2 ? '#7FE3FF' : '#FFFFFF', true);
+      cracks(P.x, 420, '#7FE3FF'); emit(P.x, GROUND - 4, { n:40, col:['#5a4a40', '#7FE3FF', '#FFFFFF', '#C9A27A'], spd:620, size:6, life:1, kind:'rock', g:1.5, vy:-380, real:true });
+      for (let k = 0; k < 6; k++){ const x = P.x + (k - 2.5)*120; bolt(x + rnd(-30, 30), top, x, GROUND, k % 2 ? '#DFF6FF' : '#7FE3FF'); }
+      G.shake = Math.max(G.shake, 26); zoomPunch(1.09); G.hitstop = Math.max(G.hitstop, 0.14); flash('#FFFFFF', 0.28); speedLines(P.x, GROUND - 40, 24, '#DFF6FF', 0.35);
+      sfx('boom'); sfx('stone', 0.02); sfx('storm', 0.04); vib(120); } }
+  if (U.landed && U.t > 1.1) { U.after = (U.after || 0) + dt; if (U.after > 0.3) H.ult = null; }
+  if (U.t > 3) H.ult = null;   // never stuck
 }
 /* M: the hammer hangs from the leather strap on the end of the haft; you swing it round and round beside you, faster and faster,
    hitting anyone it passes, then catch the haft low and drive it up under the nearest enemy's chin */
@@ -5290,6 +5336,13 @@ function drawHammerAt(x, y, ang, a, sc){
 }
 function drawHammer(P){
   const H = G.hm; if (!H || G.mode !== 'hammer') return;
+  if (H.state === 'held' && H.ult && !P.dead){ const U = H.ult, h = hammerHand(P), f = P.face || 1, up = -Math.PI/2, dn = f > 0 ? 0.6 : Math.PI - 0.6, ang = U.t < 1.1 ? up : dn;
+    const q = Math.min(1, U.t/0.25)*(1 - clamp((U.t - 1.2)/0.3, 0, 1));
+    ctx.save(); ctx.fillStyle = `rgba(8,16,36,${0.5*q})`; ctx.fillRect(G.camX - 60, (G.camY || 0) - 200, VW + 120, VH + 600); ctx.restore();   // the sky goes dark
+    drawHammerAt(h[0] - Math.cos(ang)*4, h[1] - Math.sin(ang)*4, ang, 1, 0.85);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; const hx = h[0] + Math.cos(ang)*30, hy = h[1] + Math.sin(ang)*30, g = ctx.createRadialGradient(hx, hy, 2, hx, hy, 60);
+    g.addColorStop(0, 'rgba(223,246,255,0.95)'); g.addColorStop(1, 'rgba(127,227,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 60, 0, 6.283); ctx.fill(); ctx.restore();
+    return; }
   if (H.state === 'held' && H.storm && !P.dead){ const S = H.storm, h = hammerHand(P), f = P.face || 1;
     const up = -Math.PI/2, fwd = f > 0 ? -0.45 : Math.PI + 0.45, ang = S.t < 0.42 ? up : lerp(up, fwd, FC_EASE(Math.min(1, (S.t - 0.42)/0.1)));
     const q = Math.min(1, S.t/0.25)*(1 - clamp((S.t - 1.15)/0.2, 0, 1));
@@ -6040,7 +6093,8 @@ const held = {}, pressed = {};
 const SHADOW_KEYS = { '2':'forge', g:'shNames', x:'exchange', c:'ruler', v:'monarch', i:'realm', q:'legionGo', z:'armyView', n:'system', f:'bloodlust', '1':'stealth', m:'auto', enter:'storyNext' };   // Shadow Legion only: the Monarch's powers
 const GUN_KEYS = { r:'gmReload', q:'gmSwap', f:'gmNade', i:'armory', v:'ghostAim' };   // Warzone only
 const SPIDER_KEYS = { f:'venom' };   // Spider Chase only: F = Venom Strike
-const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || (G_ref && G_ref.mode === 'spider' && SPIDER_KEYS[k]) || keyMap[k];
+const HAMMER_KEYS = { f:'godstorm' };   // Hammer mode only: F = Godstorm
+const keyFor = k => (G_ref && G_ref.mode === 'shadow' && SHADOW_KEYS[k]) || (G_ref && G_ref.mode === 'guns' && GUN_KEYS[k]) || (G_ref && G_ref.mode === 'spider' && SPIDER_KEYS[k]) || (G_ref && G_ref.mode === 'hammer' && HAMMER_KEYS[k]) || keyMap[k];
 let slowToggled = false;
 addEventListener('keydown', ev => {
   if (W3.on || W3.loading) return;
@@ -6055,7 +6109,7 @@ addEventListener('keydown', ev => {
   if (!ev.repeat) pressed[a] = true;
   held[a] = true;
 });
-addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; for (const k in GUN_KEYS) if (ev.key.toLowerCase() === k) held[GUN_KEYS[k]] = false; for (const k in SPIDER_KEYS) if (ev.key.toLowerCase() === k) held[SPIDER_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
+addEventListener('keyup', ev => { const a = keyFor(ev.key.toLowerCase()); if (a) held[a] = false; for (const k in SHADOW_KEYS) if (ev.key.toLowerCase() === k) held[SHADOW_KEYS[k]] = false; for (const k in GUN_KEYS) if (ev.key.toLowerCase() === k) held[GUN_KEYS[k]] = false; for (const k in SPIDER_KEYS) if (ev.key.toLowerCase() === k) held[SPIDER_KEYS[k]] = false; for (const k in HAMMER_KEYS) if (ev.key.toLowerCase() === k) held[HAMMER_KEYS[k]] = false; if (ev.key === 'Alt') ev.preventDefault(); });   // Alt on its own must not open the browser menu
 cv.addEventListener('mousedown', ev => { if (ev.button === 0 && G_ref && G_ref.mode === 'guns' && G_ref.running && G_ref.P){ gwDown(ev.clientX, ev.clientY, 'mouse'); return; }   // Warzone: drag to aim a ghost dash
   if (ev.button === 0) pressed.attack = true; if (ev.button === 2) held.block = true; });
 addEventListener('mouseup', ev => { if (ev.button === 2) held.block = false; if (ev.button === 0) gwUp(); });
@@ -6945,6 +6999,11 @@ function damageEnemy(e, dmg, o){
   if (G.mode === 'hammer' && o.fist && G.hm && G.hm.state === 'held' && !e.dead){   // a hammer in your fist: every blow lands like a falling wall
     dmg *= 2.4; o = Object.assign({}, o, { kb:(o.kb || 120)*1.8, heavy:true, breakArmor:Math.max(o.breakArmor || 0, 2) });
     impactFx(e.x, e.y - 36*(e.size || 1), '#7FE3FF', 1.1); G.shake = Math.max(G.shake, 2.5); }
+  else if (G.mode === 'hammer' && o.fist && G.hm && G.hm.state !== 'held' && !e.dead && !o.sfChain){   // STORM FISTS: the hammer is away, its lightning stays in your hands
+    dmg *= 2; o = Object.assign({}, o, { kb:(o.kb || 120)*1.4, stun:Math.max(o.stun || 0, 0.35) });
+    const s = e.size || 1, ey = e.y - 36*s; bolt(e.x + rnd(-20, 20), ey - 120, e.x, ey, '#DFF6FF'); impactFx(e.x, ey, '#7FE3FF', 1); G.shake = Math.max(G.shake, 3);
+    let best = null, bd = 190; for (const o2 of G.E){ if (o2 === e || o2.dead || o2.remote) continue; const d2 = Math.abs(o2.x - e.x); if (d2 < bd){ bd = d2; best = o2; } }
+    if (best){ bolt(e.x, ey, best.x, best.y - 36*(best.size || 1), '#7FE3FF'); damageEnemy(best, dmg*0.45, { kb:120, dir:sign(best.x - e.x) || 1, src:'form', stun:0.4, noStop:true, quiet:true, sfChain:true }); } }   // it jumps to the next one
   if (e.dead) return false;
   if (G.mode === 'shadow' && o.src !== 'shadow' && !e.shadow) dmg *= forgeDmgK();   // your forged weapon
   if (G.mode === 'spider' && (o.fist || o.src === 'slash')) dmg *= 1.6;   // the suit hits harder than a man
@@ -9049,9 +9108,7 @@ function followTick(dt){
   if (!SV.set.cinecam || !P || G.mode === 'arena' || G.mode === 'duel' || G.mode === 'coop' || P.dead){ if (G.follow) G.follow = null; return; }
   if (!G.follow){
     const H = G.hm;
-    if (H && H.state === 'fly' && H._fol !== H.id){ H._fol = H.id; startFollow(() => H.state === 'fly' ? { x:H.x, y:H.y } : null); }
-    else if (H && H.state === 'return' && H._folR !== H.id){ H._folR = H.id; startFollow(() => H.state === 'return' ? { x:H.x, y:H.y } : null); }
-    else if (G.astra && G._folA !== G.astra){ const A = G.astra; G._folA = A; startFollow(() => G.astra === A ? astraFocus(A) : null); }
+    if (G.astra && G._folA !== G.astra){ const A = G.astra; G._folA = A; startFollow(() => G.astra === A ? astraFocus(A) : null); }
     else {
       const p = G.proj.find(p => !p._fs && p.life > 0 && followable(p));
       if (p){ for (const q of G.proj) if (followable(q)) q._fs = true; startFollow(() => p.life > 0 ? { x:p.x, y:p.y } : null); }
@@ -10216,7 +10273,10 @@ function getPose(e){
   if (e.isPlayer && e.gsum && e.gsum.leap && !e.gsum.landed){ P_.a = -1.7; P_.a2 = -1.7; P_.ext = P_.ext2 = 1; P_.lean = -0.25; P_.crouch = 0; }   // gada over the head in the air
   else if (e.isPlayer && e.gsum && e.gsum.landed){ P_.a = 1.1; P_.a2 = 1.0; P_.ext = P_.ext2 = 1; P_.lean = 0.5; P_.crouch = 18; }   // brought down on the earth
   if (e.isPlayer && e.bsum && !e.bsum.released){ P_.a = -1.45; P_.a2 = -1.55; P_.ext = P_.ext2 = 0.8; P_.lean = 0; P_.crouch = 20; P_.legs = FC_LEG.kneel; P_.legW = 1; }   // kneeling, hands raised together
-  if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.storm){ const S = G.hm.storm;
+  if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.ult){ const U = G.hm.ult;
+    if (U.t < 1.1){ const u = FC_EASE(Math.min(1, U.t/0.25)); P_.a = lerp(P_.a, -1.62, u); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.12, u); }
+    else { P_.a = 0.6; P_.ext = 1; P_.lean = 0.35; } }
+  else if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.storm){ const S = G.hm.storm;
     if (S.t < 0.42){ const u = FC_EASE(Math.min(1, S.t/0.2)); P_.a = lerp(P_.a, -1.62, u); P_.ext = 1; P_.lean = lerp(P_.lean || 0, -0.12, u); }   // straight up to the sky
     else { const u = FC_EASE(Math.min(1, (S.t - 0.42)/0.1)); P_.a = lerp(-1.62, -0.45, u); P_.ext = 1; P_.lean = lerp(-0.12, 0.2, u); } }   // then at them
   else if (e.isPlayer && G.mode === 'hammer' && G.hm && G.hm.strap){ const S = G.hm.strap;
