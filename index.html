@@ -5773,6 +5773,94 @@ function track(id, amt){
 }
 let saveTimer = null;
 function saveSoon(){ if (saveTimer) return; saveTimer = setTimeout(() => { saveTimer = null; save(); }, 800); }
+/* ===== STYLE RANK + CHAOS EVENTS: two things that make every fight worth playing well.
+   STYLE: every hit fills a meter, more for changing it up (cuts, kicks, punches, lasers, slams, venom...) and for hits on
+   enemies in the air; doing the same thing over and over fills it slowly. D > C > B > A > S > SS > SSS. It drains when you
+   stop fighting and halves when you get hit. The higher the rank, the more coins each kill pays.
+   CHAOS EVENTS: every 35 to 55 s of fighting, something happens: a Blood Moon, a Meteor Rain, a Frenzy, a Golden Foe. ===== */
+const STYLE_RANKS = [['D', 'Dull', '#9AA0A8'], ['C', 'Cool', '#7FB8FF'], ['B', 'Bravo', '#7FE39F'], ['A', 'Awesome', '#FFD23F'], ['S', 'Stylish', '#FF8A3A'], ['SS', 'Sensational', '#FF3B9A'], ['SSS', 'SAVAGE', '#FFFFFF']];
+const FUN_MODES = ['survival', 'hammer', 'shadow', 'spider', 'levels', 'arena', 'free', 'guns', 'coop', 'blitz', 'rush', 'zomb', 'world'];
+const styleRank = () => { const S = G.sty; if (!S || S.v < 25) return -1; return Math.min(6, Math.floor(S.v/100)); };
+function styleKind(o){ if (o.venom) return 'venom'; if (o.fist) return o.kick ? 'kick' : 'fist'; return o.heavy ? 'heavy' : (o.src || 'slash'); }
+function styleGain(amt, kind){
+  const S = G.sty = G.sty || { v:0, kinds:[], rank:-1, idle:0 }; let k = 1;
+  if (kind){ const rep = S.kinds.filter(x => x === kind).length; k = rep >= 5 ? 0.3 : rep >= 3 ? 0.65 : 1.2; S.kinds.push(kind); if (S.kinds.length > 8) S.kinds.shift(); }
+  if (G.ev && G.ev.id === 'bloodmoon') k *= 1.5;
+  S.v = Math.min(699, S.v + amt*k); S.idle = 0;
+}
+function styleHurt(){ const S = G.sty; if (!S || S.v < 25) return; S.v *= 0.5; S.kinds = []; if (G.P) pop(G.P.x, G.P.y - 125, 'Style broken', '#FF8A9A'); }
+function funTick(dt){
+  const P = G.P; if (!P || P.dead || !FUN_MODES.includes(G.mode)) { styleUI(-1); return; }
+  const S = G.sty = G.sty || { v:0, kinds:[], rank:-1, idle:0 };
+  S.idle += dt; const r0 = styleRank(); if (S.idle > 1.6) S.v = Math.max(0, S.v - dt*(10 + 9*Math.max(0, r0)));
+  const r = styleRank();
+  if (r > S.rank && r >= 0){ const R = STYLE_RANKS[r]; pop(P.x, P.y - 150, R[0] + ' \u00b7 ' + R[1] + '!', R[2]); if (r >= 4){ zoomPunch(1.03); flash(R[2], 0.06); } sfx(r >= 4 ? 'clang' : 'swish', 0.01); S.pop = 0.35; }
+  S.rank = r; S.pop = Math.max(0, (S.pop || 0) - dt); styleUI(r);
+  // chaos events
+  const alive = G.E.some(e => !e.dead && !e.remote);
+  G.evT = (G.evT ?? 25) - (alive ? dt : 0);
+  if (G.ev){ G.ev.t -= dt; evTick(G.ev, dt, P); if (G.ev.t <= 0){ evEnd(G.ev, P); G.ev = null; G.evT = rnd(35, 55); } }
+  else if (G.evT <= 0 && alive) evStart(P);
+}
+const CHAOS = {
+  bloodmoon:{ name:'Blood Moon',  col:'#FF3B3B', dur:20, desc:'They hit 30% harder. Style fills 50% faster, and every kill pays double.' },
+  meteor:   { name:'Meteor Rain', col:'#FF8A3A', dur:10, desc:'Rocks of fire fall on them from the sky. Stay close and watch.' },
+  frenzy:   { name:'Frenzy',      col:'#FFE14D', dur:12, desc:'You attack 45% faster and heal on every kill.' },
+  golden:   { name:'Golden Foe',  col:'#FFD23F', dur:15, desc:'One of them turned to gold. Kill it before it fades: a jackpot.' },
+};
+function evStart(P){
+  const ids = Object.keys(CHAOS), id = pick(ids.filter(k => k !== (G.evLast || ''))); G.evLast = id; const C = CHAOS[id];
+  G.ev = { id, t:C.dur, tick:0 };
+  if (id === 'golden'){ const c = G.E.filter(e => !e.dead && !e.remote && !isBoss(e) && !e.shadow); if (!c.length){ G.ev = null; G.evT = 5; return; }
+    const e = c.reduce((b, x) => Math.abs(x.x - P.x) < Math.abs(b.x - P.x) ? x : b); e.golden = true; e.maxHp *= 2; e.hp = e.maxHp; G.ev.e = e; }
+  showBanner('CHAOS EVENT', C.name, C.desc, C.col); sfx('storm', 0.01); flash(C.col, 0.12);
+}
+function evEnd(ev, P){ if (ev.id === 'golden' && ev.e && !ev.e.dead){ ev.e.golden = false; pop(ev.e.x, ev.e.y - 110, 'The gold fades...', '#C9A27A'); } }
+function evTick(ev, dt, P){
+  if (ev.id === 'meteor'){ ev.tick -= dt; G.meteors = G.meteors || [];
+    if (ev.tick <= 0){ ev.tick = 0.3; const foes = G.E.filter(e => !e.dead && !e.remote && e.x > G.camX - 50 && e.x < G.camX + VW + 50);
+      const tx = foes.length && Math.random() < 0.8 ? pick(foes).x + rnd(-30, 30) : G.camX + rnd(80, VW - 80);
+      if (Math.abs(tx - P.x) > 70) G.meteors.push({ x:tx - 260, y:(G.camY || 0) - 120, tx, vx:260/0.55, vy:0, t:0 }); } }
+  if (ev.id === 'golden' && ev.e && ev.e.dead) ev.t = 0;
+}
+function meteorsTick(dt){
+  const M = G.meteors; if (!M || !M.length) return;
+  for (const m of M){ m.t += dt; m.vy += 2600*dt; m.x += m.vx*dt; m.y += m.vy*dt;
+    if (FXL() > 0) emit(m.x, m.y, { n:2, col:['#FFB347', '#FF5A1A', '#5A3A2A'], spd:60, size:5, life:0.4, kind:'ember', g:-0.2, real:false });
+    if (m.y >= GROUND - 6){ m.done = true; const x = m.x;
+      areaHit(x, GROUND - 30, 120, 90, 70*FM(), { kb:380, kbAway:true, src:'form', launch:300, burn:8, noStop:true, quiet:true }, new Set());
+      ringFx(x, GROUND - 4, 120, '#FF8A3A', true); ringFx(x, GROUND - 4, 60, '#FFE7A8', true); cracks(x, 90, '#FF8A3A');
+      emit(x, GROUND - 6, { n:22, col:['#FFB347', '#FF5A1A', '#5A3A2A', '#FFE7A8'], spd:420, size:5, life:0.7, kind:'rock', g:1.5, vy:-300, real:true });
+      G.shake = Math.max(G.shake, 7); sfx('boom', 0.02); } }
+  G.meteors = M.filter(m => !m.done && m.t < 3);
+}
+/* drawn in the world: the event's sky, falling meteors, the golden foe's shine */
+function drawFunWorld(){
+  const ev = G.ev, t = G.time;
+  if (ev && ev.id === 'bloodmoon'){ ctx.save(); ctx.globalAlpha = 0.13 + 0.03*Math.sin(t*2); ctx.fillStyle = '#B0101E'; ctx.fillRect(G.camX - 60, (G.camY || 0) - 300, VW + 120, VH + 700); ctx.restore(); }
+  if (ev && ev.id === 'frenzy' && G.P && !G.P.dead) glowDot(ctx, G.P.x, G.P.y - 40, 70 + 8*Math.sin(t*14), '#FFE14D', 0.35);
+  for (const m of G.meteors || []){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,138,58,0.5)'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(m.x - m.vx*0.08, m.y - m.vy*0.08); ctx.lineTo(m.x, m.y); ctx.stroke(); ctx.restore(); glowDot(ctx, m.x, m.y, 30, '#FF8A3A', 0.9); glowDot(ctx, m.x, m.y, 10, '#FFFFFF', 1);
+    ctx.globalAlpha = 1; ctx.fillStyle = '#3A2418'; ctx.beginPath(); ctx.arc(m.x, m.y, 7, 0, 6.283); ctx.fill(); }
+  for (const e of G.E){ if (!e.golden || e.dead) continue; const s = e.size || 1;
+    glowDot(ctx, e.x, e.y - 40*s, (60 + 8*Math.sin(t*8))*s, '#FFD23F', 0.55);
+    if (Math.random() < 0.3 && FXL() > 0) emit(e.x + rnd(-14, 14)*s, e.y - rnd(10, 80)*s, { n:1, col:['#FFE7A8', '#FFD23F'], spd:30, size:3, life:0.6, kind:'star', g:-0.3, real:false });
+    ctx.save(); ctx.font = '600 16px Teko, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#FFD23F'; ctx.fillText('GOLDEN \u00b7 ' + Math.ceil(G.ev ? G.ev.t : 0) + ' s', e.x, e.y - 100*s); ctx.restore(); }
+}
+/* the rank, on the right side of the screen */
+function styleUI(r){
+  let el = document.getElementById('styleRank');
+  if (r < 0 || !G.running){ if (el) el.style.opacity = '0'; return; }
+  if (!el){ el = document.createElement('div'); el.id = 'styleRank';
+    el.style.cssText = 'position:fixed;right:18px;top:38%;width:150px;text-align:right;pointer-events:none;z-index:20;transition:opacity .25s;font-family:Teko,sans-serif;letter-spacing:1px;text-shadow:0 2px 6px rgba(0,0,0,.8)';
+    el.innerHTML = '<div id="srL" style="font-size:64px;line-height:.9;font-weight:600"></div><div id="srN" style="font-size:20px"></div><div style="height:6px;background:rgba(0,0,0,.45);border-radius:3px;margin-top:4px;overflow:hidden"><div id="srB" style="height:100%;width:0"></div></div><div id="srE" style="font-size:15px;margin-top:6px"></div>';
+    document.body.appendChild(el); }
+  const R = STYLE_RANKS[r], S = G.sty, L = document.getElementById('srL');
+  el.style.opacity = '1'; if (L.textContent !== R[0]) L.textContent = R[0]; L.style.color = R[2]; L.style.transform = `scale(${1 + 0.8*(S.pop || 0)}) skewX(-8deg)`;
+  const n = document.getElementById('srN'); n.textContent = R[1] + (r >= 2 ? ' \u00b7 kills \u00d7' + (1 + r*0.5).toFixed(1) : ''); n.style.color = R[2];
+  const b = document.getElementById('srB'); b.style.width = ((S.v % 100) || (r === 6 ? 100 : 0)) + '%'; b.style.background = R[2];
+  const ev = G.ev, E = document.getElementById('srE'); E.textContent = ev ? CHAOS[ev.id].name + ' \u00b7 ' + Math.ceil(ev.t) + ' s' : ''; E.style.color = ev ? CHAOS[ev.id].col : '';
+}
 function addCoins(n){ SV.coins += n; save(); }
 /* a long streak is worth real money: 10 hits x1.5, 20 x2, 35 x3, 50 x4 */
 function comboMult(){
@@ -6575,7 +6663,7 @@ function nextSurvWave(){
   track('survive', w);
 }
 function resetCommon(){
-  { for (const id of ['gwBtn', 'gmRBtn', 'gmQBtn', 'gmFBtn', 'gmIBtn', 'riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'forgePanel', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
+  { for (const id of ['gwBtn', 'gmRBtn', 'gmQBtn', 'gmFBtn', 'gmIBtn', 'riseBtn', 'callBtn', 'returnBtn', 'cmdBtn', 'enterBtn', 'exBtn', 'rulerBtn', 'monBtn', 'realmBtn', 'realmPanel', 'forgePanel', 'styleRank', 'sysBtn', 'blBtn', 'stBtn', 'sysPanel', 'autoBtn']){ const rb = document.getElementById(id); if (rb) rb.remove(); } }   // the Rise button belongs to Shadow Legion only
   if (G.stored){ syncLegion(true); G.stored = null; }
   if (G.ruler){ for (const e of G.ruler.list) e.webHeld = false; G.ruler = null; } G.realmOpen = false; G.forgeOpen = false; G.sysOpen = false; G.armoryOpen = false; { const ap = document.getElementById('armoryPanel'); if (ap) ap.remove(); } G.story = null; G.storyQ = []; G.autoFight = null; G.autoOn = false; G.autoForced = false; G._storyRank = null; G.evT = null; storyBox(false); storyBars(false); { const sp = document.getElementById('sysPanel'); if (sp) sp.remove(); } G.talk = []; G.slayFx = []; G.rogueT = null;   // leaving Shadow Legion (or starting it again): the legion is written first
   G.allies = []; G.corpses = [];
@@ -6589,7 +6677,7 @@ function resetCommon(){
   G.P = makePlayer(); G.E=[]; G.parts=[]; G.debris=[]; G.slashes=[]; G.orbs=[]; G.ghosts=[];
   G.astra=null; G.mo=null; G.moForm=null; G.lastShotT=-9; G.coins=[]; G.proj=[]; G.haz=[]; G.bolts=[]; G.rings=[]; G.pops=[]; G.trail=[]; G.clone=null; G.cuts=[]; G.dsLine=null;
   G.ribbon=[]; G.impacts=[]; G.suns=[]; G.cracks=[]; G.craters=[]; G.rocks=[]; G.echoes=[]; G.splats=[]; G.cine=null; G.cineOut=0; G.flashFx=null; G.zoomK=1; G.bwT=0; G.stopT=0; G.hurtFx=0; G.finishT=0;
-  G.comboN=0; G.comboT=0; G.bestCombo=0; G.slowWas=false; comboEl.classList.remove('on');
+  G.comboN=0; G.comboT=0; G.bestCombo=0; G.slowWas=false; comboEl.classList.remove('on'); G.sty = null; G.ev = null; G.evT = 25; G.meteors = [];
   G.eproj=[]; G.warns=[]; G.introT=0; G.introBoss=null;
   G.camX=0; G.slowK=0; G.hitstop=0; G.shake=0; G.time=0; G.kills=0; G.over=false; G.paused=false; G.earned=0; G.tookDamage=false;
   G.freePts = 0; G.freeBestShown = false;
@@ -7141,6 +7229,7 @@ function damageEnemy(e, dmg, o){
   }
   if (o.noKill) dmg = Math.min(dmg, Math.max(0, e.hp - 1));   // gada going out: it hurts, it does not kill
   e.hp -= dmg; e.flash = o.fist ? 0 : 0.1; e.hurtBar = 2;
+  e.lastSrc = o.src; if (o.src !== 'shadow' && !e.shadow && !o.sfChain && G.time - (G._styT || 0) > 0.03){ G._styT = G.time; styleGain(e.onG ? 7 : 12, styleKind(o)); }   // style
   {
     const ey = e.y - 34*e.size;
     const sid = (o.src==='form' && P.form && P.form.sid) ? P.form.sid : null;
@@ -7225,6 +7314,14 @@ function alertEnemy(e){
 function killEnemy(e){
   if (e.dead) return;
   e.dead = true; G.kills++;
+  if (!e.shadow && !e.remote && G.P && G.P.atk && (e.lastSrc === 'slash') && G.time > (G.finCd || 0) && !G.over){   // a killing blow worth watching: the world slows a breath
+    const lastOne = !G.E.some(o => o !== e && !o.dead && !o.remote && Math.abs(o.x - G.P.x) < VW*0.6), big = G.P.atk.d.heavy || isBoss(e);
+    if (lastOne || (big && Math.random() < 0.35)){ G.finCd = G.time + 5; G.finishT = Math.max(G.finishT || 0, lastOne ? 0.6 : 0.4); zoomPunch(1.08); flash('#FFFFFF', 0.12);
+      if (FXL() > 0){ ringFx(e.x, e.y - 40*(e.size || 1), 110, auraCol(), false, 3); speedLines(e.x, e.y - 40*(e.size || 1), 18, '#FFFFFF', 0.3); } } }
+  if (!e.shadow && !e.remote && e.lastSrc !== 'shadow' && FUN_MODES.includes(G.mode)){ styleGain(22, null);
+    const r = styleRank(), bonus = (r >= 2 ? Math.round(r*0.5*2) : 0) + (G.ev && G.ev.id === 'bloodmoon' ? 2 : 0); if (bonus > 0){ SV.coins += bonus; saveSoon(); }
+    if (G.ev && G.ev.id === 'frenzy' && G.P && !G.P.dead){ const h = G.P.maxHp*0.04; G.P.hp = Math.min(G.P.maxHp, G.P.hp + h); }
+    if (e.golden){ e.golden = false; SV.coins += 150; saveSoon(); styleGain(150, null); pop(e.x, e.y - 120*(e.size || 1), 'JACKPOT +150', '#FFD23F'); flash('#FFE7A8', 0.2); ringFx(e.x, e.y - 40, 160, '#FFD23F', true); burst(e.x, e.y - 40, 40, '#FFD23F', 520, 5, true); sfx('clang'); } }
   if (G.mode === 'guns' && !e.remote) gmKill(e);
   if (G.mode === 'shadow' && e.cmdr) gateCommanderFell(e);
   if (G.mode === 'shadow' && G.dungeon) dungeonKill(e);
@@ -7471,7 +7568,7 @@ function updatePlayer(dt){
   }
   if (P.atk){
     const A = P.atk, d = A.d;
-    A.t += dt*forgeAtkK(d);   // a forged dagger is quick, an axe slow
+    A.t += dt*forgeAtkK(d)*(G.ev && G.ev.id === 'frenzy' ? 1.45 : 1);   // a forged dagger is quick, an axe slow
     if (d.fist){
       const acting = A.t >= d.wind && A.t <= d.wind + d.act;
       if (d.rush && acting){ P.vx = P.face*d.rush; P.inv = Math.max(P.inv, 0.06); if (Math.random() < 0.7) G.echoes.push({ snap:{ isPlayer:true, x:P.x, y:P.y, vx:0, face:P.face, size:1, onG:P.onG, walk:P.walk, sword:P.sword, form:null, atk:null, blockT:-1, dashT:1, hurtT:0 }, life:0.14, max:0.3, col:ST.trail }); }
@@ -7703,6 +7800,10 @@ function startAttack(which){
   }
   P.atk = { i:idx, d, t:0, hit:new Set(), slashed:false };
   P.atkKey = (P.atkKey || 0) + 1;
+  if (!d.fist && !d.clips && clipWeapon(P) && !P.ride){ const v = swordVariant(P, idx, d);   // a different cut each time
+    if (v){ P.atk.clip = v.clip; P.atk.vn = v.nm;
+      if (v.ext){ const x = v.ext; P.atk.d = { ...d, ...x, range:d.range*(x.rangeK || 1), kb:x.kb || d.kb }; if (x.hop && P.onG){ P.vy = -470; P.onG = false; } }
+      if (v.show && Math.random() < 0.6) pop(P.x, P.y - 112, v.nm, '#FFE7A8'); } }
   if (d.fist && !d.quake && !d.rush && !d.grab){   // pick the enemy in front: the hand or foot is aimed at it and you step to the right distance
     let best = null, bd = 190;
     for (const o of G.E){ if (o.dead || o.vanish || !sameLayer(o)) continue; const dd = Math.abs(o.x - P.x); if (dd < bd && Math.abs(o.y - P.y) < 150){ bd = dd; best = o; } }
@@ -9211,6 +9312,8 @@ function hurtPlayer(dmg, kb, e, full){
   if (G.mode === 'shadow' && P.monarch){ dmg *= 0.4; kb *= 0.2; full = false; P.flash = 0.1; }   // the Monarch hardly feels it
   if (G.mode === 'shadow' && P.hp < P.maxHp*0.3) dmg *= 0.6;   // Tenacity
   dmg *= forgeTakeK();   // your forged armour
+  if (G.ev && G.ev.id === 'bloodmoon') dmg *= 1.3;
+  if (dmg > 0 && !(P.inv > 0)) styleHurt();
   const AT = forgeArmorTrait();   // and the nature the shadows gave it
   { const ai = G.mode === 'shadow' && forgeItem('armor'); if (ai && G.time > (P.armFxT || 0)){ P.armFxT = G.time + 0.25; ringFx(P.x, P.y - 40*(P.size || 1), 48, forgeRarity(ai.pow)[1], false, 3); sparks(P.x + rnd(-10, 10), P.y - rnd(30, 60)); } }
   if (AT){ if (AT.dodge && Math.random() < AT.dodge){ pop(P.x, P.y - 100, 'Missed!', '#C9A8FF'); P.inv = Math.max(P.inv || 0, 0.2); return; }
@@ -9308,6 +9411,59 @@ const SWORD_CLIPS = [
     { at:'a',  h:[17,-14], th:-1.3,  lean:0.25,  cr:6, pr:5,  legs:[-0.62,0.12, 0.62,0.72], two:true },
     { at:'r',  h:[15,-12], th:-1.9,  lean:0.15,  cr:5, pr:3,  legs:[-0.55,0.12, 0.55,0.60], two:true } ] },
 ];
+/* ===== A SWORD THAT DOESN'T REPEAT ITSELF: every step of the combo has several cuts and one is picked each swing (never the
+   same one twice in a row), and the situation changes it too: running hard = a lunging thrust, holding S = a low sweep at the
+   legs, in the air = a cut straight down. Each cut also does its own thing (the thrust reaches, the rising cut launches,
+   the leaping cut jumps in, the spin cuts everyone round you, the sweep knocks them down). ===== */
+const CUT = {
+  karatake:{ phi:0, keys:[   // straight down from over the head
+    { at:'w', h:[2,-34],  th:-2.2, lean:-0.08, cr:2, pr:-2, legs:[-0.32,0.12, 0.30,0.16], off:[-5,-8] },
+    { at:'i', h:[18,-20], th:-0.3, lean:0.22,  cr:5, pr:3,  legs:[-0.50,0.16, 0.55,0.55], off:[-7,-4] },
+    { at:'a', h:[17,-6],  th:1.1,  lean:0.30,  cr:7, pr:2,  legs:[-0.55,0.16, 0.60,0.62], off:[-7,-2] },
+    { at:'r', h:[15,-8],  th:0.9,  lean:0.20,  cr:6, pr:1,  legs:[-0.48,0.14, 0.52,0.50], off:[-6,-3] } ] },
+  tsuki:{ phi:0, keys:[      // the thrust: drawn back, driven straight through
+    { at:'w', h:[1,-16],  th:0.04, lean:-0.10, cr:4, pr:-6, legs:[-0.35,0.15, 0.35,0.25], off:[-8,-10] },
+    { at:'i', h:[25,-16], th:0,    lean:0.34,  cr:5, pr:7,  legs:[-0.70,0.10, 0.66,0.60], off:[-10,-4] },
+    { at:'a', h:[26,-16], th:0,    lean:0.36,  cr:5, pr:7,  legs:[-0.70,0.10, 0.66,0.60], off:[-10,-4] },
+    { at:'r', h:[16,-15], th:0.05, lean:0.16,  cr:4, pr:2,  legs:[-0.50,0.12, 0.50,0.40], off:[-7,-5] } ] },
+  kiriage:{ phi:0.4, keys:[  // the rising cut: from low behind, up through them
+    { at:'w', h:[9,-2],   th:1.9,  lean:0.10,  cr:7, pr:-3, legs:[-0.50,0.25, 0.52,0.58], off:[-6,-8] },
+    { at:'i', h:[18,-16], th:-0.4, lean:0.15,  cr:3, pr:3,  legs:[-0.40,0.12, 0.45,0.30], off:[-7,-5] },
+    { at:'a', h:[10,-35], th:-1.7, lean:0.00,  cr:0, pr:2,  legs:[-0.28,0.08, 0.32,0.12], off:[-6,-7] },
+    { at:'r', h:[11,-30], th:-1.4, lean:0.02,  cr:1, pr:1,  legs:[-0.30,0.10, 0.34,0.14], off:[-5,-6] } ] },
+  backhand:{ phi:1.13, keys:[ // the flat cut back the other way
+    { at:'w', h:[16,-15], th:-1.5, lean:0.20,  cr:5, pr:4,  legs:[-0.55,0.12, 0.55,0.55], off:[-6,-5] },
+    { at:'i', h:[17,-14], th:0.3,  lean:0.15,  cr:5, pr:2,  legs:[-0.50,0.15, 0.50,0.50], off:[-6,-5] },
+    { at:'a', h:[5,-13],  th:2.6,  lean:-0.05, cr:5, pr:-4, legs:[-0.45,0.30, 0.40,0.40], off:[-4,-6] },
+    { at:'r', h:[7,-12],  th:2.3,  lean:0.00,  cr:5, pr:-2, legs:[-0.45,0.25, 0.42,0.40], off:[-4,-6] } ] },
+  spin:{ phi:1.13, keys:[     // all the way round, two hands, low and wide
+    { at:'w',  h:[3,-13],  th:2.7,  lean:-0.05, cr:8, pr:-6, legs:[-0.55,0.45, 0.45,0.50], two:true },
+    { at:'wi', h:[12,-14], th:1.1,  lean:0.10,  cr:8, pr:0,  legs:[-0.60,0.30, 0.55,0.65], two:true },
+    { at:'i',  h:[19,-13], th:-0.2, lean:0.25,  cr:7, pr:6,  legs:[-0.66,0.12, 0.66,0.75], two:true },
+    { at:'a',  h:[9,-14],  th:-2.3, lean:0.10,  cr:7, pr:-2, legs:[-0.60,0.20, 0.58,0.70], two:true },
+    { at:'r',  h:[11,-12], th:-1.9, lean:0.10,  cr:6, pr:0,  legs:[-0.55,0.15, 0.55,0.60], two:true } ] },
+  sweep:{ phi:0.9, keys:[     // down low at the legs
+    { at:'w', h:[6,-6],   th:2.3,  lean:0.05,  cr:10, pr:-4, legs:[-0.70,0.70, 0.50,0.90], off:[-6,-4] },
+    { at:'i', h:[19,-2],  th:0.45, lean:0.30,  cr:11, pr:5,  legs:[-0.80,0.60, 0.70,1.10], off:[-8,-2] },
+    { at:'a', h:[13,0],   th:-0.9, lean:0.25,  cr:11, pr:3,  legs:[-0.80,0.60, 0.70,1.10], off:[-8,-2] },
+    { at:'r', h:[12,-3],  th:-0.6, lean:0.20,  cr:10, pr:2,  legs:[-0.75,0.60, 0.65,1.00], off:[-7,-3] } ] },
+};
+const SWORD_VARIANTS = [
+  [ { nm:'Kesa',   clip:() => SWORD_CLIPS[0] }, { nm:'Karatake', clip:() => CUT.karatake, ext:{ kb:220 } }, { nm:'Tsuki', clip:() => CUT.tsuki, ext:{ rangeK:1.3, thrust:340, cleave:3 } } ],
+  [ { nm:'Gyaku',  clip:() => SWORD_CLIPS[1] }, { nm:'Backhand', clip:() => CUT.backhand }, { nm:'Kiriage', clip:() => CUT.kiriage, ext:{ launch:380 } } ],
+  [ { nm:'Yoko',   clip:() => SWORD_CLIPS[2] }, { nm:'Leaping Cut', clip:() => CUT.karatake, ext:{ hop:true, kb:520 }, show:true }, { nm:'Whirlwind', clip:() => CUT.spin, ext:{ cleave:6, spin:true }, show:true },
+    { nm:'Sky Splitter', clip:() => CUT.kiriage, ext:{ launch:620 }, show:true } ],
+];
+function swordVariant(P, i, d){
+  const run = P.onG && (P.sprint || Math.abs(P.vx) > 380), air = !P.onG && !P.wg, low = held.down && P.onG;
+  if (low) return { nm:'Low Sweep', clip:CUT.sweep, ext:{ low:true, knockdown:1.1 }, show:true };
+  if (run) return { nm:'Lunge', clip:CUT.tsuki, ext:{ rangeK:1.35, thrust:520, cleave:4 }, show:true };
+  if (air) return { nm:'Air Drop', clip:CUT.karatake, ext:{ kb:300 } };
+  const set = SWORD_VARIANTS[Math.min(i, SWORD_VARIANTS.length - 1)], last = P.lastCut && P.lastCut[i];
+  const opts = set.filter(v => v.nm !== last); const v = pick(opts.length ? opts : set);
+  P.lastCut = P.lastCut || {}; P.lastCut[i] = v.nm;
+  return { nm:v.nm, clip:v.clip(), ext:v.ext, show:v.show };
+}
 /* ===== FORGED WEAPONS FIGHT LIKE WHAT THEY ARE: an Axe / Hammer smashes overhead into the ground, rises, and breaks the
    earth; a Spear thrusts with both hands; a Dagger cuts four times fast. Their own clips (same key format as the sword's),
    their own timings. A Blade keeps the sword's kesa / gyaku / yoko. ===== */
@@ -9385,7 +9541,7 @@ function forgeTinted(it, im, col){ const k = it.id + '|' + col; let c = FORGE_TI
   x.drawImage(im, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); return FORGE_TINT[k] = c; }
 /* which attacks get a clip: the one-blade sword combo (not fists, not twin blades), and a forged weapon's own */
 function clipWeapon(e){ const sw = e.sword; return !!(sw && !sw.fist && !sw.astra && (!sw.dual || (e.atk && e.atk.d && e.atk.d.clips))); }
-function clipOf(e){ const A = e.atk; if (!A || !A.d || A.d.fist) return null; return (A.d.clips || SWORD_CLIPS)[A.i] || null; }
+function clipOf(e){ const A = e.atk; if (!A || !A.d || A.d.fist) return null; return A.clip || (A.d.clips || SWORD_CLIPS)[A.i] || null; }
 /* the hand position (hip frame) of a pose computed by getPose(), as stickSegmentsRaw would place it */
 function poseHandOf(p){
   if (p.mainT) return p.mainT.slice();
@@ -13279,7 +13435,7 @@ function renderScene(){
     if (G.ring > 0){ ctx.strokeStyle=`rgba(255,231,168,${G.ring})`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y-40,(1-G.ring)*160+20,0,Math.PI*2); ctx.stroke(); }
     if (G.mode === 'shadow' || G.mode === 'guns' || G.mode === 'spider' || G.mode === 'hammer') drawFoeTalk();
     if (G.mode === 'guns') drawGhost();
-    drawFightFx();
+    drawFightFx(); drawFunWorld();
     // floating texts
     ctx.textAlign='center';
     for (const p of G.pops){
@@ -16816,7 +16972,7 @@ function frameBody(now){
   if (formNameT > 0){ formNameT -= dt; if (formNameT<=0) formNameEl.classList.remove('on'); }
   if (screens.dojo.classList.contains('on')) safeDraw(() => renderPreview(dt));
   moodT -= dt; if (moodT <= 0){ moodT = 0.5; MUS.mood = musicMood(); if (MUS.filt && AU.c && (!G.P || !G.running) && MUS.filt.frequency.value < 15000) MUS.filt.frequency.setTargetAtTime(16000, AU.c.currentTime, 0.2); }
-  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'forgePanel', 'sysPanel', 'armoryPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.forgeOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
+  if (!G.P){ for (const id of ['storyBox', 'storyBarT', 'storyBarB', 'realmPanel', 'forgePanel', 'styleRank', 'sysPanel', 'armoryPanel']){ const el = document.getElementById(id); if (el) el.remove(); } G.realmOpen = false; G.forgeOpen = false; G.sysOpen = false;   /* back on the menu: no game windows left open */
     demoTick(dt); for (const k in pressed) pressed[k] = false; viewFrame(dt); safeDraw(render); return; }
   if (pressed.pause && G.running && (!G.over || G.mode === 'duel')) togglePause();
   if (pressed.grab && G.running && !G.paused && G.mode !== 'arena'){   // T: cinematic follow cam on / off
@@ -17229,6 +17385,7 @@ function step(dt){
   if (G.mode === 'shadow' && !P.dead) shadowTick(dt, alive);
   if (G.mode === 'guns' && !P.dead){ gmTick(dt); gwTick(dt); gwCollide(dt); }
   if (G.mode === 'hammer'){ championTick(dt); gearTick(dt); }
+  funTick(dt); meteorsTick(dt);   // style rank and chaos events
   G.E = G.E.filter(e=>!e.dead);
   updateHUD(alive);
 }
